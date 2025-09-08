@@ -598,7 +598,7 @@ namespace SuperPutty
 
             if (String.IsNullOrEmpty(SuperPuTTY.Settings.PuttyExe))
             {
-                Messenger.MessageBox("Cannot find PuTTY installation. Please visit http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html to download a copy",
+                Messenger.MessageBox("Cannot find PuTTY executable. Please visit https://github.com/SilverGreen93/putty/releases to download a copy",
                     "PuTTY Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 Application.Exit();
                 System.Environment.Exit(1);
