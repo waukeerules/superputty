@@ -869,7 +869,7 @@ namespace SuperPutty.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("Ctrl+Shift+R")]
+        [global::System.Configuration.DefaultSettingValueAttribute("None")]
         public global::System.Windows.Forms.Keys Action_RestartSession_Shortcut {
             get {
                 return ((global::System.Windows.Forms.Keys)(this["Action_RestartSession_Shortcut"]));
