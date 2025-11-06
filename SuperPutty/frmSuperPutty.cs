@@ -41,12 +41,14 @@ using System.Text.RegularExpressions;
 using System.Runtime.Serialization.Json;
 using System.Threading;
 using DarkModeForms;
+using SuperPutty.Models;
 
 namespace SuperPutty
 {
     public partial class frmSuperPutty : Form
     {
         private static readonly ILog Log = LogManager.GetLogger(typeof(frmSuperPutty));
+        private readonly EnvironmentVariablesManager _envManager;
 
         //internal DockPanel DockPanel { get; private set; }
 
@@ -82,6 +84,17 @@ namespace SuperPutty
         /// <summary>A collection containing send command history</summary>
         private SortableBindingList<HistoryEntry> tsCommandHistory = new SortableBindingList<HistoryEntry>();
 
+        //private readonly EnvironmentVariablesManager _envManager;
+
+        private static class EventHelper
+        {
+            public static bool IsEventHandlerSubscribed(Delegate eventDelegate, Delegate handler)
+            {
+                if (eventDelegate == null) return false;
+                return eventDelegate.GetInvocationList().Any(d => d.Method == handler.Method && d.Target == handler.Target);
+            }
+        }
+
         /// <summary>The main SuperPuTTY application form</summary>
         public frmSuperPutty()
         {
@@ -89,6 +102,7 @@ namespace SuperPutty
             dlgFindPutty.PuttyCheck();
 
             InitializeComponent();
+            _envManager = new EnvironmentVariablesManager();
             
             // set both DockPanel and Interface theme
             switch (SuperPuTTY.Settings.InterfaceTheme)
@@ -312,7 +326,7 @@ namespace SuperPutty
         {
             this.BeginInvoke(new Action(this.LoadLayout));            
         }
-        
+
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             // free hooks
@@ -1082,43 +1096,6 @@ namespace SuperPutty
             {
                 TryConnectFromToolbar();
                 e.Handled = true;
-            }
-        }
-
-        void TryConnectFromToolbar()
-        {
-            String host = this.tbTxtBoxHost.Text;
-            String protoString = (string)this.tbComboProtocol.SelectedItem;
-
-            if (protoString == "WINCMD" || protoString == "PS" || protoString == "WSL" || protoString == "Mintty" || protoString == "Cygterm")
-            {
-                if (string.IsNullOrEmpty(host))
-                {
-                    host = protoString + " localhost";
-                }
-            }
-
-            if (!string.IsNullOrEmpty(host))
-            {
-                bool isScp = "SCP" == protoString;
-                HostConnectionString connStr = new HostConnectionString(host);
-                ConnectionProtocol proto = isScp
-                    ? ConnectionProtocol.SSH
-                    : connStr.Protocol.GetValueOrDefault((ConnectionProtocol)Enum.Parse(typeof(ConnectionProtocol), protoString));
-                SessionData session = new SessionData
-                {
-                    Host = connStr.Host,
-                    SessionName = connStr.Host,
-                    SessionId = SuperPuTTY.MakeUniqueSessionId(SessionData.CombineSessionIds("QuickConnect", connStr.Host)),
-                    Proto = proto,
-                    Port = connStr.Port.GetValueOrDefault(dlgEditSession.GetDefaultPort(proto)),
-                    Username = this.tbTxtBoxLogin.Text,
-                    Password = this.tbTxtBoxPassword.Text,
-                    PuttySession = (string)this.tbComboSession.SelectedItem
-                };
-                SuperPuTTY.OpenSession(new SessionDataStartInfo { Session = session, UseScp = isScp });
-                oldHostName = this.tbTxtBoxHost.Text;
-                RefreshConnectionToolbarData();
             }
         }
 
@@ -2312,6 +2289,140 @@ namespace SuperPutty
         public SessionTreeview SessionTreeviewInstance
         {
             get { return this.sessions?.Instance; }
+        }
+
+        private void environmentVariablesToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (var envForm = new EnvironmentVariablesForm())
+            {
+                envForm.ShowDialog(this);
+            }
+        }
+
+        private void OpenSessionWithSubstitutions(SessionData session)
+        {
+            try
+            {
+                if (session == null)
+                {
+                    Log.Error("Session is null in OpenSessionWithSubstitutions");
+                    MessageBox.Show("Cannot open session: Session data is null", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                Log.InfoFormat("Opening session: Id={0}, Host={1}, Username={2}, Password={3}, Proto={4}, Port={5}, PuttySession={6}, ExtraArgs={7}",
+                    session.SessionId, session.Host, session.Username, session.Password ?? "[hidden]", session.Proto, session.Port, session.PuttySession, session.ExtraArgs);
+
+                if (string.IsNullOrEmpty(session.Host) && string.IsNullOrEmpty(session.PuttySession))
+                {
+                    Log.ErrorFormat("Invalid session {0}: Host and PuttySession are both empty", session.SessionId);
+                    MessageBox.Show("Cannot open session: Host or PuTTY session profile must be specified", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                if (session.Proto != ConnectionProtocol.Cygterm && session.Proto != ConnectionProtocol.Mintty &&
+                    session.Proto != ConnectionProtocol.WINCMD && session.Proto != ConnectionProtocol.PS &&
+                    session.Proto != ConnectionProtocol.WSL && session.Port <= 0)
+                {
+                    Log.ErrorFormat("Invalid session {0}: Port is invalid ({1}) for Proto {2}", session.SessionId, session.Port, session.Proto);
+                    MessageBox.Show($"Cannot open session: Invalid port ({session.Port}) for protocol {session.Proto}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                session.Host = SubstituteVariables(session.Host);
+                session.Username = SubstituteVariables(session.Username);
+                session.Password = SubstituteVariables(session.Password);
+                session.ExtraArgs = SubstituteVariables(session.ExtraArgs);
+
+                Log.InfoFormat("Post-substitution: Host={0}, Username={1}, Password={2}, ExtraArgs={3}",
+                    session.Host, session.Username, session.Password ?? "[hidden]", session.ExtraArgs);
+
+                var envVars = _envManager.LoadVariables();
+                foreach (var variable in envVars.Variables)
+                {
+                    if (variable.Key != null)
+                    {
+                        Environment.SetEnvironmentVariable(variable.Key, variable.Value);
+                        Log.InfoFormat("Set environment variable: {0}={1}", variable.Key, variable.Value);
+                    }
+                }
+
+                Log.InfoFormat("Calling SuperPuTTY.OpenProtoSession for session: {0}", session.SessionId);
+                SuperPuTTY.OpenProtoSession(session);
+                Log.InfoFormat("Successfully launched session: {0}", session.SessionId);
+            }
+            catch (Exception ex)
+            {
+                Log.ErrorFormat("Error opening session {0}: {1}\nStackTrace: {2}", session?.SessionId, ex.Message, ex.StackTrace);
+                MessageBox.Show($"Failed to open session: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private string SubstituteVariables(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return input;
+            string result = input;
+            try
+            {
+                var envVars = _envManager.LoadVariables();
+                foreach (var variable in envVars.Variables)
+                {
+                    string placeholder = $"{{{variable.Key}}}";
+                    string oldValue = result;
+                    result = result.Replace(placeholder, variable.Value ?? string.Empty);
+                    Log.DebugFormat("Substituting {0} with {1} in input: {2}, result: {3}", placeholder, variable.Value, oldValue, result);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.ErrorFormat("Error substituting variables in input '{0}': {1}", input, ex.Message);
+            }
+            return result;
+        }
+
+        private void SessionTreeview_SessionDoubleClick(object sender, SessionData session)
+        {
+            Log.InfoFormat("SessionDoubleClick triggered for session: {0}, SenderId={1}", session?.SessionId ?? "null", sender?.GetHashCode() ?? 0);
+            OpenSessionWithSubstitutions(session);
+        }
+
+        void TryConnectFromToolbar()
+        {
+            string host = SubstituteVariables(this.tbTxtBoxHost.Text);
+            string protoString = (string)this.tbComboProtocol.SelectedItem;
+
+            if (protoString == "WINCMD" || protoString == "PS" || protoString == "WSL" || protoString == "Mintty" || protoString == "Cygterm")
+            {
+                if (string.IsNullOrEmpty(host))
+                {
+                    host = protoString + " localhost";
+                    host = SubstituteVariables(host);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(host))
+            {
+                bool isScp = "SCP" == protoString;
+                HostConnectionString connStr = new HostConnectionString(host);
+                ConnectionProtocol proto = isScp
+                    ? ConnectionProtocol.SSH
+                    : connStr.Protocol.GetValueOrDefault((ConnectionProtocol)Enum.Parse(typeof(ConnectionProtocol), protoString));
+                SessionData session = new SessionData
+                {
+                    Host = connStr.Host,
+                    SessionName = connStr.Host,
+                    SessionId = SuperPuTTY.MakeUniqueSessionId(SessionData.CombineSessionIds("QuickConnect", connStr.Host)),
+                    Proto = proto,
+                    Port = connStr.Port.GetValueOrDefault(dlgEditSession.GetDefaultPort(proto)),
+                    Username = SubstituteVariables(this.tbTxtBoxLogin.Text),
+                    Password = SubstituteVariables(this.tbTxtBoxPassword.Text),
+                    PuttySession = (string)this.tbComboSession.SelectedItem
+                };
+
+                OpenSessionWithSubstitutions(session);
+                oldHostName = this.tbTxtBoxHost.Text;
+                RefreshConnectionToolbarData();
+            }
         }
     }
 }

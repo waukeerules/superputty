@@ -165,7 +165,8 @@ namespace SuperPutty
             this.textBoxUsername.Name = "textBoxUsername";
             this.textBoxUsername.Size = new System.Drawing.Size(486, 27);
             this.textBoxUsername.TabIndex = 5;
-            // 
+            this.toolTip.SetToolTip(this.textBoxUsername, "Enter username or placeholder (e.g., {user})");
+            //
             // errorProvider
             // 
             this.errorProvider.BlinkStyle = System.Windows.Forms.ErrorBlinkStyle.NeverBlink;

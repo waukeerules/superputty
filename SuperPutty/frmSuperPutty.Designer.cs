@@ -420,14 +420,21 @@ namespace SuperPutty
             this.fullScreenToolStripMenuItem.Click += new System.EventHandler(this.fullScreenToolStripMenuItem_Click);
             // 
             // toolsToolStripMenuItem
-            // 
+            //
+            this.environmentVariablesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.environmentVariablesToolStripMenuItem.Name = "environmentVariablesToolStripMenuItem";
+            this.environmentVariablesToolStripMenuItem.Size = new System.Drawing.Size(337, 26);
+            this.environmentVariablesToolStripMenuItem.Text = "&Environment Variables...";
+            this.environmentVariablesToolStripMenuItem.Click += new System.EventHandler(this.environmentVariablesToolStripMenuItem_Click);
             this.toolsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.puTTYConfigurationToolStripMenuItem,
-            this.XorgToolStripMenuItem,
-            this.toolStripMenuItem11,
-            this.toggleCommandMaskToolStripMenuItem,
-            this.toolStripMenuItem4,
-            this.optionsToolStripMenuItem});
+                this.puTTYConfigurationToolStripMenuItem,
+                this.XorgToolStripMenuItem,
+                this.toolStripMenuItem11,
+                this.toggleCommandMaskToolStripMenuItem,
+                this.toolStripMenuItem4,
+                this.optionsToolStripMenuItem,
+                this.environmentVariablesToolStripMenuItem
+            });
             this.toolsToolStripMenuItem.Name = "toolsToolStripMenuItem";
             this.toolsToolStripMenuItem.Size = new System.Drawing.Size(58, 24);
             this.toolsToolStripMenuItem.Text = "&Tools";
@@ -923,6 +930,7 @@ namespace SuperPutty
         private System.Windows.Forms.SaveFileDialog saveFileDialogLayout;
         private System.Windows.Forms.ToolStripSeparator toolStripMenuItem4;
         private System.Windows.Forms.ToolStripMenuItem optionsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem environmentVariablesToolStripMenuItem;
         private System.Windows.Forms.StatusStrip statusStrip1;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabelMessage;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabelLayout;

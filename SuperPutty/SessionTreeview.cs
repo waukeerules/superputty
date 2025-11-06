@@ -58,6 +58,7 @@ namespace SuperPutty
         TreeNode nodeRoot;
         ImageList imgIcons = new ImageList();
         Func<SessionData, bool> filter;
+        private readonly EnvironmentVariablesManager _envManager;
 
         public SessionData SelectedSession
         {
@@ -81,6 +82,7 @@ namespace SuperPutty
         {
             m_DockPanel = dockPanel;
             this.Font = new System.Drawing.Font("Microsoft Sans Serif", 7.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            _envManager = new EnvironmentVariablesManager();
             InitializeComponent();
             this.treeView1.TreeViewNodeSorter = this;
             this.treeView1.HideSelection = false;
@@ -95,6 +97,83 @@ namespace SuperPutty
             this.ExpandInitialTree();
             SuperPuTTY.Sessions.ListChanged += new ListChangedEventHandler(Sessions_ListChanged);
             SuperPuTTY.Settings.SettingsSaving += new SettingsSavingEventHandler(Settings_SettingsSaving);
+        }
+
+        private string SubstituteVariables(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return input;
+            string result = input;
+            try
+            {
+                var envVars = _envManager.LoadVariables();
+                foreach (var variable in envVars.Variables)
+                {
+                    string placeholder = $"{{{variable.Key}}}";
+                    string oldValue = result;
+                    result = result.Replace(placeholder, variable.Value ?? string.Empty);
+                    Log.DebugFormat("Substituting {0} with {1} in input: {2}, result: {3}", placeholder, variable.Value, oldValue, result);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.ErrorFormat("Error substituting variables in input '{0}': {1}", input, ex.Message);
+            }
+            return result;
+        }
+
+        private void OpenSessionWithSubstitutions(SessionData session)
+        {
+            try
+            {
+                if (session == null)
+                {
+                    Log.Error("Session is null in OpenSessionWithSubstitutions");
+                    return;
+                }
+
+                Log.InfoFormat("Opening session: Id={0}, Host={1}, Username={2}, Password={3}, Proto={4}, Port={5}, PuttySession={6}, ExtraArgs={7}",
+                    session.SessionId, session.Host, session.Username, session.Password ?? "[hidden]", session.Proto, session.Port, session.PuttySession, session.ExtraArgs);
+
+                if (string.IsNullOrEmpty(session.Host) && string.IsNullOrEmpty(session.PuttySession))
+                {
+                    Log.ErrorFormat("Invalid session {0}: Host and PuttySession are both empty", session.SessionId);
+                    return;
+                }
+
+                if (session.Proto != ConnectionProtocol.Cygterm && session.Proto != ConnectionProtocol.Mintty &&
+                    session.Proto != ConnectionProtocol.WINCMD && session.Proto != ConnectionProtocol.PS &&
+                    session.Proto != ConnectionProtocol.WSL && session.Port <= 0)
+                {
+                    Log.ErrorFormat("Invalid session {0}: Port is invalid ({1}) for Proto {2}", session.SessionId, session.Port, session.Proto);
+                    return;
+                }
+
+                session.Host = SubstituteVariables(session.Host);
+                session.Username = SubstituteVariables(session.Username);
+                session.Password = SubstituteVariables(session.Password);
+                session.ExtraArgs = SubstituteVariables(session.ExtraArgs);
+
+                Log.InfoFormat("Post-substitution: Host={0}, Username={1}, Password={2}, ExtraArgs={3}",
+                    session.Host, session.Username, session.Password ?? "[hidden]", session.ExtraArgs);
+
+                var envVars = _envManager.LoadVariables();
+                foreach (var variable in envVars.Variables)
+                {
+                    if (variable.Key != null)
+                    {
+                        Environment.SetEnvironmentVariable(variable.Key, variable.Value);
+                        Log.InfoFormat("Set environment variable: {0}={1}", variable.Key, variable.Value);
+                    }
+                }
+
+                Log.InfoFormat("Calling SuperPuTTY.OpenProtoSession for session: {0}", session.SessionId);
+                SuperPuTTY.OpenProtoSession(session);
+                Log.InfoFormat("Successfully launched session: {0}", session.SessionId);
+            }
+            catch (Exception ex)
+            {
+                Log.ErrorFormat("Error opening session {0}: {1}\nStackTrace: {2}", session?.SessionId, ex.Message, ex.StackTrace);
+            }
         }
 
         void ExpandInitialTree()
@@ -313,7 +392,8 @@ namespace SuperPutty
             if (IsSessionNode(node) && node == treeView1.SelectedNode)
             {
                 SessionData sessionData = (SessionData)node.Tag;
-                SuperPuTTY.OpenProtoSession(sessionData);
+                Log.InfoFormat("Double-clicked session: {0}", sessionData.SessionId);
+                OpenSessionWithSubstitutions(sessionData);
             }
         }
 
@@ -518,7 +598,13 @@ namespace SuperPutty
         /// <param name="e"></param>
         private void connectToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            treeView1_NodeMouseDoubleClick(null, null);
+            TreeNode node = this.treeView1.SelectedNode;
+            if (IsSessionNode(node))
+            {
+                SessionData sessionData = (SessionData)node.Tag;
+                Log.InfoFormat("Connect menu clicked for session: {0}", sessionData.SessionId);
+                OpenSessionWithSubstitutions(sessionData);
+            }
         }
 
         /// <summary>
@@ -661,8 +747,8 @@ namespace SuperPutty
                 if (sessions.Count > MaxSessionsToOpen)
                 {
                     if (DialogResult.Cancel == Messenger.MessageBox(
-                        "Open All " + sessions.Count + " sessions?", 
-                        "WARNING", 
+                        "Open All " + sessions.Count + " sessions?",
+                        "WARNING",
                         MessageBoxButtons.OKCancel, MessageBoxIcon.Warning))
                     {
                         // bug out...too many sessions to open
@@ -671,7 +757,8 @@ namespace SuperPutty
                 }
                 foreach (SessionData session in sessions)
                 {
-                    SuperPuTTY.OpenProtoSession(session);
+                    Log.InfoFormat("Launching session: {0}", session.SessionId);
+                    OpenSessionWithSubstitutions(session);
                 }
             }
         }

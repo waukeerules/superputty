@@ -20,7 +20,8 @@ namespace SuperPutty.Properties {
 
         private static readonly ILog Log = LogManager.GetLogger(typeof(Settings));
 
-        public Settings() {
+        public Settings()
+        {
             this.SettingChanging += this.SettingChangingEventHandler;
             this.SettingsSaving += this.SettingsSavingEventHandler;
         }
@@ -39,13 +40,14 @@ namespace SuperPutty.Properties {
             }
         }
         
-        private void SettingChangingEventHandler(object sender, System.Configuration.SettingChangingEventArgs e) {
+        private void SettingChangingEventHandler(object sender, System.Configuration.SettingChangingEventArgs e)
+        {
             // Add code to handle the SettingChangingEvent event here.
             Log.DebugFormat("SettingChanging: name={0}, oldVal={1}, newVal={2}", e.SettingName, this[e.SettingName], e.NewValue);
-
         }
         
-        private void SettingsSavingEventHandler(object sender, System.ComponentModel.CancelEventArgs e) {
+        private void SettingsSavingEventHandler(object sender, System.ComponentModel.CancelEventArgs e)
+        {
             // Add code to handle the SettingsSaving event here.
             Log.InfoFormat("Settings Saved");
         }
@@ -95,7 +97,7 @@ namespace SuperPutty.Properties {
                 }
                 catch (ArgumentException ex)
                 {
-                    Log.Warn("Could not convert shortcut text to Keys, possible localization bug with Ctrl and Strg.  Setting to None: " + name, ex);
+                    Log.Warn("Could not convert shortcut text to Keys, possible localization bug with Ctrl and Strg. Setting to None: " + name, ex);
                 }
                 catch (SettingsPropertyNotFoundException)
                 {
@@ -122,7 +124,7 @@ namespace SuperPutty.Properties {
                 catch (ArgumentException ex)
                 {
                     this[name] = Keys.None;
-                    Log.WarnFormat("Could not update shortcut for " + name + ".  Setting to None.", ex);
+                    Log.WarnFormat("Could not update shortcut for " + name + ". Setting to None.", ex);
                 }
             }
         }
