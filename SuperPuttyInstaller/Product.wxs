@@ -12,7 +12,6 @@
     
     <Feature Id="ProductFeature" Title="SuperXPuTTY" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
-      <ComponentGroupRef Id="DefaultTheme" />
       <ComponentRef Id="ApplicationShortcuts" /> 
     </Feature>
 
@@ -34,13 +33,7 @@
 
   <Fragment>
       <StandardDirectory Id="ProgramFilesFolder">
-        <Directory Id="INSTALLFOLDER" Name="SuperXPuTTY">
-          <Directory Id="INSTALLTHEMEFOLDER" Name="themes">
-            <Directory Id="INSTALLDEFAULTTHEME" Name="default">
-              <Directory Id="INSTALLTHEMEICONSFOLDER" Name="icons" />
-            </Directory>
-          </Directory>
-        </Directory>
+        <Directory Id="INSTALLFOLDER" Name="SuperXPuTTY" />
       </StandardDirectory>
 
 
@@ -88,57 +81,6 @@
       <!-- reads and writes EnvironmentVariables.json; needed by every session launch ({key} placeholders) -->
       <Component Id="ProductLibJson">
         <File Id="Newtonsoft.Json.dll" Source="$(var.SuperPutty.TargetDir)\Newtonsoft.Json.dll" />
-      </Component>
-    </ComponentGroup>
-    <ComponentGroup Id="DefaultTheme" Directory="INSTALLTHEMEICONSFOLDER">
-      <Component Id="ThemeIconFiles" Guid="C834A688-708A-4DE1-8B64-7582CFF47F7C">
-        <File Id="application_osx_terminal.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\application_osx_terminal.png" />
-        <File Id="application_xp_terminal.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\application_xp_terminal.png" />
-        <File Id="book.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\book.png" />
-        <File Id="clock.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\clock.png" />
-        <File Id="comment.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\comment.png" />
-        <File Id="compress.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\compress.png" />
-        <File Id="database.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\database.png" />
-        <File Id="drive_network.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\drive_network.png" />
-        <File Id="email.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\email.png" />
-        <File Id="feed.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\feed.png" />
-        <File Id="firewall.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\firewall.png" />
-        <File Id="flag_blue.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\flag_blue.png" />
-        <File Id="flag_green.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\flag_green.png" />
-        <File Id="flag_orange.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\flag_orange.png" />
-        <File Id="flag_pink.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\flag_pink.png" />
-        <File Id="flag_purple.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\flag_purple.png" />
-        <File Id="flag_red.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\flag_red.png" />
-        <File Id="flag_yellow.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\flag_yellow.png" />
-        <File Id="help.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\help.png" />
-        <File Id="house.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\house.png" />
-        <File Id="information.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\information.png" />
-        <File Id="ipod.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\ipod.png" />
-        <File Id="lightbulb.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\lightbulb.png" />
-        <File Id="lightning.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\lightning.png" />
-        <File Id="lorry.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\lorry.png" />
-        <File Id="map.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\map.png" />
-        <File Id="monitor.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\monitor.png" />
-        <File Id="printer.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\printer.png" />
-        <File Id="report.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\report.png" />
-        <File Id="server.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\server.png" />
-        <File Id="telephone.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\telephone.png" />
-        <File Id="television.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\television.png" />
-        <File Id="time.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\time.png" />
-        <File Id="tux.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\tux.png" />
-        <File Id="webcam.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\webcam.png" />
-        <File Id="world.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\world.png" />
-        <File Id="puffy.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\puffy.png" />
-        <File Id="arch_linux.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\arch_linux.png" />
-        <File Id="centos.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\centos.png" />
-        <File Id="debian.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\debian.png" />
-        <File Id="fedora.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\fedora.png" />
-        <File Id="freebsd.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\freebsd.png" />
-        <File Id="linux_mint.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\linux_mint.png" />
-        <File Id="redhat.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\redhat.png" />
-        <File Id="suse_linux.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\suse_linux.png" />
-        <File Id="ubuntu.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\ubuntu.png" />
-        <File Id="windows.png" Source="$(var.SuperPutty.TargetDir)themes\default\icons\windows.png" />
       </Component>
     </ComponentGroup>
   </Fragment>

@@ -13,11 +13,12 @@ namespace SuperPutty.Gui
 {
     /// <summary>
     /// Turns session icon keys into images at any size. A key is a name with an optional colour: "switch",
-    /// "switch#2E7D32", "ubuntu". Names are drawn from IconTemplates (device symbols in any colour) or BrandLogos (OS
-    /// and vendor logos); older keys from the PNG icon set ("green_switch", "tux", "flag_red", ...) map onto those, so
-    /// existing Sessions.xml files keep their icons, now sharp. Any other name is a PNG from the theme icon folders,
-    /// scaled smoothly. SuperPuTTY.LoadImageList builds the shared ImageList with <see cref="Fill"/>; coloured keys are
-    /// added to it on first use (<see cref="Ensure"/>).
+    /// "switch#2E7D32", "ubuntu", "custom:juniper#1E63B4". Names are drawn from IconTemplates (device and general
+    /// symbols), BrandLogos (OS and vendor logos) or CustomIcons (one-colour shapes users add), all in any colour.
+    /// Older keys from the PNG icon set ("green_switch", "tux", "flag_red", ...) map onto those, so existing
+    /// Sessions.xml files keep their icons, now sharp; the old themes\default\icons folders are no longer read.
+    /// SuperPuTTY.LoadImageList builds the shared ImageList with <see cref="Fill"/>; coloured keys are added to it on
+    /// first use (<see cref="Ensure"/>).
     /// </summary>
     public static class IconLibrary
     {
@@ -175,12 +176,12 @@ namespace SuperPutty.Gui
             return true;
         }
 
-        /// <summary>Whether a name is drawn (a template or logo) rather than loaded from a PNG</summary>
+        /// <summary>Whether a name is an icon SuperPuTTY can draw: a template, a logo or a custom icon</summary>
         /// <param name="name">The name, without colour</param>
-        /// <returns>true for templates and logos</returns>
+        /// <returns>true for templates, logos and custom icons</returns>
         public static bool IsDrawn(string name)
         {
-            return IconTemplates.Exists(name) || BrandLogos.Exists(name);
+            return IconTemplates.Exists(name) || BrandLogos.Exists(name) || CustomIcons.Exists(name);
         }
 
         /// <summary>Whether a key can take a colour (it names a template or logo, directly or through an old key)</summary>
@@ -229,6 +230,11 @@ namespace SuperPutty.Gui
                 color = BrandLogos.DefaultColorOf(name);
                 return true;
             }
+            if (CustomIcons.Exists(name))
+            {
+                color = CustomIcons.DefaultColorOf(name);
+                return true;
+            }
             color = Color.Empty;
             return false;
         }
@@ -242,6 +248,8 @@ namespace SuperPutty.Gui
                 return IconTemplates.TitleOf(name);
             if (BrandLogos.Exists(name))
                 return BrandLogos.TitleOf(name);
+            if (CustomIcons.IsCustom(name))
+                return CustomIcons.TitleOf(name);
             return name.Replace('_', ' ');
         }
 
@@ -268,6 +276,8 @@ namespace SuperPutty.Gui
                 }
                 return BrandLogos.Render(name, logoColor, size);
             }
+            if (CustomIcons.Exists(name))
+                return CustomIcons.Render(name, color ?? CustomIcons.DefaultColorOf(name), size);
             return null;
         }
 
@@ -292,42 +302,18 @@ namespace SuperPutty.Gui
 
         /// <summary>
         /// Fill an image list with every icon: the templates and logos, the old keys that now map to them, and the
-        /// PNGs in the theme folders that aren't replaced by them (the first folder with a name wins)
+        /// custom icons
         /// </summary>
         /// <param name="list">The list, already sized</param>
-        /// <param name="pngFolders">The theme icon folders, in priority order</param>
-        public static void Fill(ImageList list, IEnumerable<string> pngFolders)
+        public static void Fill(ImageList list)
         {
             int size = list.ImageSize.Width;
-            foreach (string name in IconTemplates.Keys.Concat(BrandLogos.Keys).Concat(legacy.Keys))
+            foreach (string name in IconTemplates.Keys.Concat(BrandLogos.Keys).Concat(legacy.Keys).Concat(CustomIcons.Keys()))
             {
-                if (!list.Images.ContainsKey(name))
+                Bitmap image = list.Images.ContainsKey(name) ? null : RenderDrawn(name, size);
+                if (image != null)
                 {
-                    list.Images.Add(name, RenderDrawn(name, size));
-                }
-            }
-
-            foreach (string folder in pngFolders)
-            {
-                int loaded = 0;
-                try
-                {
-                    foreach (FileInfo file in new DirectoryInfo(folder).GetFiles())
-                    {
-                        string name = Path.GetFileNameWithoutExtension(file.Name);
-                        if (!Regex.IsMatch(file.Extension, @"^\.(bmp|jpg|jpeg|png)$", RegexOptions.IgnoreCase) || list.Images.ContainsKey(name))
-                            continue;
-                        using (Image image = Image.FromFile(file.FullName))
-                        {
-                            list.Images.Add(name, Scale(image, size));
-                        }
-                        loaded++;
-                    }
-                    Log.InfoFormat("Loaded {0} icons from theme directory.  dir={1}", loaded, folder);
-                }
-                catch (Exception ex)
-                {
-                    Log.Error("Error while loading icons from " + folder, ex);
+                    list.Images.Add(name, image);
                 }
             }
         }

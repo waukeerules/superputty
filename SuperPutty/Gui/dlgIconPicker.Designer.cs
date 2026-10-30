@@ -33,6 +33,8 @@ namespace SuperPutty.Gui
             this.labelSelected = new System.Windows.Forms.Label();
             this.btnOK = new System.Windows.Forms.Button();
             this.btnCancel = new System.Windows.Forms.Button();
+            this.btnAddIcon = new System.Windows.Forms.Button();
+            this.btnRemoveIcon = new System.Windows.Forms.Button();
             this.toolTip = new System.Windows.Forms.ToolTip(this.components);
             ((System.ComponentModel.ISupportInitialize)(this.pictureBoxPreview)).BeginInit();
             this.SuspendLayout();
@@ -123,6 +125,28 @@ namespace SuperPutty.Gui
             this.btnCancel.Text = "Cancel";
             this.btnCancel.UseVisualStyleBackColor = true;
             //
+            // btnAddIcon
+            //
+            this.btnAddIcon.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.btnAddIcon.Location = new System.Drawing.Point(12, 522);
+            this.btnAddIcon.Name = "btnAddIcon";
+            this.btnAddIcon.Size = new System.Drawing.Size(140, 34);
+            this.btnAddIcon.TabIndex = 8;
+            this.btnAddIcon.Text = "Add icon...";
+            this.btnAddIcon.UseVisualStyleBackColor = true;
+            this.btnAddIcon.Click += new System.EventHandler(this.btnAddIcon_Click);
+            //
+            // btnRemoveIcon
+            //
+            this.btnRemoveIcon.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.btnRemoveIcon.Location = new System.Drawing.Point(160, 522);
+            this.btnRemoveIcon.Name = "btnRemoveIcon";
+            this.btnRemoveIcon.Size = new System.Drawing.Size(140, 34);
+            this.btnRemoveIcon.TabIndex = 9;
+            this.btnRemoveIcon.Text = "Remove";
+            this.btnRemoveIcon.UseVisualStyleBackColor = true;
+            this.btnRemoveIcon.Click += new System.EventHandler(this.btnRemoveIcon_Click);
+            //
             // dlgIconPicker
             //
             this.AcceptButton = this.btnOK;
@@ -138,6 +162,8 @@ namespace SuperPutty.Gui
             this.Controls.Add(this.labelSelected);
             this.Controls.Add(this.btnOK);
             this.Controls.Add(this.btnCancel);
+            this.Controls.Add(this.btnAddIcon);
+            this.Controls.Add(this.btnRemoveIcon);
             this.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.MaximizeBox = false;
             this.MinimizeBox = false;
@@ -164,5 +190,7 @@ namespace SuperPutty.Gui
         private System.Windows.Forms.Button btnOK;
         private System.Windows.Forms.Button btnCancel;
         private System.Windows.Forms.ToolTip toolTip;
+        private System.Windows.Forms.Button btnAddIcon;
+        private System.Windows.Forms.Button btnRemoveIcon;
     }
 }

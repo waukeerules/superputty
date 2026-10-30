@@ -142,6 +142,8 @@ Upstream's search box above the session tree only looked at the session name and
 
 ## Other fix: session icons missing depending on how SuperPuTTY is started
 
+> **Superseded:** SuperPuTTY no longer reads `themes\default\icons` folders at all; see "Custom icons, and no more theme icon folders" below. This section records the earlier fix.
+
 Upstream loads icons from `themes\default\icons` under the **current directory**, the folder the process was started from, rather than where the exe is. Started from a shortcut with another "Start in" folder, a file association, the command line or a script, SuperPuTTY found no icons. The log showed `theme directory not found`, and sessions fell back to the plain computer icon.
 
 `SuperPuTTY.GetThemeIconFolders` now checks these locations in order and merges every one that exists. An earlier folder wins when two have an icon with the same name.
@@ -341,6 +343,38 @@ Tools → Options → GUI → Interface theme has a fourth choice, **Classic**: 
 
 **Checked against the compiled assembly:** with four same-named tabs in a real DockPanel, opening the tab list through DockPanelSuite's own button handler ticked and bolded only the active tab, in both the Classic (VS2005) and Dark themes. After switching tabs, the mark moved. The Dark palette's selected tab came out as #3C4A5C. The rendered menus were also checked: with DockPanelSuite's dark renderer, the check box had no light pixels before the fix and showed a white tick after it. With DarkModeCS's renderer, the tick was redrawn white too; the harness had only that renderer's light colours, so real dark mode wasn't checked there.
 
+## Custom icons, and no more theme icon folders
+
+Every icon in the old `themes\default\icons` set now has a drawn replacement, so SuperPuTTY no longer reads those folders. Your own icons go through the icon picker instead.
+
+- **Adding one:** icon picker → **Add icon...**, choose a PNG, and name it. It's then selected, so the large preview shows how it came out.
+  - **The rules:** the PNG must be square and at least 32x32. SuperPuTTY keeps it as a one-colour shape and colours it like its own icons, so it fits the same colour coding (`CustomIcons.MakeShape`).
+  - **One-colour shapes on transparency** are used as they are.
+  - **Anything else** uses its **dark parts** as the shape: a black outline with a white fill, line art on a white background, a two-tone icon. Light areas become see-through.
+  - **Refused only when there's no clear shape:** blank, or dark all over like a photo. The message gives that one reason and a one-line tip. Names may use letters, digits, spaces, dots, dashes and underscores.
+  - **Default colour:** the shape's own colour, with black and near-black shapes defaulting to grey so they show on the dark theme.
+- **Where they're kept:** as PNGs in `<SettingsFolder>\icons`, next to Sessions.xml, so a team sharing the settings folder also shares the icons its sessions use.
+  - **Format:** each is stored in one flat colour, at up to 128x128. The colour it was uploaded in becomes its default.
+- **Using one:** keys are `custom:<name>`, with an optional colour, e.g. `custom:juniper#1E63B4`. The picker lists them under "Custom".
+- **Removing one:** select it in the picker → **Remove**. Sessions and buttons using it then show the default icon.
+- **The old folders:** they're no longer read, copied by the build, or installed. The 47 old PNGs are gone from the repo and installer, which also removes the uncredited Silk files from them.
+  - **Old keys still work:** keys naming those icons (`green_switch`, `book`, `tux`...) still map onto the drawn ones.
+  - **Other old custom PNGs:** a PNG someone added to an old theme folder under another name is no longer shown. Add it again with Add icon...
+  - **Removed code:** `SuperPuTTY.GetThemeIconFolders`, the post-build theme copy, and the installer's `DefaultTheme` component group.
+- **Still embedded:** the app's built-in images in `Properties/Resources` (mostly Silk) are untouched. SuperPuTTY now draws the toolbar ones itself.
+- **Button bar icons:** Edit Button's **Icon** list keeps the coloured circles (and "Custom color..."). Instead of listing every image key, old and new, it shows the button's icon, if any, and **Choose icon...**, which opens the same picker as Edit Session, with colours and custom icons.
+- **Code:** `Gui/CustomIcons.cs`, the Add icon / Remove buttons in `Gui/dlgIconPicker.cs`, `IconLibrary` (custom keys), and `dlgEditCommandButton.ChooseIcon`.
+
+**Checked against the compiled assembly**, with a scratch settings folder:
+- **Uploads:** each was added with the expected shape:
+  - a smiley (black outline, white face, transparent corners): the outline became the icon and the face see-through;
+  - black on white;
+  - a red-and-blue picture;
+  - a one-colour triangle.
+  A dark-all-over image, a blank one, a 16x16 one, a 64x32 one, a duplicate name and a name with "/" were each refused with their own message.
+- **Using it:** the icon was in the image list, drew in red and blue at 16–32 px, and opened selected (and scrolled into view) in the picker. `green_switch` and `book` still resolved.
+- **Not checked:** the Add icon and Remove dialogs and the button editor's Choose icon... weren't clicked through.
+
 ## Fix: Edit Session replaced a missing PuTTY session profile with Default Settings
 
 **Symptom:** a session whose PuTTY session profile isn't saved in this user's PuTTY or KiTTY, e.g. from a shared Sessions.xml, or before PuTTY is set up, opened in Edit Session showing "Default Settings". Clicking Save then overwrote the profile name in Sessions.xml.
@@ -393,14 +427,14 @@ Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom netw
   - **Windows:** Simple Icons no longer carries Microsoft's logos, so the drawn four-pane "windows" template stands in.
 - **Icon keys** (`Gui/IconLibrary.cs`): a session's `ImageKey` is a name with an optional colour, e.g. `switch`, `switch#1E63B4` or `ubuntu`. Coloured keys are drawn into the image list on first use.
   - **Old keys still work:** they map onto templates and logos, e.g. `green_switch` → `switch#2E7D32`, `red_big_nexus` → `nexus#8E1B1B`, `flag_red` → `flag#C62828`, `tux` → `linux`, `puffy` → `openbsd`, `computer`/`monitor` → `workstation`, `world` → `globe`, `lorry` → `truck`, `report` → `document`. Every icon in the default set now maps to a drawn one, so existing Sessions.xml files keep their icons, now sharp.
-  - **Other PNGs:** any other PNG in a theme folder (e.g. your own, in the settings folder's `themes\default\icons`) is still loaded, scaled smoothly, and listed under "Other icons".
+  - **Your own icons:** see "Custom icons, and no more theme icon folders" below.
   - **Older SuperPuTTY versions** reading the same Sessions.xml show their default icon for a coloured key.
 - **Icon picker** (`Gui/dlgIconPicker.cs`), from Edit Session's icon button:
-  - **Layout:** a searchable grid grouped as Devices, General, Logos and Other icons, plus a large preview.
+  - **Layout:** a searchable grid grouped as Devices, General, Logos and Custom, plus a large preview.
   - **Dark theme:** the grid uses Windows' dark "items view" style, so the group headings are readable. DarkModeCS's dark Explorer style left them dark blue.
   - **Colour row:** Default, ten named colours, and More... for any colour; More... is outlined when the chosen colour isn't one of the ten.
-  - **Colour preview:** the grid shows the chosen colour on the selected icon's group. With a logo selected, every logo shows it while the device and general icons keep their own colours; with a device or general icon selected, it's the other way round.
-    - **Before:** the grid always recoloured the device and general icons, so choosing e.g. white for Apple turned every device icon white and left the logos unchanged.
+  - **Colour preview:** only the selected icon shows the chosen colour, on its tile and in the large preview; every other icon keeps its own colours. Selecting another icon moves the colour to it.
+    - **Before:** first the whole device and general set was recoloured, then the selected icon's whole group. Choosing white for Apple turned every device icon (later, every logo) white, which looked like a fault.
   - **Explicit colours:** a colour chosen for a logo is used as it is. Only near-black brand colours are lightened on the dark theme.
   - **Result:** the picker returns the key to store, with the colour left off when it's the icon's own.
   - **Replaces:** the old plain grid popup. The toolbar's icon filter still uses the grid.
@@ -444,7 +478,7 @@ MSBuild.exe SuperPutty.sln /restore /p:Configuration=Release
 
 Output: `bin\Debug\SuperXPuTTY.exe` (the installer goes to `SuperPuttyInstaller\bin\x86\Debug\SuperXPuTTYSetup.msi`). Use `/p:Configuration=Release` for `bin\Release\`.
 
-Build the `.sln`, not `SuperPutty\SuperPutty.csproj`. The post-build step that copies the themes folder uses `$(SolutionDir)`, which is empty when the project is built on its own.
+Build the `.sln`, so the installer is built too.
 
 Manual test:
 
@@ -491,8 +525,13 @@ Icons:
 2. Tools → Options → GUI → Misc → Icon size: try 16, 20 and 32 (each needs a restart). Everything should be sharp at each size, and the tabs a little taller at 24 and 32.
    - **Tab icons:** each should be as tall as the tab text, centred, with a small gap before the text, in Dark, Light and Classic. Watch for Activity and the script spinner should still show on tabs, and the tab-list drop-down should show each tab's icon and name with no leading blank.
 3. Edit a session → click its icon: search for "switch", pick Blue, OK, Save. The tree and tab should show a blue switch, and Sessions.xml should say `ImageKey="switch#1E63B4"`.
-   - **Logo colours:** select Apple and pick white with More...: the logos should turn white in the grid, the device icons should keep their colours, and More... should be outlined.
+   - **Logo colours:** select Apple and pick white with More...: only Apple's tile (and the preview) should turn white, every other icon should keep its colours, and More... should be outlined. Select another icon: the white moves to it.
 4. In the dark theme, an Apple or AlmaLinux logo should show light grey, not black.
+5. Custom icons: in the picker, **Add icon...** a square PNG, 32x32 or bigger, and name it.
+   - **A black-outline icon or black-on-white image:** it should appear under Custom, selected, with its dark parts as the shape. It should take colours and be saved in `<SettingsFolder>\icons`.
+   - **A photo:** it should be refused with one reason.
+   - **Remove:** select the custom icon → **Remove**; it should go after you confirm.
+6. Button bar: right-click a button → Edit → **Icon** → **Choose icon...**, pick a coloured switch, OK. The button should show it, and the list should now show that icon above "Choose icon...". The colour circles should still work.
 
 Dropped sessions:
 
@@ -528,7 +567,7 @@ Button bar:
 5. Create a second bar, switch between them, restart SuperPuTTY: the last bar shown should come back. Check that `ButtonBars.xml` is next to `Sessions.xml`.
 6. Toggle **View → Toolbars → Button Bar**, and go full screen and back. Check the bar and the editor dialog in both light and dark themes.
 
-Icons: start `bin\Debug\SuperXPuTTY.exe` from another folder (for example, from a command prompt in `C:\`) and check that session icons still show. Copy a `.png` into `<SettingsFolder>\themes\default\icons`, restart, and check that it appears in the Edit Session icon picker. `GetThemeIconFolders` was checked against the compiled assembly from the Temp folder: it found the exe's `themes` folder and `C:\Program Files (x86)\SuperXPuTTY\themes\default\icons`, and loaded 49 icons.
+Icons: start `bin\Debug\SuperXPuTTY.exe` from another folder (for example, from a command prompt in `C:\`) and check that session icons still show. They're drawn by SuperPuTTY, so no icon folder is needed.
 
 Session search:
 

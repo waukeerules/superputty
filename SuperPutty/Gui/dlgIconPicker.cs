@@ -9,10 +9,10 @@ using SuperPutty.Utils;
 namespace SuperPutty.Gui
 {
     /// <summary>
-    /// Chooses a session icon and, for device templates and logos, its colour (IconLibrary). Icons are grouped as
-    /// Devices, Logos and Other icons (the theme folders' PNGs), with a search box. Picking a colour shows every device
-    /// template in that colour, so it's easy to see what "blue switch" looks like before choosing. Returns the key to
-    /// store in the session, e.g. "switch#1E63B4". Opened from Edit Session's icon button.
+    /// Chooses a session icon and its colour (IconLibrary). Icons are grouped as Devices, General, Logos and Custom (the
+    /// one-colour icons users add with Add icon..., kept by CustomIcons), with a search box. The chosen colour shows on
+    /// the selected icon's tile and in the large preview; every other icon keeps its own colours. Returns the key to
+    /// store, e.g. "switch#1E63B4". Opened from Edit Session's icon button and Edit Button's "Choose icon...".
     /// </summary>
     public partial class dlgIconPicker : Form
     {
@@ -34,11 +34,8 @@ namespace SuperPutty.Gui
         /// <summary>The More... button, outlined when the chosen colour isn't one of the swatches</summary>
         private Button moreButton;
 
-        /// <summary>
-        /// Whether the grid shows the chosen colour on the logos (a logo is selected) rather than on the device and
-        /// general icons
-        /// </summary>
-        private bool tintLogos;
+        /// <summary>The icon whose grid tile shows the chosen colour: the selected one; null if none</summary>
+        private string tintedName;
 
         /// <summary>Set while the grid is being refilled, so selecting the remembered item doesn't refill it again</summary>
         private bool filling;
@@ -144,12 +141,16 @@ namespace SuperPutty.Gui
                 swatch.Key.FlatAppearance.MouseOverBackColor = swatch.Value;
             }
             this.UpdateSelection();
+            // the grid was filled before it had a window, so scrolling to the selection did nothing then
+            if (this.listIcons.SelectedItems.Count > 0)
+            {
+                this.BeginInvoke(new Action(() => this.listIcons.SelectedItems[0].EnsureVisible()));
+            }
         }
 
         /// <summary>
-        /// Fill the grid: device and general icons, logos, then other icons, filtered by the search box. The chosen
-        /// colour is shown on the group the selected icon belongs to (logos, or the device and general icons), so it
-        /// previews what picking that colour will look like; the other group keeps its own colours.
+        /// Fill the grid: device and general icons, logos, then custom icons, filtered by the search box. Only the
+        /// selected icon's tile shows the chosen colour; the others show their own.
         /// </summary>
         /// <param name="selectName">The icon to select afterwards; null keeps the current selection</param>
         private void FillList(string selectName)
@@ -160,7 +161,7 @@ namespace SuperPutty.Gui
             }
             string filter = this.textBoxSearch.Text.Trim();
             int size = this.gridImages.ImageSize.Width;
-            this.tintLogos = BrandLogos.Exists(selectName);
+            this.tintedName = null;
 
             this.filling = true;
             this.listIcons.BeginUpdate();
@@ -171,15 +172,11 @@ namespace SuperPutty.Gui
             ListViewGroup devices = this.listIcons.Groups.Add("devices", "Devices");
             ListViewGroup general = this.listIcons.Groups.Add("general", "General");
             ListViewGroup logos = this.listIcons.Groups.Add("logos", "Logos");
-            ListViewGroup other = this.listIcons.Groups.Add("other", "Other icons");
-            IEnumerable<string> pngs = SuperPuTTY.Images == null ? Enumerable.Empty<string>()
-                : SuperPuTTY.Images.Images.Keys.Cast<string>()
-                    .Where(k => k != "stop" && !k.Contains("#") && !IconLibrary.IsColorable(k))
-                    .OrderBy(k => k, StringComparer.OrdinalIgnoreCase);
+            ListViewGroup custom = this.listIcons.Groups.Add("custom", "Custom");
 
             foreach (Tuple<string, ListViewGroup> entry in IconTemplates.Keys.Select(k => Tuple.Create(k, IconTemplates.IsGeneral(k) ? general : devices))
                 .Concat(BrandLogos.Keys.Select(k => Tuple.Create(k, logos)))
-                .Concat(pngs.Select(k => Tuple.Create(k, other))))
+                .Concat(CustomIcons.Keys().Select(k => Tuple.Create(k, custom))))
             {
                 string name = entry.Item1;
                 string title = IconLibrary.TitleOf(name);
@@ -187,15 +184,17 @@ namespace SuperPutty.Gui
                     && name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
                     continue;
 
-                bool tinted = this.tintLogos ? BrandLogos.Exists(name) : IconTemplates.Exists(name);
-                Image image = IconLibrary.IsDrawn(name) ? IconLibrary.RenderDrawn(tinted ? this.KeyFor(name) : name, size)
-                    : IconLibrary.Scale(SuperPuTTY.Images.Images[name], size);
+                bool selected = string.Equals(name, selectName, StringComparison.OrdinalIgnoreCase);
+                Image image = IconLibrary.RenderDrawn(selected ? this.KeyFor(name) : name, size);
+                if (image == null)
+                    continue;
                 this.gridImages.Images.Add(name, image);
                 ListViewItem item = new ListViewItem(title, name, entry.Item2) { Tag = name, ToolTipText = name };
                 this.listIcons.Items.Add(item);
-                if (string.Equals(name, selectName, StringComparison.OrdinalIgnoreCase))
+                if (selected)
                 {
                     item.Selected = true;
+                    this.tintedName = name;
                 }
             }
             this.listIcons.EndUpdate();
@@ -222,12 +221,30 @@ namespace SuperPutty.Gui
             return this.listIcons.SelectedItems.Count > 0 ? this.KeyFor((string)this.listIcons.SelectedItems[0].Tag) : null;
         }
 
-        /// <summary>Use a colour for templates and logos, and redraw the grid in it</summary>
-        /// <param name="color">The colour; Empty for each icon's own</param>
+        /// <summary>Use a colour for the selected icon, and redraw its tile and the preview in it</summary>
+        /// <param name="color">The colour; Empty for the icon's own</param>
         private void ChooseColor(Color color)
         {
             this.chosenColor = color;
-            this.FillList(null);
+            if (this.tintedName != null)
+            {
+                this.SetTile(this.tintedName, this.KeyFor(this.tintedName));
+            }
+            this.UpdateSelection();
+        }
+
+        /// <summary>Redraw one grid tile</summary>
+        /// <param name="name">The icon whose tile it is</param>
+        /// <param name="key">The key to draw it as, with or without a colour</param>
+        private void SetTile(string name, string key)
+        {
+            int index = this.gridImages.Images.IndexOfKey(name);
+            Image image = index < 0 ? null : IconLibrary.RenderDrawn(key, this.gridImages.ImageSize.Width);
+            if (image != null)
+            {
+                this.gridImages.Images[index] = image;
+                this.listIcons.Invalidate();
+            }
         }
 
         /// <summary>Show the selected icon large, mark the chosen colour, and enable what applies</summary>
@@ -251,10 +268,8 @@ namespace SuperPutty.Gui
             this.toolTip.SetToolTip(this.moreButton, fromSwatch ? "Any colour" : "Any colour (now " + ColorTranslator.ToHtml(this.chosenColor) + ")");
 
             Image old = this.pictureBoxPreview.Image;
-            this.pictureBoxPreview.Image = key == null ? null
-                : IconLibrary.IsColorable(key)
-                    ? IconLibrary.RenderDrawn(key, IconLibrary.ToPixels(PreviewSize))
-                    : IconLibrary.Scale(SuperPuTTY.Images.Images[key], IconLibrary.ToPixels(PreviewSize));
+            this.pictureBoxPreview.Image = key == null ? null : IconLibrary.RenderDrawn(key, IconLibrary.ToPixels(PreviewSize));
+            this.btnRemoveIcon.Enabled = key != null && CustomIcons.IsCustom(IconLibrary.NameOf(key));
             if (old != null)
             {
                 old.Dispose();
@@ -279,13 +294,80 @@ namespace SuperPutty.Gui
             if (this.filling)
                 return;
             string selected = this.listIcons.SelectedItems.Count > 0 ? (string)this.listIcons.SelectedItems[0].Tag : null;
-            if (!this.chosenColor.IsEmpty && selected != null && BrandLogos.Exists(selected) != this.tintLogos)
+            if (selected != null && !string.Equals(selected, this.tintedName, StringComparison.OrdinalIgnoreCase))
             {
-                // moved between a logo and a device icon: show the colour on the selected one's group
-                this.FillList(selected);
-                return;
+                // the colour moves to the newly selected tile; the previous one goes back to its own
+                if (this.tintedName != null)
+                {
+                    this.SetTile(this.tintedName, this.tintedName);
+                }
+                this.tintedName = selected;
+                this.SetTile(selected, this.KeyFor(selected));
             }
             this.UpdateSelection();
+        }
+
+        /// <summary>
+        /// Add a custom icon: pick an image, name it, and store it as a one-colour shape (CustomIcons.Import), then select
+        /// it so its large preview shows how it came out
+        /// </summary>
+        /// <param name="sender">The Add icon button</param>
+        /// <param name="e">Not used</param>
+        private void btnAddIcon_Click(object sender, EventArgs e)
+        {
+            string file;
+            using (OpenFileDialog open = new OpenFileDialog
+            {
+                Title = "Add icon",
+                Filter = "PNG images (*.png)|*.png|All images (*.png;*.gif;*.bmp)|*.png;*.gif;*.bmp"
+            })
+            {
+                if (open.ShowDialog(this) != DialogResult.OK)
+                    return;
+                file = open.FileName;
+            }
+
+            dlgRenameItem.ItemNameValidationHandler validator = delegate (string name, out string error)
+            {
+                return CustomIcons.ValidateName(name, out error);
+            };
+            using (dlgRenameItem naming = new dlgRenameItem
+            {
+                Text = "Name the icon",
+                ItemName = System.IO.Path.GetFileNameWithoutExtension(file),
+                DetailName = "Stored in " + CustomIcons.Folder,
+                ItemNameValidator = validator
+            })
+            {
+                if (naming.ShowDialog(this) != DialogResult.OK)
+                    return;
+                string key, error;
+                if (!CustomIcons.Import(file, naming.ItemName, out key, out error))
+                {
+                    Messenger.MessageBox(error + "\n\nUse a square PNG, 32x32 or bigger, with a dark or one-colour shape " +
+                        "on a light or transparent background.", "Add icon", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                this.textBoxSearch.Text = string.Empty;
+                this.chosenColor = Color.Empty;
+                this.FillList(key);
+            }
+        }
+
+        /// <summary>Delete the selected custom icon, after asking; sessions using it then show the default icon</summary>
+        /// <param name="sender">The Remove button</param>
+        /// <param name="e">Not used</param>
+        private void btnRemoveIcon_Click(object sender, EventArgs e)
+        {
+            string name = this.listIcons.SelectedItems.Count > 0 ? (string)this.listIcons.SelectedItems[0].Tag : null;
+            if (!CustomIcons.IsCustom(name))
+                return;
+            if (Messenger.MessageBox("Delete the custom icon \"" + CustomIcons.TitleOf(name) + "\" from " + CustomIcons.Folder +
+                "?\n\nSessions and buttons using it will show the default icon.", "Remove icon",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+            CustomIcons.Delete(name);
+            this.FillList(string.Empty);
         }
 
         /// <summary>Double-clicking an icon chooses it</summary>

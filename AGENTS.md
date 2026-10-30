@@ -60,7 +60,7 @@ Keep its file tables, known issues and manual test steps accurate. If a change m
 MSBuild.exe SuperPutty.sln /restore /p:Configuration=Debug /v:minimal
 ```
 
-- Build the `.sln`, not `SuperPutty\SuperPutty.csproj`. The post-build theme copy relies on `$(SolutionDir)`.
+- Build the `.sln`, not `SuperPutty\SuperPutty.csproj`, so the installer is built too.
 - The output is `bin\Debug\SuperXPuTTY.exe`. If SuperPuTTY is running from there, the build fails to copy the exe; close it first.
 - The log goes to `%TEMP%\SuperPuTTY.log`. `ApplicationPanel` logs every `MoveWindow` with the panel size, which is useful for window and sizing bugs.
 - `SuperPuttyUnitTests` uses an old NUnit 2.5 GUI runner, and most of its tests need a live SCP server. For new logic, keep it in small static methods that can be checked directly, and list the manual test steps in FORK_CHANGES.md.
@@ -105,7 +105,7 @@ SCP sessions go through `SuperPuTTY.OpenScpSession` → `PscpBrowserPanel` inste
 | `SessionVariables`, `EnvironmentVariablesManager` | `Utils/` | Fork feature: `{key}` placeholders and the per-user values file |
 | `RdpControl`, `IEmbeddedApplication`, `ICommandReceiver` | `Gui/`, `Utils/` | Fork feature: RDP tabs host the Remote Desktop ActiveX control (late bound, no interop assemblies) inside the `ApplicationPanel` instead of capturing mstsc. Options are the `Rdp*` settings (Tools → Options → RDP). To type into any tab, call `ctlPuttyPanel.SendCommand`, never `CommandData.SendToTerminal` with a window handle, so RDP tabs work too |
 | `SessionLog`, `ctlPuttyPanel.RunScript` / `WaitForOutput` | `Utils/`, top level | Fork feature: every PuTTY session logs its output (`-sessionlog`, kept or temporary), which is how SuperPuTTY sees output; SPSL's `WAITFOR` reads it. Run scripts with `ctlPuttyPanel.RunScript`, not `SPSL.BeginExecuteScript`, so `WAITFOR` and RDP tabs work |
-| `IconLibrary`, `IconTemplates`, `BrandLogos`, `dlgIconPicker` | `Gui/` | Fork feature: session icons are drawn at the size shown (Options → Icon size). A key is a name plus an optional colour (`switch#1E63B4`). Templates and logos are vector drawings, and old PNG keys map onto them. Look up keys with `IconLibrary.Ensure(SuperPuTTY.Images, key)` rather than `Images.ContainsKey`, so coloured keys are drawn on first use. Set document tab icons with `TabIcons.Set`, not the `Icon` property: DockPanelSuite would draw them at a fixed 16 px |
+| `IconLibrary`, `IconTemplates`, `BrandLogos`, `CustomIcons`, `dlgIconPicker` | `Gui/` | Fork feature: session icons are drawn at the size shown (Options → Icon size). A key is a name plus an optional colour (`switch#1E63B4`, `custom:juniper#C62828`). Templates and logos are vector drawings, custom icons are one-colour PNGs in `<SettingsFolder>\icons`, and old PNG keys map onto them; theme icon folders aren't read. Look up keys with `IconLibrary.Ensure(SuperPuTTY.Images, key)` rather than `Images.ContainsKey`, so coloured keys are drawn on first use. Set document tab icons with `TabIcons.Set`, not the `Icon` property: DockPanelSuite would draw them at a fixed 16 px |
 | `PuttyWindow`, `ctlPuttyPanel.CheckConnection` | `Utils/`, top level | Fork feature: dropped sessions keep their tab, get a badge and reconnect, by finding PuTTY's "Fatal Error" box and sending its Restart Session command. A PuTTY process exiting still closes the tab |
 | `ButtonBarStrip`, `ButtonBarStore`, `SendStringParser` | `Gui/`, `Utils/` | Fork feature: the button bar above the status bar. Buttons are stored in `ButtonBars.xml` in SettingsFolder; sending uses `CommandData.SendToTerminal`, like the Send Commands toolbar and SPSL |
 | `SessionTreeview`, `LayoutsList`, `SessionDetail`, log viewers | top level | Tool windows (`ToolWindow`), shown and hidden through `SingletonToolWindowHelper<T>` |
@@ -122,7 +122,6 @@ SCP sessions go through `SuperPuTTY.OpenScpSession` → `PscpBrowserPanel` inste
 | `Scripting/` | SPSL, the session scripting language (`Spsl.cs` plus one class per command) |
 | `DarkModeForms/` | Copied in from [BlueMystical/Dark-Mode-Forms](https://github.com/BlueMystical/Dark-Mode-Forms): `DarkModeCS`, `Messenger` (themed message boxes), `Flat*` controls |
 | `Models/` | Fork additions (`EnvironmentVariable`) |
-| `Resources/themes/` | Session icons, copied to `bin\<Configuration>\themes` after each build. Most are now drawn by `Gui/IconTemplates.cs` and `Gui/BrandLogos.cs` instead |
 | `Resources/third-party/` | Licences for bundled third-party data (Simple Icons, CC0) |
 
 ### Settings and files

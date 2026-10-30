@@ -48,6 +48,9 @@ namespace SuperPutty.Gui
 
             /// <summary>True for the "Custom color..." entry, which opens a color picker</summary>
             public bool PickCustom;
+
+            /// <summary>True for the "Choose icon..." entry, which opens the icon picker</summary>
+            public bool PickIcon;
         }
 
         /// <summary>The Icon list entry selected before the current one, to go back to if the color picker is cancelled</summary>
@@ -96,8 +99,8 @@ namespace SuperPutty.Gui
         }
 
         /// <summary>
-        /// Fill the Icon list (none, preset colors, the button's own custom color if any, "Custom color...",
-        /// then every session icon) and select the button's current icon
+        /// Fill the Icon list (none, preset colors, the button's own custom color if any, "Custom color...", the
+        /// button's icon if it has one, and "Choose icon..." for the icon picker) and select the button's current icon
         /// </summary>
         private void FillIconChoices()
         {
@@ -115,13 +118,13 @@ namespace SuperPutty.Gui
             }
             this.comboBoxIcon.Items.Add(new IconChoice { Name = "Custom color...", PickCustom = true });
 
-            if (SuperPuTTY.Images != null)
+            // the button's icon, if it has one; others are chosen in the icon picker, so old and duplicate keys
+            // aren't listed
+            if (!string.IsNullOrEmpty(this.EditedButton.ImageKey))
             {
-                foreach (string key in SuperPuTTY.Images.Images.Keys)
-                {
-                    this.comboBoxIcon.Items.Add(new IconChoice { Name = key, ImageKey = key });
-                }
+                this.comboBoxIcon.Items.Add(IconEntry(this.EditedButton.ImageKey));
             }
+            this.comboBoxIcon.Items.Add(new IconChoice { Name = "Choose icon...", PickIcon = true });
 
             IconChoice selected = this.comboBoxIcon.Items.Cast<IconChoice>().FirstOrDefault(c =>
                 !string.IsNullOrEmpty(this.EditedButton.ImageKey)
@@ -129,6 +132,20 @@ namespace SuperPutty.Gui
                     : c.Color != null && string.Equals(c.Color, this.EditedButton.Color, StringComparison.OrdinalIgnoreCase));
             this.comboBoxIcon.SelectedItem = selected ?? this.comboBoxIcon.Items[0];
             this.lastIconChoice = (IconChoice)this.comboBoxIcon.SelectedItem;
+        }
+
+        /// <summary>The Icon list entry for an icon key, named after the icon</summary>
+        /// <param name="key">The icon key, e.g. "switch#1E63B4"</param>
+        /// <returns>The entry</returns>
+        private static IconChoice IconEntry(string key)
+        {
+            string title = IconLibrary.TitleOf(IconLibrary.NameOf(key));
+            Color color = IconLibrary.ColorOf(key);
+            return new IconChoice
+            {
+                Name = color.IsEmpty ? title : title + " " + ColorTranslator.ToHtml(color),
+                ImageKey = key
+            };
         }
 
         /// <summary>Draw an Icon list entry: its circle or session icon, then its name</summary>
@@ -144,7 +161,7 @@ namespace SuperPutty.Gui
             int size = e.Bounds.Height - 4;
             Rectangle iconBounds = new Rectangle(e.Bounds.Left + 2, e.Bounds.Top + 2, size, size);
             Color color;
-            if (choice.ImageKey != null)
+            if (choice.ImageKey != null && IconLibrary.Ensure(SuperPuTTY.Images, choice.ImageKey))
             {
                 e.Graphics.DrawImage(SuperPuTTY.Images.Images[choice.ImageKey], iconBounds);
             }
@@ -171,6 +188,11 @@ namespace SuperPutty.Gui
         private void comboBoxIcon_SelectionChangeCommitted(object sender, EventArgs e)
         {
             IconChoice choice = (IconChoice)this.comboBoxIcon.SelectedItem;
+            if (choice != null && choice.PickIcon)
+            {
+                this.ChooseIcon();
+                return;
+            }
             if (choice == null || !choice.PickCustom)
             {
                 this.lastIconChoice = choice;
@@ -196,6 +218,33 @@ namespace SuperPutty.Gui
                 {
                     this.comboBoxIcon.SelectedItem = this.lastIconChoice;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Open the icon picker (the same one Edit Session uses) and make the chosen icon the button's, replacing any
+        /// icon entry already in the list; if the picker is cancelled, go back to the previous entry
+        /// </summary>
+        private void ChooseIcon()
+        {
+            string current = this.lastIconChoice != null ? this.lastIconChoice.ImageKey : null;
+            using (dlgIconPicker picker = new dlgIconPicker(current))
+            {
+                if (picker.ShowDialog(this) != DialogResult.OK || string.IsNullOrEmpty(picker.SelectedKey))
+                {
+                    this.comboBoxIcon.SelectedItem = this.lastIconChoice;
+                    return;
+                }
+                IconChoice old = this.comboBoxIcon.Items.Cast<IconChoice>().FirstOrDefault(c => c.ImageKey != null);
+                if (old != null)
+                {
+                    this.comboBoxIcon.Items.Remove(old);
+                }
+                IconChoice chosen = IconEntry(picker.SelectedKey);
+                int pickIndex = this.comboBoxIcon.Items.Cast<IconChoice>().ToList().FindIndex(c => c.PickIcon);
+                this.comboBoxIcon.Items.Insert(pickIndex, chosen);
+                this.comboBoxIcon.SelectedItem = chosen;
+                this.lastIconChoice = chosen;
             }
         }
 
