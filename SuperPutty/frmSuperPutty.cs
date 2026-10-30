@@ -268,12 +268,45 @@ namespace SuperPutty
 
             this.tsCommands.ImageList = SuperPuTTY.ImagesWithStop;
             this.toolStripButtonChooseIconGroup.ImageKey = "stop";
+            this.ApplyToolbarIcons();
 
             puTTYConfigurationToolStripMenuItem.Text = "&" + SuperPuTTY.PuTTYAppName + " configuration";
             aboutSuperPuTTYToolStripMenuItem.Text = "About " + System.Reflection.Assembly.GetExecutingAssembly().GetName().Name;
             Text = System.Reflection.Assembly.GetExecutingAssembly().GetName().Name;
 
-            DockPanel.Theme.Skin.DockPaneStripSkin.TextFont = new Font("Segoe UI", 10.0f, FontStyle.Regular);
+            DockPanel.Theme.Skin.DockPaneStripSkin.TextFont = new Font("Segoe UI", IconLibrary.TabFontSize, FontStyle.Regular);
+            // tab icons are drawn as tall as the tab font (see TabIcons)
+            IconLibrary.TabIconPixels = DockPanel.Theme.Skin.DockPaneStripSkin.TextFont.Height;
+            TabIcons.Configure(DockPanel.Theme.Skin.DockPaneStripSkin.TextFont);
+        }
+
+        /// <summary>
+        /// Draw the top toolbars' icons at the icon size chosen in Options (see IconLibrary), in place of the designer's
+        /// 16 px bitmaps, so they're sharp and match the session icons
+        /// </summary>
+        private void ApplyToolbarIcons()
+        {
+            int size = IconLibrary.ToPixels(IconLibrary.LogicalSize);
+            foreach (ToolStrip strip in new[] { this.tsConnect, this.tsCommands })
+            {
+                strip.ImageScalingSize = new Size(size, size);
+            }
+            var icons = new Dictionary<ToolStripItem, string>
+            {
+                { this.toolStripLabel1, "workstation" },
+                { this.tbBtnConnect, "check" },
+                { this.toolStripButtonClearFields, "clear" },
+                { this.tbTextSendCommands, "terminal" },
+                { this.tbBtnSendCommand, "check" },
+                { this.tbBtnMaskText, "mask" },
+                { this.toolStripButtonRunScript, "script" },
+                { this.tbBtnSelectDocs, "selecttabs" }
+            };
+            foreach (KeyValuePair<ToolStripItem, string> icon in icons)
+            {
+                icon.Key.Image = IconLibrary.RenderDrawn(icon.Value, size);
+                icon.Key.ImageScaling = ToolStripItemImageScaling.None;
+            }
         }
 
         /// <summary>The Dark theme with muted selected and hovered tab colours instead of bright blue</summary>

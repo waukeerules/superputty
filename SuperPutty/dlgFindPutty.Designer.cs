@@ -123,6 +123,8 @@
             this.groupBox6 = new System.Windows.Forms.GroupBox();
             this.checkPuttyEnableNewSessionMenu = new System.Windows.Forms.CheckBox();
             this.groupBox3 = new System.Windows.Forms.GroupBox();
+            this.labelIconSize = new System.Windows.Forms.Label();
+            this.comboIconSize = new System.Windows.Forms.ComboBox();
             this.label13 = new System.Windows.Forms.Label();
             this.numericUpDownOpacity = new System.Windows.Forms.NumericUpDown();
             this.label15 = new System.Windows.Forms.Label();
@@ -1312,6 +1314,8 @@
             this.groupBox3.Controls.Add(this.label12);
             this.groupBox3.Controls.Add(this.numericUpDownOpacity);
             this.groupBox3.Controls.Add(this.checkMinimizeToTray);
+            this.groupBox3.Controls.Add(this.labelIconSize);
+            this.groupBox3.Controls.Add(this.comboIconSize);
             this.groupBox3.Controls.Add(this.label15);
             this.groupBox3.Controls.Add(this.checkQuickSelectorCaseSensitiveSearch);
             this.groupBox3.Location = new System.Drawing.Point(459, 264);
@@ -2182,6 +2186,25 @@
             ((System.ComponentModel.ISupportInitialize)(this.numericReconnectAttempts)).EndInit();
             this.groupBoxReconnect.ResumeLayout(false);
             this.groupBoxReconnect.PerformLayout();
+            //
+            // labelIconSize
+            //
+            this.labelIconSize.AutoSize = true;
+            this.labelIconSize.Location = new System.Drawing.Point(12, 192);
+            this.labelIconSize.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.labelIconSize.Name = "labelIconSize";
+            this.labelIconSize.TabIndex = 20;
+            this.labelIconSize.Text = "Icon size:";
+            //
+            // comboIconSize
+            //
+            this.comboIconSize.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboIconSize.Location = new System.Drawing.Point(89, 188);
+            this.comboIconSize.Margin = new System.Windows.Forms.Padding(4);
+            this.comboIconSize.Name = "comboIconSize";
+            this.comboIconSize.Size = new System.Drawing.Size(130, 28);
+            this.comboIconSize.TabIndex = 21;
+            this.toolTip.SetToolTip(this.comboIconSize, "Session icons in the tree, tabs, toolbars and button bar, scaled for your display. Applies after a restart.");
             this.tabControl.ResumeLayout(false);
             this.tabPageGeneral.ResumeLayout(false);
             this.tabPageGeneral.PerformLayout();
@@ -2359,6 +2382,8 @@
         private System.Windows.Forms.RadioButton optDarkTheme;
         private System.Windows.Forms.RadioButton optDarkBlueTheme;
         private System.Windows.Forms.RadioButton optClassicTheme;
+        private System.Windows.Forms.Label labelIconSize;
+        private System.Windows.Forms.ComboBox comboIconSize;
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.LinkLabel linkTightVnc;
         private System.Windows.Forms.LinkLabel linkFilezilla;

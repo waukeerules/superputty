@@ -284,5 +284,8 @@
     <Setting Name="AutoReconnectAttempts" Provider="SuperPutty.Utils.PortableSettingsProvider" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">6</Value>
     </Setting>
+    <Setting Name="IconSize" Provider="SuperPutty.Utils.PortableSettingsProvider" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">24</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

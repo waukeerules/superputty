@@ -203,6 +203,11 @@ namespace SuperPutty
             this.checkSessionLog.Checked = SuperPuTTY.Settings.SessionLogEnabled;
             this.textBoxSessionLogFolder.Text = SuperPuTTY.Settings.SessionLogFolder;
             this.checkAutoReconnect.Checked = SuperPuTTY.Settings.AutoReconnect;
+            foreach (int size in IconLibrary.Sizes)
+            {
+                this.comboIconSize.Items.Add(size + " px" + (size == 24 ? " (default)" : ""));
+            }
+            this.comboIconSize.SelectedIndex = Array.IndexOf(IconLibrary.Sizes, IconLibrary.LogicalSize);
             this.numericReconnectDelay.Value = Math.Max(this.numericReconnectDelay.Minimum, Math.Min(this.numericReconnectDelay.Maximum, SuperPuTTY.Settings.AutoReconnectDelaySeconds));
             this.numericReconnectAttempts.Value = Math.Max(this.numericReconnectAttempts.Minimum, Math.Min(this.numericReconnectAttempts.Maximum, SuperPuTTY.Settings.AutoReconnectAttempts));
             this.checkBoxCheckForUpdates.Checked = SuperPuTTY.Settings.AutoUpdateCheck;
@@ -466,6 +471,13 @@ namespace SuperPutty
                 else if (optClassicTheme.Checked && SuperPuTTY.Settings.InterfaceTheme != (int)InterfaceTheme.ClassicTheme)
                 {
                     SuperPuTTY.Settings.InterfaceTheme = (int)InterfaceTheme.ClassicTheme;
+                    warnThemeChange = true;
+                }
+
+                int iconSize = IconLibrary.Sizes[Math.Max(0, this.comboIconSize.SelectedIndex)];
+                if (iconSize != SuperPuTTY.Settings.IconSize)
+                {
+                    SuperPuTTY.Settings.IconSize = iconSize;
                     warnThemeChange = true;
                 }
 

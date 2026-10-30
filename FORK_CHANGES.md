@@ -369,6 +369,52 @@ With the PuTTY path (Tools → Options) set to KiTTY, SuperPuTTY now finds KiTTY
 - With the PuTTY path set (in memory) to `kitty_portable.exe`, the profiles were read from `KiTTY\Sessions`: Default Settings, ssh_key, test and test123, matching KiTTY's own list. `bogus` was reported missing, and the import read all four files.
 - With `putty.exe`, the registry was read as before.
 
+## Sharp, larger, colourable icons
+
+Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom network icons in colour variants such as `green_switch` and `blue_router`). They were loaded into a 16 px list that ignored display scaling, so on a 125%+ display they looked tiny and pixelated next to SecureCRT or MobaXterm. Icons are now drawn at the size they're shown.
+
+- **Icon size:** Tools → Options → GUI → Misc → **Icon size**: 16, 20, 24 (default) or 32. It's scaled for the display and applies after a restart.
+  - **Covers:** the session tree, document tabs (bigger icons also make the tab font, and so the tabs, a little taller), the top toolbars and the button bar.
+  - **Tab icons** are as tall as the tab text, vertically centred, with a small gap before the text (`Gui/TabIcons.cs`).
+    - **Why the extra code:** DockPanelSuite draws a tab's icon in a fixed 16x16 box near the tab's bottom edge. That size is a compile-time constant in both tab styles and isn't scaled for the display, so on a 150% screen the icon was small and sat low.
+    - **The workaround:** tabs get a transparent placeholder icon, so DockPanelSuite keeps the icon space but draws nothing there. `TabIcons` then draws the real icon after each tab-strip paint, by listening for the strip's `WM_PAINT`; the strips raise their `Paint` event before drawing the tabs.
+    - **Making room:** the tab text gets blank padding in front (U+2800, the blank Braille pattern, which draws as space but isn't trimmed as whitespace), so DockPanelSuite itself widens each tab and moves the text right by the room the larger icon needs.
+    - **Who uses it:** set tab icons with `TabIcons.Set`, not the `Icon` property (`SuperPuTTY.ApplyIconForWindow`, the badges in `ctlPuttyPanel`). The tab-list menu shows the real icons and strips the padding.
+    - **Classic tabs** have a slanted left edge and start their text a few pixels earlier, so their icons start further in and are a little smaller.
+- **Device templates** (`Gui/IconTemplates.cs`) are drawn in code, so they're sharp at any size, and their body takes any colour.
+  - **Templates:** switch, layer 3 switch, router, voice router, data centre (Nexus) switch, firewall, wireless, load balancer, server, workstation, terminal, Windows, database, storage, cloud, IP phone, camera, printer, folder and flag.
+  - **Colour coding:** "green switch = layer 2, blue switch = layer 3" is one template in two colours.
+  - **General icons** replace the rest of the old Silk PNGs, drawn the same way: home, globe, map, truck, book, document, archive, email, chat, feed, clock, help, information, light bulb, lightning, television and mobile device. The picker lists them under "General".
+  - **The top toolbars' buttons** (connect, clear, send, mask, run script, select tabs, the icon filter's "stop") are drawn the same way, so they match.
+- **Logos** (`Gui/BrandLogos.cs`): 26 OS and vendor logos from [Simple Icons](https://simpleicons.org) 16.36.0. The icon data is CC0 (`Resources/third-party/simple-icons-LICENSE.md`), and the logos remain their owners' trademarks.
+  - **The list:** Ubuntu, Debian, Red Hat, CentOS, Fedora, Arch, Mint, openSUSE, SUSE, FreeBSD, OpenBSD, Linux, Apple, Android, Cisco, Palo Alto, Fortinet, VMware, Proxmox, Docker, Kubernetes, Raspberry Pi, Alpine, Rocky, Alma and Kali.
+  - **Built in:** each is stored as one SVG path plus the brand colour and drawn through `Gui/SvgPath.cs` (an SVG path → GraphicsPath reader), so nothing is downloaded at run time.
+  - **Dark themes:** near-black logos are lightened so they show.
+  - **Windows:** Simple Icons no longer carries Microsoft's logos, so the drawn four-pane "windows" template stands in.
+- **Icon keys** (`Gui/IconLibrary.cs`): a session's `ImageKey` is a name with an optional colour, e.g. `switch`, `switch#1E63B4` or `ubuntu`. Coloured keys are drawn into the image list on first use.
+  - **Old keys still work:** they map onto templates and logos, e.g. `green_switch` → `switch#2E7D32`, `red_big_nexus` → `nexus#8E1B1B`, `flag_red` → `flag#C62828`, `tux` → `linux`, `puffy` → `openbsd`, `computer`/`monitor` → `workstation`, `world` → `globe`, `lorry` → `truck`, `report` → `document`. Every icon in the default set now maps to a drawn one, so existing Sessions.xml files keep their icons, now sharp.
+  - **Other PNGs:** any other PNG in a theme folder (e.g. your own, in the settings folder's `themes\default\icons`) is still loaded, scaled smoothly, and listed under "Other icons".
+  - **Older SuperPuTTY versions** reading the same Sessions.xml show their default icon for a coloured key.
+- **Icon picker** (`Gui/dlgIconPicker.cs`), from Edit Session's icon button:
+  - **Layout:** a searchable grid grouped as Devices, General, Logos and Other icons, plus a large preview.
+  - **Dark theme:** the grid uses Windows' dark "items view" style, so the group headings are readable. DarkModeCS's dark Explorer style left them dark blue.
+  - **Colour row:** Default, ten named colours, and More... for any colour. Choosing a colour shows every device template in it; logos keep their brand colours in the grid.
+  - **Result:** the picker returns the key to store, with the colour left off when it's the icon's own.
+  - **Replaces:** the old plain grid popup. The toolbar's icon filter still uses the grid.
+- **Code:**
+  - `SuperPuTTY.LoadImageList` (now `IconLibrary.Fill`) and `GetIconForSession`;
+  - `frmSuperPutty.ApplyToolbarIcons`;
+  - `SessionTreeview.IsValidImage`;
+  - `ButtonBarStrip` (icon size, circle and spinner size);
+  - the `IconSize` setting.
+
+**Checked against the compiled assembly:**
+- **Image list:** it was built from the installed icon folder at 24 px with 98 icons. `green_switch`, `router#C62828`, `tux`, `ubuntu`, `book`, `flag_red`, `computer`, `folder` and an arbitrary `switch#123456` all resolved; `nonsense` didn't.
+- **Session tree:** a mock tree with the real session keys rendered in the light and dark themes.
+- **Logos:** all 26 rendered at 16–64 px.
+- **Picker:** it opened on `green_switch` with Switch selected, and choosing Blue returned `switch#1E63B4`.
+- **Not checked:** this wasn't checked in the running app (tabs, toolbars, button bar, Options), nor at a display scaling other than 100%.
+
 ## Fix: the installer didn't include Newtonsoft.Json.dll
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
@@ -435,6 +481,14 @@ Session profiles and portable KiTTY:
 1. Edit a session whose PuTTY session profile doesn't exist (e.g. `PuttySession="bogus"` in Sessions.xml). The profile list should show "bogus" in red, with a red "Not saved in PuTTY yet" under it, and the tooltip should say where SuperPuTTY looked. Save without changes: Sessions.xml should still say `bogus`.
 2. Set Tools → Options → PuTTY path to `kitty_portable.exe`, then open Edit Session: the profile list should show the KiTTY sessions and the note should say "KiTTY".
 3. Save a new session in PuTTY or KiTTY while SuperPuTTY is running, then open the quick-connect Session list: it should be there without restarting.
+
+Icons:
+
+1. Restart SuperPuTTY: the session tree, tabs, top toolbars and button bar should show the new, larger icons. Sessions using `green_switch`, `blue_router`, `ubuntu` and the like should show the drawn versions.
+2. Tools → Options → GUI → Misc → Icon size: try 16, 20 and 32 (each needs a restart). Everything should be sharp at each size, and the tabs a little taller at 24 and 32.
+   - **Tab icons:** each should be as tall as the tab text, centred, with a small gap before the text, in Dark, Light and Classic. Watch for Activity and the script spinner should still show on tabs, and the tab-list drop-down should show each tab's icon and name with no leading blank.
+3. Edit a session → click its icon: search for "switch", pick Blue, OK, Save. The tree and tab should show a blue switch, and Sessions.xml should say `ImageKey="switch#1E63B4"`.
+4. In the dark theme, an Apple or AlmaLinux logo should show light grey, not black.
 
 Dropped sessions:
 

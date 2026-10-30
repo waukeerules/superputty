@@ -62,7 +62,7 @@ namespace SuperPutty
             InitializeComponent();
 
             this.Text = session.SessionName;
-            this.TabText = session.SessionName;
+            this.TabText = TabIcons.WithPad(session.SessionName);
             this.TextOverride = session.SessionName;
 
             CreatePanel();
@@ -83,7 +83,8 @@ namespace SuperPutty
             }
             set
             {
-                this.TabText = value != null ? value.Replace("&", "&&") : null;
+                // padded to make room for the larger tab icon (see TabIcons)
+                this.TabText = TabIcons.WithPad(value != null ? value.Replace("&", "&&") : null);
                 base.Text = value;
 
                 if (Log.Logger.IsEnabledFor(Level.Trace))
@@ -595,15 +596,15 @@ namespace SuperPutty
             {
                 if (this.normalIcon == null)
                 {
-                    this.normalIcon = this.Icon;
+                    this.normalIcon = TabIcons.Get(this);
                 }
-                if (this.Icon == badge)
+                if (TabIcons.Get(this) == badge)
                     return;
-                this.Icon = badge;
+                TabIcons.Set(this, badge);
             }
             else if (this.normalIcon != null)
             {
-                this.Icon = this.normalIcon;
+                TabIcons.Set(this, this.normalIcon);
                 this.normalIcon = null;
             }
             else
@@ -1076,7 +1077,7 @@ namespace SuperPutty
                         }
                         else
                         {
-                            panel.Icon = SuperPuTTY.GetIconForSession(session);
+                            TabIcons.Set(panel, SuperPuTTY.GetIconForSession(session));
                             panel.Text = tabName;
                             panel.TextOverride = tabName;
                         }

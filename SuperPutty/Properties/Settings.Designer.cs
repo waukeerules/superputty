@@ -1244,5 +1244,18 @@ namespace SuperPutty.Properties {
                 this["AutoReconnectAttempts"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("24")]
+        public int IconSize {
+            get {
+                return ((int)(this["IconSize"]));
+            }
+            set {
+                this["IconSize"] = value;
+            }
+        }
     }
 }

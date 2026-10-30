@@ -1184,6 +1184,10 @@ namespace SuperPutty.Utils
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
 
+        /// <summary>Give a window a different visual style, e.g. "DarkMode_ItemsView" for a dark list view</summary>
+        [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+        public static extern int SetWindowTheme(IntPtr hWnd, string pszSubAppName, string pszSubIdList);
+
         /// <summary>A control in a dialog, by its ID</summary>
         [DllImport("user32.dll")]
         public static extern IntPtr GetDlgItem(IntPtr hDlg, int nIDDlgItem);

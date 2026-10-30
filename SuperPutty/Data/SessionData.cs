@@ -36,6 +36,7 @@ using System.Web;
 using System.Text.RegularExpressions;
 using System.Net;
 using System.Text;
+using SuperPutty.Gui;
 
 namespace SuperPutty.Data
 {
@@ -818,7 +819,7 @@ namespace SuperPutty.Data
             public override void PaintValue(PaintValueEventArgs e)
             {
                 string ImageKey = e.Value.ToString();
-                Image img = SuperPuTTY.Images.Images[ImageKey];
+                Image img = IconLibrary.Ensure(SuperPuTTY.Images, ImageKey) ? SuperPuTTY.Images.Images[ImageKey] : null;
 
                 if (img == null)
                     return;

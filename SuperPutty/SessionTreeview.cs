@@ -208,8 +208,9 @@ namespace SuperPutty
 
                 Node.Text = Session.SessionName;
                 Node.Name = Session.SessionName;
-                Node.ImageKey = Session.ImageKey;
-                Node.SelectedImageKey = Session.ImageKey;
+                string imageKey = IsValidImage(Session.ImageKey) ? Session.ImageKey : ImageKeySession;
+                Node.ImageKey = imageKey;
+                Node.SelectedImageKey = imageKey;
 
                 bool IsSelectedSession = treeView1.SelectedNode == Node;
                 ResortNodes();
@@ -1053,7 +1054,8 @@ namespace SuperPutty
             bool valid = false;
             if (!string.IsNullOrEmpty(imageKey))
             {
-                valid = this.treeView1.ImageList.Images.ContainsKey(imageKey);
+                // coloured icons ("switch#1E63B4") are drawn into the list on first use
+                valid = IconLibrary.Ensure(this.treeView1.ImageList, imageKey);
                 if (!valid)
                 {
                     Log.WarnFormat("Missing icon, {0}", imageKey);

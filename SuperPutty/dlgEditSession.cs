@@ -47,7 +47,6 @@ namespace SuperPutty
         private string rdpOptions;
         private String OldHostname;
         private bool isInitialized = false;
-        private ImageListPopup imgPopup = null;
 
         private static readonly Color placeholderMissingColor = Color.IndianRed;
         private Dictionary<string, string> placeholderValues;
@@ -118,7 +117,8 @@ namespace SuperPutty
 
             // Setup icon chooser
             this.buttonImageSelect.ImageList = iconList;
-            this.buttonImageSelect.ImageKey = string.IsNullOrEmpty(Session.ImageKey)
+            // coloured icons ("switch#1E63B4") are drawn into the list on first use
+            this.buttonImageSelect.ImageKey = !IconLibrary.Ensure(iconList, Session.ImageKey)
                 ? SessionTreeview.ImageKeySession
                 : Session.ImageKey;
             this.toolTip.SetToolTip(this.buttonImageSelect, buttonImageSelect.ImageKey);
@@ -424,47 +424,25 @@ namespace SuperPutty
         }
 
         #region Icon
+        /// <summary>
+        /// Choose the session's icon, and for device templates and logos its colour, in the icon picker
+        /// (dlgIconPicker), which replaced the plain grid popup
+        /// </summary>
+        /// <param name="sender">The icon button</param>
+        /// <param name="e">Not used</param>
         private void buttonImageSelect_Click(object sender, EventArgs e)
         {
-            if (this.imgPopup == null)
+            using (dlgIconPicker picker = new dlgIconPicker(buttonImageSelect.ImageKey))
             {
-                // TODO: ImageList is null on initial installation and will throw a nullreference exception when creating a new session and trying to select an image.
-
-                int n = buttonImageSelect.ImageList.Images.Count;
-                int x = (int) Math.Floor(Math.Sqrt(n)) + 1;
-                int cols = x;
-                int rows = x;
-
-                imgPopup = new ImageListPopup();
-
-                if (SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme)
+                if (picker.ShowDialog(this) == DialogResult.OK && IconLibrary.Ensure(buttonImageSelect.ImageList, picker.SelectedKey))
                 {
-                    imgPopup.BackgroundColor = Color.FromArgb(55, 55, 55);
-                    imgPopup.BackgroundOverColor = Color.FromArgb(102, 154, 204);
+                    buttonImageSelect.ImageKey = picker.SelectedKey;
+                    this.toolTip.SetToolTip(this.buttonImageSelect, buttonImageSelect.ImageKey);
                 }
-                else
-                {
-                    imgPopup.BackgroundColor = Color.FromArgb(241, 241, 241);
-                    imgPopup.BackgroundOverColor = Color.FromArgb(102, 154, 204);
-                }
-
-                imgPopup.Init(this.buttonImageSelect.ImageList, 8, 8, cols, rows);
-                imgPopup.ItemClick += new ImageListPopupEventHandler(this.OnItemClicked);
             }
-
-            Point pt = PointToScreen(new Point(buttonImageSelect.Left, buttonImageSelect.Bottom));
-            imgPopup.Show(pt.X + 2, pt.Y);
         }
 
 
-        private void OnItemClicked(object sender, ImageListPopupEventArgs e)
-        {
-            if (imgPopup == sender)
-            {
-                buttonImageSelect.ImageKey = e.SelectedItem;
-                this.toolTip.SetToolTip(this.buttonImageSelect, buttonImageSelect.ImageKey);
-            }
-        } 
         #endregion
 
         #region Validation Logic

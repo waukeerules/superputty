@@ -36,6 +36,17 @@ namespace SuperPutty.Gui
         /// <summary>Size of the colored circle drawn on a button, before DPI scaling</summary>
         private const int CircleSize = 14;
 
+        /// <summary>The colour circles' and spinner's size: a little under the session icon size from Options</summary>
+        private static int CirclePixels
+        {
+            get
+            {
+                return SuperPuTTY.Images != null
+                    ? SuperPuTTY.Images.ImageSize.Width * CircleSize / 16
+                    : DpiUtils.ScaleWidth(CircleSize);
+            }
+        }
+
         /// <summary>Circle bitmaps made for the current buttons, disposed when the buttons are rebuilt</summary>
         private readonly List<Image> circleImages = new List<Image>();
 
@@ -69,7 +80,7 @@ namespace SuperPutty.Gui
                         button.DisplayStyle = ToolStripItemDisplayStyle.ImageAndText;
                         button.ImageScaling = ToolStripItemImageScaling.None;
                     }
-                    button.Image = Spinner.CurrentImage(DpiUtils.ScaleWidth(CircleSize));
+                    button.Image = Spinner.CurrentImage(CirclePixels);
                 }
                 else if (this.spinningButtons.TryGetValue(button, out normal))
                 {
@@ -182,7 +193,7 @@ namespace SuperPutty.Gui
         internal static Image GetButtonImage(CommandButton command, out bool isCircle)
         {
             isCircle = false;
-            if (!string.IsNullOrEmpty(command.ImageKey) && SuperPuTTY.Images != null && SuperPuTTY.Images.Images.ContainsKey(command.ImageKey))
+            if (SuperPuTTY.Images != null && IconLibrary.Ensure(SuperPuTTY.Images, command.ImageKey))
             {
                 return SuperPuTTY.Images.Images[command.ImageKey];
             }
@@ -190,7 +201,7 @@ namespace SuperPutty.Gui
             if (TryParseColor(command.Color, out color))
             {
                 isCircle = true;
-                return CreateColorCircle(color, DpiUtils.ScaleWidth(CircleSize));
+                return CreateColorCircle(color, CirclePixels);
             }
             return null;
         }

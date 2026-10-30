@@ -12,7 +12,7 @@ namespace SuperPutty.Gui
     /// <summary>
     /// Adjustments to DockPanelSuite's document tabs that its themes don't offer as settings. frmSuperPutty calls
     /// <see cref="SoftenDarkTheme"/> when it picks the Dark theme, and <see cref="MarkCurrentTabInLists"/> whenever tabs
-    /// or panes may have changed.
+    /// or panes may have changed, which also hooks each strip for TabIcons.
     /// </summary>
     public static class DocumentTabs
     {
@@ -64,6 +64,8 @@ namespace SuperPutty.Gui
             {
                 foreach (DockPaneStripBase strip in pane.Controls.OfType<DockPaneStripBase>())
                 {
+                    // larger, centred tab icons
+                    TabIcons.Hook(pane, strip);
                     ContextMenuStrip menu = FindTabListMenu(strip);
                     if (menu != null && hookedMenus.Add(menu))
                     {
@@ -110,6 +112,14 @@ namespace SuperPutty.Gui
             {
                 bool isCurrent = item.Tag != null && ReferenceEquals(item.Tag, current);
                 item.Checked = isCurrent;
+                // the strip uses the tab text, which TabIcons pads with blank characters
+                item.Text = item.Text.TrimStart(TabIcons.PadChar);
+                // the strip took the item's image from the tab's placeholder icon (see TabIcons)
+                Icon icon = TabIcons.Get(item.Tag as IDockContent);
+                if (icon != null)
+                {
+                    item.Image = TabIcons.BitmapOf(icon);
+                }
                 item.Font = isCurrent ? new Font(menu.Font, FontStyle.Bold) : menu.Font;
             }
         }

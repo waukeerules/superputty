@@ -232,11 +232,22 @@
     <Compile Include="Gui\TabBadges.cs" />
     <Compile Include="Gui\DocumentTabs.cs" />
     <Compile Include="Gui\MenuCheckMarks.cs" />
+    <Compile Include="Gui\IconTemplates.cs" />
+    <Compile Include="Gui\BrandLogos.cs" />
+    <Compile Include="Gui\SvgPath.cs" />
+    <Compile Include="Gui\IconLibrary.cs" />
+    <Compile Include="Gui\TabIcons.cs" />
     <Compile Include="Gui\dlgSearchOutput.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Gui\dlgSearchOutput.Designer.cs">
       <DependentUpon>dlgSearchOutput.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Gui\dlgIconPicker.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Gui\dlgIconPicker.Designer.cs">
+      <DependentUpon>dlgIconPicker.cs</DependentUpon>
     </Compile>
     <Compile Include="Gui\RdpControl.cs">
       <SubType>Component</SubType>

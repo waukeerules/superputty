@@ -17,6 +17,7 @@ using SuperPutty.Scp;
 using SuperPuTTY.Scripting;
 using System.Net;
 using DarkModeForms;
+using SuperPutty.Gui;
 
 namespace SuperPutty
 {
@@ -742,49 +743,31 @@ namespace SuperPutty
 
         #region Icons
 
-        /// <summary>Load Images from themes folder</summary>
-        /// <param name="theme">the name of the theme folder</param>
-        /// <param name="isEnableStopImage">enable special stop image</param>
+        /// <summary>
+        /// Build the session icon list at the size chosen in Options (scaled for the display): drawn templates and
+        /// logos, old keys mapped onto them, and the theme folders' other PNGs scaled smoothly (see IconLibrary)
+        /// </summary>
+        /// <param name="theme">The theme whose icon folders to load, e.g. "default"</param>
+        /// <param name="isEnableStopImage">Also add the "stop" image, for the icon filter's "no filter" choice</param>
+        /// <returns>The icons</returns>
         public static ImageList LoadImageList(string theme, bool isEnableStopImage)
         {
             ImageList imgIcons = new ImageList();
             imgIcons.ColorDepth = ColorDepth.Depth32Bit;
-            
+            int size = IconLibrary.ToPixels(IconLibrary.LogicalSize);
+            imgIcons.ImageSize = new Size(size, size);
+            IconLibrary.DarkBackground = Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
+
             if (isEnableStopImage)
-                imgIcons.Images.Add("stop", Resources.stop);
-            // Load the 2 standard icons in case no icons exist in icons directory, these will be used.
-            imgIcons.Images.Add(SessionTreeview.ImageKeyFolder, Resources.folder);
-            imgIcons.Images.Add(SessionTreeview.ImageKeySession, Resources.computer);
+                imgIcons.Images.Add("stop", IconLibrary.RenderDrawn("stop", size));
 
             List<string> themeFolders = GetThemeIconFolders(theme);
             if (themeFolders.Count == 0)
             {
-                Log.WarnFormat($"theme directory not found, no images loaded. theme={theme}");
+                Log.WarnFormat($"theme directory not found, only the built-in icons are loaded. theme={theme}");
             }
-            foreach (string themeFolder in themeFolders)
-            {
-                try
-                {
-                    int loaded = 0;
-                    foreach (FileInfo fi in new DirectoryInfo(themeFolder).GetFiles())
-                    {
-                        string key = Path.GetFileNameWithoutExtension(fi.Name);
-                        // folders earlier in the list win, so a custom icon can replace an installed one
-                        if (Regex.IsMatch(fi.Extension, @"\.(bmp|jpg|jpeg|png)", RegexOptions.IgnoreCase) && !imgIcons.Images.ContainsKey(key))
-                        {
-                            Image img = Image.FromFile(fi.FullName);
-                            imgIcons.Images.Add(key, img);
-                            loaded++;
-                        }
-                    }
-                    Log.InfoFormat($"Loaded {loaded} icons from theme directory.  dir={themeFolder}");
-                }
-                catch (Exception ex)
-                {
-                    Log.Error("Error while loading icons from " + themeFolder, ex);
-                }
-            }
-
+            // folders earlier in the list win, so a custom icon can replace an installed one
+            IconLibrary.Fill(imgIcons, themeFolders);
 
             return imgIcons;
         }
@@ -843,16 +826,14 @@ namespace SuperPutty
             Icon icon = null;
             if (session != null)
             {
-                string imageKey = session.ImageKey == null || !Images.Images.ContainsKey(session.ImageKey)
+                string imageKey = !IconLibrary.Ensure(Images, session.ImageKey)
                     ? SessionTreeview.ImageKeySession : session.ImageKey;
                 try
                 {
-                    Image img = Images.Images[imageKey];
-                    Bitmap bmp = img as Bitmap;
-                    if (bmp != null)
-                    {
-                        icon = Icon.FromHandle(bmp.GetHicon());
-                    }
+                    // drawn at the tab's own icon size, so it's sharp rather than the list's size scaled down
+                    int size = IconLibrary.TabIconPixels;
+                    Bitmap bmp = IconLibrary.RenderDrawn(imageKey, size) ?? IconLibrary.Scale(Images.Images[imageKey], size);
+                    icon = Icon.FromHandle(bmp.GetHicon());
                 }
                 catch (Exception ex)
                 {
@@ -864,7 +845,8 @@ namespace SuperPutty
 
         private static void ApplyIconForWindow(ToolWindow win, SessionData session)
         {
-            win.Icon = GetIconForSession(session);
+            // drawn by TabIcons, larger and centred, rather than by DockPanelSuite
+            TabIcons.Set(win, GetIconForSession(session));
         }
 
         #endregion
