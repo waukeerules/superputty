@@ -2329,6 +2329,8 @@ namespace SuperPutty
                     return;
                 }
 
+                // Substitute on a copy so the stored session keeps its {placeholders} and they are never saved back to Sessions.xml
+                session = (SessionData)session.Clone();
                 session.Host = SubstituteVariables(session.Host);
                 session.Username = SubstituteVariables(session.Username);
                 session.Password = SubstituteVariables(session.Password);
