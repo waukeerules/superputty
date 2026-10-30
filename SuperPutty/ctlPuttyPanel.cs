@@ -67,6 +67,7 @@ namespace SuperPutty
 
             CreatePanel();
             AdjustMenu();
+            AddOutputMenuItems();
 
             aboutPuttyToolStripMenuItem.Text = "About " + SuperPuTTY.PuTTYAppName;
         }
@@ -557,11 +558,11 @@ namespace SuperPutty
             }
         }
 
-        /// <summary>The tab's icon before a script started, restored when it ends</summary>
-        private System.Drawing.Icon iconBeforeScript;
+        /// <summary>The tab's own icon, restored when no spinner or alert badge is showing; null while it's showing</summary>
+        private System.Drawing.Icon normalIcon;
 
-        /// <summary>Whether the tab's icon is currently the script spinner</summary>
-        private bool showingScriptSpinner;
+        /// <summary>Whether a script is running in this tab (set by <see cref="ShowScriptRunning"/>)</summary>
+        private bool scriptRunning;
 
         /// <summary>
         /// While a script runs in this tab, show a spinner as the tab's icon, advancing one frame per call; restore the
@@ -571,19 +572,36 @@ namespace SuperPutty
         /// <param name="running">Whether a script is running in this tab</param>
         public void ShowScriptRunning(bool running)
         {
-            if (running)
+            if (!running && !this.scriptRunning)
+                return;
+            this.scriptRunning = running;
+            this.UpdateTabIcon();
+        }
+
+        /// <summary>
+        /// Show the tab's icon by priority: the script spinner, then an activity badge, then a silence badge, then the
+        /// tab's own icon
+        /// </summary>
+        private void UpdateTabIcon()
+        {
+            System.Drawing.Icon badge = this.scriptRunning ? Spinner.CurrentIcon()
+                : this.outputAlert == OutputAlert.Activity ? TabBadges.Activity
+                : this.outputAlert == OutputAlert.Silence ? TabBadges.Silence
+                : null;
+            if (badge != null)
             {
-                if (!this.showingScriptSpinner)
+                if (this.normalIcon == null)
                 {
-                    this.iconBeforeScript = this.Icon;
-                    this.showingScriptSpinner = true;
+                    this.normalIcon = this.Icon;
                 }
-                this.Icon = Spinner.CurrentIcon();
+                if (this.Icon == badge)
+                    return;
+                this.Icon = badge;
             }
-            else if (this.showingScriptSpinner)
+            else if (this.normalIcon != null)
             {
-                this.Icon = this.iconBeforeScript;
-                this.showingScriptSpinner = false;
+                this.Icon = this.normalIcon;
+                this.normalIcon = null;
             }
             else
             {
@@ -593,6 +611,162 @@ namespace SuperPutty
             if (this.Pane != null)
             {
                 this.Pane.Invalidate(true);
+            }
+        }
+
+        /// <summary>The alert a watched tab is showing</summary>
+        private enum OutputAlert { None, Activity, Silence }
+
+        /// <summary>The alert showing now; cleared when the user looks at the tab</summary>
+        private OutputAlert outputAlert = OutputAlert.None;
+
+        /// <summary>Alert when this tab prints something while the user isn't looking at it (tab menu -> Watch for Activity)</summary>
+        private bool watchActivity;
+
+        /// <summary>Alert when this tab prints nothing for this long; 0 when not watching (tab menu -> Watch for Silence)</summary>
+        private int watchSilenceSeconds;
+
+        /// <summary>The session log's length at the last check</summary>
+        private long watchedLogLength;
+
+        /// <summary>When the session last printed something</summary>
+        private DateTime lastOutputTime = DateTime.Now;
+
+        /// <summary>Whether the silence alert has fired since the last output, so it fires once per quiet spell</summary>
+        private bool silenceAlerted;
+
+        /// <summary>Whether this tab is watched for activity or silence</summary>
+        public bool IsWatched
+        {
+            get { return this.watchActivity || this.watchSilenceSeconds > 0; }
+        }
+
+        /// <summary>
+        /// Check a watched tab's session log for new output (called about once a second by frmSuperPutty). New output
+        /// while the user isn't looking raises an activity alert; no output for the silence time, after the tab has
+        /// printed something, raises a silence alert. Looking at the tab clears the alert.
+        /// </summary>
+        /// <param name="seen">Whether the user is looking at this tab: it's the active tab and SuperPuTTY is in front</param>
+        /// <param name="appInFront">Whether SuperPuTTY is in front; if not, a new alert also flashes its taskbar button</param>
+        public void CheckOutputAlerts(bool seen, bool appInFront)
+        {
+            if (this.SessionLogPath == null || !this.IsWatched)
+                return;
+
+            long length = SessionLog.LengthOf(this.SessionLogPath);
+            bool newOutput = length != this.watchedLogLength;
+            if (newOutput)
+            {
+                this.watchedLogLength = length;
+                this.lastOutputTime = DateTime.Now;
+                this.silenceAlerted = false;
+            }
+
+            if (seen)
+            {
+                this.SetOutputAlert(OutputAlert.None, appInFront);
+            }
+            else if (newOutput && this.watchActivity)
+            {
+                this.SetOutputAlert(OutputAlert.Activity, appInFront);
+            }
+            else if (this.watchSilenceSeconds > 0 && !this.silenceAlerted && length > 0
+                && (DateTime.Now - this.lastOutputTime).TotalSeconds >= this.watchSilenceSeconds)
+            {
+                this.silenceAlerted = true;
+                this.SetOutputAlert(OutputAlert.Silence, appInFront);
+            }
+        }
+
+        /// <summary>Show or clear an alert: the tab badge, and for a new alert a status message and a taskbar flash</summary>
+        /// <param name="alert">The alert to show, or None to clear</param>
+        /// <param name="appInFront">Whether SuperPuTTY is in front; if not, the taskbar button flashes</param>
+        private void SetOutputAlert(OutputAlert alert, bool appInFront = true)
+        {
+            if (alert == this.outputAlert)
+                return;
+            this.outputAlert = alert;
+            this.UpdateTabIcon();
+            if (alert == OutputAlert.None)
+                return;
+
+            SuperPuTTY.ReportStatus(alert == OutputAlert.Activity
+                ? $"New output in {this.Text}"
+                : $"{this.Text} has been quiet for {this.watchSilenceSeconds} s");
+            if (!appInFront)
+            {
+                // flash the taskbar button until SuperPuTTY comes to the front
+                NativeMethods.FlashWindow(SuperPuTTY.MainForm.Handle, NativeMethods.FLASHW_TRAY | NativeMethods.FLASHW_TIMERNOFG);
+            }
+        }
+
+        /// <summary>Start or stop watching for activity, from the tab menu</summary>
+        /// <param name="watch">true to watch</param>
+        private void WatchForActivity(bool watch)
+        {
+            this.watchActivity = watch;
+            this.StartWatching();
+        }
+
+        /// <summary>Start or stop watching for silence, from the tab menu</summary>
+        /// <param name="seconds">How long a quiet spell must last; 0 to stop watching</param>
+        private void WatchForSilence(int seconds)
+        {
+            this.watchSilenceSeconds = seconds;
+            this.StartWatching();
+        }
+
+        /// <summary>Count only output from now on, and clear any alert</summary>
+        private void StartWatching()
+        {
+            this.watchedLogLength = this.SessionLogPath != null ? SessionLog.LengthOf(this.SessionLogPath) : 0;
+            this.lastOutputTime = DateTime.Now;
+            this.silenceAlerted = false;
+            this.SetOutputAlert(OutputAlert.None);
+        }
+
+        /// <summary>Silence times offered in the tab menu, in seconds</summary>
+        private static readonly int[] SilenceChoices = { 10, 30, 60, 300 };
+
+        /// <summary>The tab menu items added by <see cref="AddOutputMenuItems"/></summary>
+        private ToolStripMenuItem menuSearchOutput, menuWatchActivity, menuWatchSilence;
+
+        /// <summary>
+        /// Add "Search Output...", "Watch for Activity" and "Watch for Silence" to the tab's menu, after "Accept Commands".
+        /// They need a session log, so they're only enabled for PuTTY sessions.
+        /// </summary>
+        private void AddOutputMenuItems()
+        {
+            this.menuSearchOutput = new ToolStripMenuItem("Search &Output...", null, (s, e) => dlgSearchOutput.ShowFor(this));
+            this.menuWatchActivity = new ToolStripMenuItem("Watch for &Activity", null, (s, e) => this.WatchForActivity(!this.watchActivity));
+            this.menuWatchSilence = new ToolStripMenuItem("Watch for &Silence");
+            this.menuWatchSilence.DropDownItems.Add(new ToolStripMenuItem("Off", null, (s, e) => this.WatchForSilence(0)) { Tag = 0 });
+            foreach (int seconds in SilenceChoices)
+            {
+                int choice = seconds;
+                string label = seconds < 60 ? seconds + " seconds" : seconds == 60 ? "1 minute" : seconds / 60 + " minutes";
+                this.menuWatchSilence.DropDownItems.Add(new ToolStripMenuItem(label, null, (s, e) => this.WatchForSilence(choice)) { Tag = seconds });
+            }
+
+            int index = this.contextMenuStrip1.Items.IndexOf(this.acceptCommandsToolStripMenuItem) + 1;
+            this.contextMenuStrip1.Items.Insert(index, new ToolStripSeparator());
+            this.contextMenuStrip1.Items.Insert(index + 1, this.menuSearchOutput);
+            this.contextMenuStrip1.Items.Insert(index + 2, this.menuWatchActivity);
+            this.contextMenuStrip1.Items.Insert(index + 3, this.menuWatchSilence);
+        }
+
+        /// <summary>Tick and enable the output menu items to match this tab before the menu opens</summary>
+        private void UpdateOutputMenuItems()
+        {
+            bool hasLog = this.SessionLogPath != null;
+            this.menuSearchOutput.Enabled = hasLog;
+            this.menuWatchActivity.Enabled = hasLog;
+            this.menuWatchSilence.Enabled = hasLog;
+            this.menuWatchActivity.Checked = this.watchActivity;
+            this.menuWatchSilence.Checked = this.watchSilenceSeconds > 0;
+            foreach (ToolStripMenuItem item in this.menuWatchSilence.DropDownItems.OfType<ToolStripMenuItem>())
+            {
+                item.Checked = (int)item.Tag == this.watchSilenceSeconds;
             }
         }
 
@@ -758,6 +932,7 @@ namespace SuperPutty
         private void contextMenuStrip1_Opening(object sender, CancelEventArgs e)
         {
             CreateMenu();
+            UpdateOutputMenuItems();
         }
 
         private void newSessionTSMI_Click(object sender, EventArgs e)

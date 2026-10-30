@@ -267,6 +267,37 @@ SENDLINE terminal length 0
 - **Checked against the compiled assembly (button scripts):** on a log that looks like a logged-in session, `WAITFOR login as:` ignored the old prompt and `WAITFOR $` matched the prompt on the last line. On a fresh session at `login as: `, it matched.
 - **Checked against the compiled assembly:** the parsing (default, `/t:5`, missing text) and the PuTTY arguments, with the temp log path. On a real `ctlPuttyPanel`, with a test thread writing to its log as PuTTY would, the wait found text already there at once, found text written 1.5 s later at 1.53 s, and timed out on text already matched.
 
+## Activity and silence alerts
+
+Right-click a tab → **Watch for Activity**, or **Watch for Silence** → 10 seconds / 30 seconds / 1 minute / 5 minutes / Off. These are per tab and aren't saved.
+
+- **Activity:** new output in the tab while you aren't looking at it.
+- **Silence:** no output for the chosen time, after the tab has printed something. It fires once per quiet spell and re-arms when output resumes.
+- **Signals:** an alert puts a badge on the tab's icon (an orange dot for activity, grey pause bars for silence, on a white disc so it shows on the selected tab too) and a message in the status bar. If SuperPuTTY isn't in front, the taskbar button also flashes until it is.
+- **Clearing:** opening the tab, with SuperPuTTY in front, clears the badge.
+- **Badge priority:** a running script's spinner wins over the badges (`ctlPuttyPanel.UpdateTabIcon`).
+- **"Looking at the tab"** means it's the active tab and SuperPuTTY is in front. While you type in a terminal, Windows reports the embedded PuTTY window as the foreground window, so that counts too (`frmSuperPutty.IsInFront`).
+- **How it works:** the session log's size is checked about once a second, so it needs a session log and is only available for PuTTY sessions.
+- **Code:** `ctlPuttyPanel.CheckOutputAlerts` / `SetOutputAlert`, `Gui/TabBadges.cs`, and the 100 ms script timer in `frmSuperPutty`, which checks alerts on every 10th tick.
+
+## Search a tab's output
+
+Right-click a tab → **Search Output...** opens a window (one per tab, closed with the tab) that searches everything the tab has printed, from its session log; PuTTY itself has no scrollback search.
+
+- **Options:** match case, and regex. An invalid pattern shows the error instead of searching.
+- **Results:** the matching lines are listed with their line numbers, up to 5,000. Double-click a line to copy it; **Open log** opens the whole log.
+- **Cleanup:** colour and cursor codes left in the log (with or without the escape character, e.g. `[01;34m`) are removed. Window-title sequences (`]0;user@host: ~`) are removed only when they still end with BEL or ESC \. Without that ending there's no telling where the title stops, so it's kept rather than risk hiding the prompt and command after it (`SessionLog.CleanForDisplay`).
+- **Code:** `Gui/dlgSearchOutput.cs` / `.Designer.cs`; `dlgSearchOutput.MakeMatcher`.
+
+**Checked against the compiled assembly:**
+- Cleanup: colour codes, terminated titles and carriage returns are removed; an unterminated title keeps the command after it.
+- Matching: plain text, match case and regex work, and an invalid regex is reported.
+- Alerts on a real tab object: output while unseen gives Activity; looking at the tab clears it; output while looking gives no alert; 1 s of quiet with a 1 s silence watch gives Silence, once, and again after the next output and quiet spell.
+
+## Fix: the installer didn't include Newtonsoft.Json.dll
+
+`SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
@@ -307,6 +338,13 @@ Secrets, icon-linked bars, logs and WAITFOR:
 7. Click the login button on an already logged-in tab: the status bar should show `▶ Login_Test (...): line 1/4 · WAITFOR login as: · N s`, and the button and the tab (with Show tab icons on) should show a spinner. Click the status-bar item → Stop: all three should go back to normal at once, with "stopped by you" in the status bar.
 
 The script runner was checked against the compiled assembly: a script blocked on `WAITFOR` showed `line 2/3 · WAITFOR password:` and stopped 12 ms after Stop, without typing the next line; a `SLEEP 20000` stopped after 15 ms; and nothing was left running.
+
+Alerts and search:
+
+1. Right-click an SSH tab → **Watch for Activity**. Run `sleep 10; echo done` there and switch to another tab: about 10 s later the tab should get an orange-dot badge and the status bar should say "New output in ...". Switch back: the badge goes away.
+2. **Watch for Silence** → 10 seconds on a tab running `ping` against a host, then stop the ping (Ctrl+C) and switch away: about 10 s later the tab gets the pause badge. Minimise SuperPuTTY first to see the taskbar flash.
+3. Right-click a tab → **Search Output...**, search for something it printed earlier (e.g. after `ls --color`), try match case and a regex, double-click a line to copy it, and try **Open log**.
+4. Build `SuperPuttyInstaller`, install the MSI on a test machine (or check `C:\Program Files (x86)\SuperXPuTTY` after installing), and confirm `Newtonsoft.Json.dll` is there and sessions open.
 
 RDP options and sending:
 

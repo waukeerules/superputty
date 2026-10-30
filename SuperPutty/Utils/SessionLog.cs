@@ -122,6 +122,36 @@ namespace SuperPutty.Utils
             }
         }
 
+        /// <summary>Terminal control sequences that can be left in a log: colours and cursor moves ("[01;34m"), with or without the ESC</summary>
+        private static readonly Regex ControlSequence = new Regex(@"\x1b?\[[0-9;?]*[A-Za-z]", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Window title sequences that can be left in a log ("]0;root@host: ~"), only when they still end with BEL or
+        /// ESC \. Without that end there's no telling where the title stops and real output (e.g. the prompt and
+        /// command after it) starts, so the text is kept rather than risk hiding output.
+        /// </summary>
+        private static readonly Regex TitleSequence = new Regex(@"\x1b?\][0-9]+;[^\a\x1b\n]*(\a|\x1b\\)", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Turn a log's text into the lines a person would have seen: control and title sequences removed, other
+        /// control characters dropped, carriage returns ignored. Used by "Search Output...".
+        /// </summary>
+        /// <param name="text">The raw log text</param>
+        /// <returns>The lines, in order</returns>
+        public static string[] CleanForDisplay(string text)
+        {
+            string cleaned = TitleSequence.Replace(ControlSequence.Replace(text ?? string.Empty, string.Empty), string.Empty);
+            StringBuilder visible = new StringBuilder(cleaned.Length);
+            foreach (char c in cleaned)
+            {
+                if (c == '\n' || c == '\t' || !char.IsControl(c))
+                {
+                    visible.Append(c);
+                }
+            }
+            return visible.ToString().Split('\n');
+        }
+
         /// <summary>The current length of a log in bytes</summary>
         /// <param name="path">The log file path</param>
         /// <returns>The length, or 0 if the file doesn't exist yet</returns>

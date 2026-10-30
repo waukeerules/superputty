@@ -85,8 +85,24 @@ namespace SuperPutty
         /// <summary>The button bar above the status bar (View -> Toolbars -> Button Bar)</summary>
         private ButtonBarStrip buttonBar;
 
-        /// <summary>Refreshes the status-bar indicator of running scripts twice a second</summary>
+        /// <summary>Refreshes the status-bar indicator of running scripts and the spinners, and checks output alerts</summary>
         private System.Windows.Forms.Timer scriptsTimer;
+
+        /// <summary>Counts <see cref="scriptsTimer"/> ticks, to check output alerts about once a second</summary>
+        private int alertTick;
+
+        /// <summary>
+        /// Whether SuperPuTTY is the window the user is working in. While typing in a terminal, Windows reports the
+        /// embedded PuTTY window as the foreground window, not this form, so those count too.
+        /// </summary>
+        /// <returns>true if the foreground window is this form, one of its dialogs, or an embedded terminal window</returns>
+        private bool IsInFront()
+        {
+            IntPtr foreground = NativeMethods.GetForegroundWindow();
+            return foreground == this.Handle
+                || Form.ActiveForm != null
+                || this.DockPanel.Documents.OfType<ctlPuttyPanel>().Any(p => p.AppPanel.AppWindowHandle == foreground);
+        }
 
         /// <summary>The main SuperPuTTY application form</summary>
         public frmSuperPutty()
@@ -1343,9 +1359,16 @@ namespace SuperPutty
             {
                 this.buttonBar.UpdateRunningButtons();
             }
+            // output alerts on watched tabs, checked about once a second
+            bool checkAlerts = ++this.alertTick % (1000 / Spinner.FrameMs) == 0;
+            bool appInFront = checkAlerts && this.IsInFront();
             foreach (ctlPuttyPanel panel in this.DockPanel.Documents.OfType<ctlPuttyPanel>())
             {
                 panel.ShowScriptRunning(runs.Any(r => r.Owner == panel));
+                if (checkAlerts && panel.IsWatched)
+                {
+                    panel.CheckOutputAlerts(appInFront && panel == this.DockPanel.ActiveDocument, appInFront);
+                }
             }
 
             this.toolStripDropDownScripts.Visible = runs.Count > 0;
