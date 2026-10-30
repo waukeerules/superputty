@@ -194,6 +194,16 @@ The log lists each folder used and how many icons came from it.
 
 They're per-user settings named `Rdp*` (e.g. `RdpDisplayMode`, `RdpGatewayHost`); `dlgFindPutty.LoadRdpOptions` / `SaveRdpOptions` map the page to them.
 
+**Per-session RDP options:** in Edit Session, **RDP options...** (next to Extra arguments, enabled for RDP sessions) overrides any of the options above for that session. Each dropdown starts with "Default (...)" showing the global value. Checkboxes are three-state: filled = Default, ticked = on, empty = off. An empty gateway box means Default, and **Don't use a gateway** overrides a global gateway. The button reads **RDP options ✓** when the session overrides something.
+- **Storage:** only the overridden options, in the session's `RdpOptions` attribute in `Sessions.xml`, e.g. `RdpOptions="Display=Fixed;Width=1280;Height=720;Drives=1"`. Sessions without overrides don't get the attribute (`SessionData.ShouldSerializeRdpOptions`), so existing sessions are saved exactly as before. In a shared `Sessions.xml` the overrides are shared too, which suits them, since they describe the server.
+- **Connecting:** `RdpControl` connects with `RdpOptions.EffectiveFor(session)`, the global options with the session's overrides on top, fixed when the tab opens.
+- **Code:** `Utils/RdpOptions.cs` (parse, format, defaults and overlay); `Gui/dlgRdpSessionOptions.cs` / `.Designer.cs`; `SessionData.RdpOptions`; `dlgEditSession.buttonRdpOptions_Click`. The Extra arguments box is narrower to make room for the button.
+- **Checked against the compiled assembly:**
+  - The text round-trips; unknown keys and bad values are ignored; `Gateway=` is kept as "no gateway".
+  - Overrides win over the defaults, and everything else falls back.
+  - A session without overrides has no `RdpOptions` attribute; one with overrides round-trips through XML and through Duplicate.
+  - The dialog shows the stored overrides, with untouched options in the Default state, and reads them back unchanged. All Default gives an empty string.
+
 **Send Commands, the button bar and SPSL in RDP tabs:** these used to type by posting `WM_CHAR` to a terminal's window, which an RDP tab doesn't have, so they skipped RDP tabs ("No active session to send to"). Now:
 - `ctlPuttyPanel.SendCommand(CommandData)` sends to either kind of tab: window messages for a terminal, keystrokes for an embedded application that implements `ICommandReceiver` (new, `Utils/ICommandReceiver.cs`). `CanReceiveCommands` tells the senders which tabs qualify.
 - `RdpControl` implements it with the control's `SendKeys`. It's on `IMsRdpClientNonScriptable`, which is IUnknown-only, so it's declared by hand with every method before `SendKeys` in vtable order. Text is turned into scan codes with the local keyboard layout (`VkKeyScan`, `MapVirtualKey`), wrapped in Shift/Ctrl/Alt as needed; keys like Enter or Ctrl+C come from `CommandData.KeyData`, and extended keys (arrows, Home, Delete, ...) get the extended flag. The call is made on the UI thread, where the control lives, and failures (e.g. while reconnecting) are logged rather than thrown. Keystrokes are only sent after login.
@@ -304,6 +314,7 @@ RDP options and sending:
 2. Untick Clipboard, reconnect, and check that copy/paste between the computers stops. Tick Drives and check that your drives appear in the remote's File Explorer.
 3. With an RDP tab active and logged in, open Notepad there, type `echo hello` into the Send Commands box and press Enter: it should appear in Notepad. Click a button-bar button: its text should appear too.
 4. Shift+click a button with an SSH tab and an RDP tab both selected: it should go to both.
+5. Edit an RDP session → **RDP options...**, set Desktop size to Fixed 1280×720 and untick Clipboard, then Save: the button should read **RDP options ✓**, and the session should connect at 1280×720 without clipboard sharing while other RDP sessions keep the global options. Set everything back to Default: the tick goes away.
 
 Button bar:
 

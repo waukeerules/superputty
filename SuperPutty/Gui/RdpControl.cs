@@ -41,6 +41,9 @@ namespace SuperPutty.Gui
         /// <summary>The session being connected to, with {key} placeholders already replaced</summary>
         private readonly SessionData session;
 
+        /// <summary>The options to connect with: Tools -> Options -> RDP with this session's overrides, fixed when the tab opens</summary>
+        private readonly RdpOptions options;
+
         /// <summary>Waits for resizing to settle before updating the remote resolution</summary>
         private readonly Timer resizeTimer;
 
@@ -64,6 +67,7 @@ namespace SuperPutty.Gui
         public RdpControl(SessionData session) : base(ClsidMsRdpClient9NotSafeForScripting)
         {
             this.session = session;
+            this.options = RdpOptions.EffectiveFor(session);
             this.resizeTimer = new Timer { Interval = ResizeDelayMs };
             this.resizeTimer.Tick += this.resizeTimer_Tick;
         }
@@ -132,7 +136,7 @@ namespace SuperPutty.Gui
             this.CreateControl();
             Size size = this.FitsTab
                 ? ClampDesktopSize(this.ClientSize)
-                : ClampDesktopSize(new Size(SuperPuTTY.Settings.RdpFixedWidth, SuperPuTTY.Settings.RdpFixedHeight));
+                : ClampDesktopSize(new Size(this.options.FixedWidth.Value, this.options.FixedHeight.Value));
 
             this.client.Server = this.session.Host;
             if (this.session.Port != 0)
@@ -145,25 +149,25 @@ namespace SuperPutty.Gui
             }
             this.client.DesktopWidth = size.Width;
             this.client.DesktopHeight = size.Height;
-            this.client.ColorDepth = SuperPuTTY.Settings.RdpColorDepth;
+            this.client.ColorDepth = this.options.ColorDepth.Value;
 
-            // the options in Tools -> Options -> RDP
+            // Tools -> Options -> RDP, with this session's overrides (RDP options... in Edit Session)
             dynamic settings = this.client.AdvancedSettings9;
-            settings.SmartSizing = SuperPuTTY.Settings.RdpSmartSizing;
+            settings.SmartSizing = this.options.SmartSizing.Value;
             settings.EnableCredSspSupport = true;
-            settings.AuthenticationLevel = (uint)SuperPuTTY.Settings.RdpAuthenticationLevel;
-            settings.RedirectClipboard = SuperPuTTY.Settings.RdpRedirectClipboard;
-            settings.RedirectDrives = SuperPuTTY.Settings.RdpRedirectDrives;
-            settings.RedirectPrinters = SuperPuTTY.Settings.RdpRedirectPrinters;
-            settings.RedirectSmartCards = SuperPuTTY.Settings.RdpRedirectSmartCards;
-            settings.AudioCaptureRedirectionMode = SuperPuTTY.Settings.RdpRedirectMicrophone;
-            settings.AudioRedirectionMode = (uint)SuperPuTTY.Settings.RdpAudioMode;
-            settings.ConnectToAdministerServer = SuperPuTTY.Settings.RdpConnectToConsole;
-            this.client.SecuredSettings3.KeyboardHookMode = SuperPuTTY.Settings.RdpKeyboardHookMode;
-            if (!string.IsNullOrWhiteSpace(SuperPuTTY.Settings.RdpGatewayHost))
+            settings.AuthenticationLevel = (uint)this.options.AuthenticationLevel.Value;
+            settings.RedirectClipboard = this.options.RedirectClipboard.Value;
+            settings.RedirectDrives = this.options.RedirectDrives.Value;
+            settings.RedirectPrinters = this.options.RedirectPrinters.Value;
+            settings.RedirectSmartCards = this.options.RedirectSmartCards.Value;
+            settings.AudioCaptureRedirectionMode = this.options.RedirectMicrophone.Value;
+            settings.AudioRedirectionMode = (uint)this.options.AudioMode.Value;
+            settings.ConnectToAdministerServer = this.options.ConnectToConsole.Value;
+            this.client.SecuredSettings3.KeyboardHookMode = this.options.KeyboardHookMode.Value;
+            if (!string.IsNullOrWhiteSpace(this.options.GatewayHost))
             {
                 dynamic transport = this.client.TransportSettings4;
-                transport.GatewayHostname = SuperPuTTY.Settings.RdpGatewayHost.Trim();
+                transport.GatewayHostname = this.options.GatewayHost.Trim();
                 // use the gateway for this connection, with credentials negotiated as needed
                 transport.GatewayUsageMethod = 1u;
                 transport.GatewayProfileUsageMethod = 1u;
@@ -175,14 +179,14 @@ namespace SuperPutty.Gui
             }
 
             Log.InfoFormat("Connecting to {0}:{1} as '{2}' with a {3}x{4} desktop{5}", this.session.Host, this.session.Port, this.session.Username, size.Width, size.Height,
-                string.IsNullOrWhiteSpace(SuperPuTTY.Settings.RdpGatewayHost) ? "" : " through gateway " + SuperPuTTY.Settings.RdpGatewayHost);
+                string.IsNullOrWhiteSpace(this.options.GatewayHost) ? "" : " through gateway " + this.options.GatewayHost);
             this.client.Connect();
         }
 
-        /// <summary>True when the remote desktop follows the tab's size (Tools -> Options -> RDP -> Desktop size "Fit the tab")</summary>
+        /// <summary>True when the remote desktop follows the tab's size (the effective Desktop size is "Fit the tab")</summary>
         private bool FitsTab
         {
-            get { return !string.Equals(SuperPuTTY.Settings.RdpDisplayMode, "Fixed", StringComparison.OrdinalIgnoreCase); }
+            get { return this.options.DisplayMode != "Fixed"; }
         }
 
         /// <summary>Scan code of the left Shift key</summary>

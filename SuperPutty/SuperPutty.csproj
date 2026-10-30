@@ -241,6 +241,12 @@
     <Compile Include="Gui\dlgEditCommandButton.Designer.cs">
       <DependentUpon>dlgEditCommandButton.cs</DependentUpon>
     </Compile>
+    <Compile Include="Gui\dlgRdpSessionOptions.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Gui\dlgRdpSessionOptions.Designer.cs">
+      <DependentUpon>dlgRdpSessionOptions.cs</DependentUpon>
+    </Compile>
     <Compile Include="Gui\dlgRenameItem.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -341,6 +347,7 @@
     <Compile Include="Utils\ICommandReceiver.cs" />
     <Compile Include="Utils\SessionLog.cs" />
     <Compile Include="Utils\ScriptRun.cs" />
+    <Compile Include="Utils\RdpOptions.cs" />
     <Compile Include="Scripting\WaitForCommand.cs" />
     <EmbeddedResource Include="AboutBox.resx">
       <DependentUpon>AboutBox.cs</DependentUpon>

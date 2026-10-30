@@ -287,6 +287,31 @@ namespace SuperPutty.Data
             }
         }
 
+        private string m_RdpOptions = string.Empty;
+
+        /// <summary>
+        /// This RDP session's overrides of Tools -> Options -> RDP, as "Key=Value;Key=Value" (see Utils.RdpOptions);
+        /// empty to use the global options
+        /// </summary>
+        [XmlAttribute]
+        [DisplayName("RDP Options")]
+        [Description("RDP options overriding the global ones")]
+        public string RdpOptions
+        {
+            get { return m_RdpOptions; }
+            set
+            {
+                UpdateField(ref m_RdpOptions, value ?? string.Empty, "RdpOptions");
+            }
+        }
+
+        /// <summary>XmlSerializer: only write RdpOptions when the session overrides something, so other sessions are saved as before</summary>
+        /// <returns>true to write <see cref="RdpOptions"/></returns>
+        public bool ShouldSerializeRdpOptions()
+        {
+            return !string.IsNullOrEmpty(this.m_RdpOptions);
+        }
+
         private string m_CollectionID = string.Empty;
 
         /// <summary>

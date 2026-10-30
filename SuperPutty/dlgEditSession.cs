@@ -42,6 +42,9 @@ namespace SuperPutty
         public delegate bool SessionNameValidationHandler(string name, out string error);
 
         private SessionData Session;
+
+        /// <summary>This session's RDP option overrides (SessionData.RdpOptions), as edited with "RDP options..."; saved on Save</summary>
+        private string rdpOptions;
         private String OldHostname;
         private bool isInitialized = false;
         private ImageListPopup imgPopup = null;
@@ -183,7 +186,34 @@ namespace SuperPutty
             placeholderPreviewColor = label5.ForeColor;
             UpdatePlaceholderPreview();
 
+            this.rdpOptions = Session.RdpOptions;
+            UpdateRdpOptionsButton();
+
             this.BeginInvoke(new MethodInvoker(delegate { this.textBoxSessionName.Focus(); }));
+        }
+
+        /// <summary>Enable "RDP options..." for RDP sessions only, and mark it with a tick when this session overrides something</summary>
+        private void UpdateRdpOptionsButton()
+        {
+            bool isRdp = this.comboBoxProto.SelectedItem != null && this.protoTypesMap.ContainsKey(this.comboBoxProto.SelectedItem)
+                && (ConnectionProtocol)this.protoTypesMap[this.comboBoxProto.SelectedItem] == ConnectionProtocol.RDP;
+            this.buttonRdpOptions.Enabled = isRdp;
+            this.buttonRdpOptions.Text = string.IsNullOrEmpty(this.rdpOptions) ? "RDP options..." : "RDP options ✓";
+        }
+
+        /// <summary>Edit this session's overrides of Tools -> Options -> RDP; they're saved with the session on Save</summary>
+        /// <param name="sender">The RDP options button</param>
+        /// <param name="e">Not used</param>
+        private void buttonRdpOptions_Click(object sender, EventArgs e)
+        {
+            using (dlgRdpSessionOptions dialog = new dlgRdpSessionOptions(this.rdpOptions))
+            {
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    this.rdpOptions = dialog.Overrides;
+                    UpdateRdpOptionsButton();
+                }
+            }
         }
 
         private void PopulatePuttySettings()
@@ -253,6 +283,7 @@ namespace SuperPutty
             Session.SessionId    = SessionData.CombineSessionIds(SessionData.GetSessionParentId(Session.SessionId), Session.SessionName);
             Session.ImageKey     = buttonImageSelect.ImageKey;
             Session.SPSLFileName = textBoxSPSLScriptFile.Text.Trim();
+            Session.RdpOptions   = this.rdpOptions;
             Session.RemotePath = textBoxRemotePathSesion.Text.Trim();
             Session.LocalPath = textBoxLocalPathSesion.Text.Trim();
             Session.Note = textBoxNote.Text.Trim();
@@ -306,6 +337,8 @@ namespace SuperPutty
                 if (proto != ConnectionProtocol.Raw)
                     this.textBoxPort.Text = dlgEditSession.GetDefaultPort(proto).ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
+
+            UpdateRdpOptionsButton();
 
             // Default icons
             switch (proto)

@@ -31,6 +31,7 @@ namespace SuperPutty
             this.components = new System.ComponentModel.Container();
             this.comboBoxProto = new System.Windows.Forms.ComboBox();
             this.textBoxExtraArgs = new System.Windows.Forms.TextBox();
+            this.buttonRdpOptions = new System.Windows.Forms.Button();
             this.label6 = new System.Windows.Forms.Label();
             this.buttonSave = new System.Windows.Forms.Button();
             this.buttonCancel = new System.Windows.Forms.Button();
@@ -86,11 +87,23 @@ namespace SuperPutty
             this.textBoxExtraArgs.Location = new System.Drawing.Point(151, 216);
             this.textBoxExtraArgs.Margin = new System.Windows.Forms.Padding(5);
             this.textBoxExtraArgs.Name = "textBoxExtraArgs";
-            this.textBoxExtraArgs.Size = new System.Drawing.Size(486, 27);
+            this.textBoxExtraArgs.Size = new System.Drawing.Size(336, 27);
             this.textBoxExtraArgs.TabIndex = 6;
             this.textBoxExtraArgs.Validating += new System.ComponentModel.CancelEventHandler(this.textBoxExtraArgs_Validating);
             this.textBoxExtraArgs.TextChanged += new System.EventHandler(this.placeholderField_TextChanged);
             this.textBoxExtraArgs.Validated += new System.EventHandler(this.textBoxExtraArgs_Validated);
+            //
+            // buttonRdpOptions
+            //
+            this.buttonRdpOptions.Location = new System.Drawing.Point(497, 214);
+            this.buttonRdpOptions.Margin = new System.Windows.Forms.Padding(5);
+            this.buttonRdpOptions.Name = "buttonRdpOptions";
+            this.buttonRdpOptions.Size = new System.Drawing.Size(140, 31);
+            this.buttonRdpOptions.TabIndex = 7;
+            this.buttonRdpOptions.Text = "RDP options...";
+            this.toolTip.SetToolTip(this.buttonRdpOptions, "Override Tools -> Options -> RDP for this session");
+            this.buttonRdpOptions.UseVisualStyleBackColor = true;
+            this.buttonRdpOptions.Click += new System.EventHandler(this.buttonRdpOptions_Click);
             // 
             // label6
             // 
@@ -428,6 +441,7 @@ namespace SuperPutty
             this.groupBox1.Controls.Add(this.label6);
             this.groupBox1.Controls.Add(this.comboBoxProto);
             this.groupBox1.Controls.Add(this.textBoxExtraArgs);
+            this.groupBox1.Controls.Add(this.buttonRdpOptions);
             this.groupBox1.Controls.Add(this.buttonBrowse);
             this.groupBox1.Controls.Add(this.textBoxUsername);
             this.groupBox1.Controls.Add(this.labelPlaceholderPreview);
@@ -495,6 +509,7 @@ namespace SuperPutty
         private System.Windows.Forms.ErrorProvider errorProvider;
         private System.Windows.Forms.Label label6;
         private System.Windows.Forms.TextBox textBoxExtraArgs;
+        private System.Windows.Forms.Button buttonRdpOptions;
         private System.Windows.Forms.Button buttonImageSelect;
         private System.Windows.Forms.ToolTip toolTip;
         private System.Windows.Forms.Label label7;
