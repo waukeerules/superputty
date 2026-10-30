@@ -178,6 +178,30 @@ The log lists each folder used and how many icons came from it.
 - **Turning it off:** **Tools → Options → General → Built-in client**, next to the RDP client path (setting `RdpUseEmbeddedClient`, on by default). It's also skipped when the RDP client is FreeRDP (`wfreerdp.exe`), or when the control isn't installed. Untick it to go back to starting the RDP client program.
 - **Not supported with the built-in client:** the session's extra arguments are mstsc command-line switches, so they aren't used.
 
+**RDP options** (Tools → Options → RDP; they apply to all RDP sessions using the built-in client, when they connect):
+
+| Option | Choices (default first) | Control setting |
+|---|---|---|
+| Desktop size | Fit the tab, or a fixed width × height (1920×1080) | `DesktopWidth`/`DesktopHeight`; the remote only follows resizing in "fit the tab" |
+| Colour depth | 32, 24, 16 or 15-bit | `ColorDepth` |
+| Scale to fit | On / off | `AdvancedSettings9.SmartSizing` |
+| Use on remote | Clipboard (on), drives, printers, smart cards, microphone | `RedirectClipboard`, `RedirectDrives`, `RedirectPrinters`, `RedirectSmartCards`, `AudioCaptureRedirectionMode` |
+| Remote audio | Play on this computer, play on the remote, don't play | `AudioRedirectionMode` |
+| Windows key combos | Only when full screen (mstsc's default), on this computer, on the remote | `SecuredSettings3.KeyboardHookMode` |
+| Server authentication | Warn me, connect without warning, don't connect | `AuthenticationLevel` |
+| RD Gateway | Host name, or empty to connect directly | `TransportSettings4.GatewayHostname`, used directly, credentials negotiated |
+| Admin (console) session | Off / on | `ConnectToAdministerServer` |
+
+They're per-user settings named `Rdp*` (e.g. `RdpDisplayMode`, `RdpGatewayHost`); `dlgFindPutty.LoadRdpOptions` / `SaveRdpOptions` map the page to them.
+
+**Send Commands, the button bar and SPSL in RDP tabs:** these used to type by posting `WM_CHAR` to a terminal's window, which an RDP tab doesn't have, so they skipped RDP tabs ("No active session to send to"). Now:
+- `ctlPuttyPanel.SendCommand(CommandData)` sends to either kind of tab: window messages for a terminal, keystrokes for an embedded application that implements `ICommandReceiver` (new, `Utils/ICommandReceiver.cs`). `CanReceiveCommands` tells the senders which tabs qualify.
+- `RdpControl` implements it with the control's `SendKeys`. It's on `IMsRdpClientNonScriptable`, which is IUnknown-only, so it's declared by hand with every method before `SendKeys` in vtable order. Text is turned into scan codes with the local keyboard layout (`VkKeyScan`, `MapVirtualKey`), wrapped in Shift/Ctrl/Alt as needed; keys like Enter or Ctrl+C come from `CommandData.KeyData`, and extended keys (arrows, Home, Delete, ...) get the extended flag. The call is made on the UI thread, where the control lives, and failures (e.g. while reconnecting) are logged rather than thrown. Keystrokes are only sent after login.
+- The Send Commands toolbar and the button bar (both send strings and SPSL scripts) send through `ctlPuttyPanel.SendCommand`. Button bar SPSL scripts are run line by line with `SPSL.TryParseScriptLine`, as `SPSL.BeginExecuteScript` does, but sent through the tab.
+- The remote should use the same keyboard layout as this computer. Characters the local layout can't type are skipped and logged.
+
+**Checked outside the app (options and keys):** with test values set in memory, `Start()` applied every option, read back from the control: colour depth 24, smart sizing, clipboard and drives, audio "don't play", Windows keys "on the remote", authentication "warn", and the gateway with its usage, profile and credential modes. The hand-declared `SendKeys` returned a clean `E_FAIL` on an unconnected control, as expected. The scan codes are `a` = 1E, `A` = Shift 2A + 1E, Enter = 1C, Ctrl+C = 1D + 2E, and Left = 4B with the extended flag. Typing into a logged-in session is tested by hand.
+
 **How it fits in:**
 - **`Gui/RdpControl.cs` (new):** an `AxHost` for `MsRdpClient9NotSafeForScripting` (CLSID `8b918b82-7985-4c24-89df-c33ad2bbfbcd`). It's late bound through `dynamic`, so no generated interop assemblies are needed. Only the two events used (`OnLoginComplete`, `OnDisconnected`) are declared, in a hand-written `IMsTscAxEvents` dispinterface.
 - **`Utils/IEmbeddedApplication.cs` (new):** `Start`, `FocusApplication` and an `Ended` event, for anything hosted as a control rather than a captured process.
@@ -216,6 +240,13 @@ Manual test:
 4. Remove `zone` again and launch: SuperPuTTY should stop and offer to open the Environment Variables dialog instead of connecting.
 5. Try the quick-connect toolbar, **Connect All** on a folder, Quick Selector and Restart.
 6. Close SuperPuTTY and open `Sessions.xml` (its location is shown in **Tools → Options**). The session should still say `{user}@{domain}`, not `jdoe@example.com`.
+
+RDP options and sending:
+
+1. In **Tools → Options → RDP**, set Desktop size to "Fixed size" at 1280×720, then connect: the remote should be 1280×720, scaled to fit if "Scale the remote desktop to fit" is on. Set it back to "Fit the tab".
+2. Untick Clipboard, reconnect, and check that copy/paste between the computers stops. Tick Drives and check that your drives appear in the remote's File Explorer.
+3. With an RDP tab active and logged in, open Notepad there, type `echo hello` into the Send Commands box and press Enter: it should appear in Notepad. Click a button-bar button: its text should appear too.
+4. Shift+click a button with an SSH tab and an RDP tab both selected: it should go to both.
 
 Button bar:
 

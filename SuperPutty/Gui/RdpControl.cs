@@ -22,7 +22,7 @@ namespace SuperPutty.Gui
     /// </para>
     /// </summary>
     [System.ComponentModel.ToolboxItem(false)]
-    public class RdpControl : AxHost, IEmbeddedApplication
+    public class RdpControl : AxHost, IEmbeddedApplication, ICommandReceiver
     {
         private static readonly ILog Log = LogManager.GetLogger(typeof(RdpControl));
 
@@ -130,7 +130,9 @@ namespace SuperPutty.Gui
         public void Start()
         {
             this.CreateControl();
-            Size size = ClampDesktopSize(this.ClientSize);
+            Size size = this.FitsTab
+                ? ClampDesktopSize(this.ClientSize)
+                : ClampDesktopSize(new Size(SuperPuTTY.Settings.RdpFixedWidth, SuperPuTTY.Settings.RdpFixedHeight));
 
             this.client.Server = this.session.Host;
             if (this.session.Port != 0)
@@ -143,20 +145,157 @@ namespace SuperPutty.Gui
             }
             this.client.DesktopWidth = size.Width;
             this.client.DesktopHeight = size.Height;
-            this.client.ColorDepth = 32;
+            this.client.ColorDepth = SuperPuTTY.Settings.RdpColorDepth;
 
+            // the options in Tools -> Options -> RDP
             dynamic settings = this.client.AdvancedSettings9;
-            settings.SmartSizing = true;
+            settings.SmartSizing = SuperPuTTY.Settings.RdpSmartSizing;
             settings.EnableCredSspSupport = true;
-            // warn, but allow connecting, when the server's identity can't be verified, like mstsc does
-            settings.AuthenticationLevel = 2u;
+            settings.AuthenticationLevel = (uint)SuperPuTTY.Settings.RdpAuthenticationLevel;
+            settings.RedirectClipboard = SuperPuTTY.Settings.RdpRedirectClipboard;
+            settings.RedirectDrives = SuperPuTTY.Settings.RdpRedirectDrives;
+            settings.RedirectPrinters = SuperPuTTY.Settings.RdpRedirectPrinters;
+            settings.RedirectSmartCards = SuperPuTTY.Settings.RdpRedirectSmartCards;
+            settings.AudioCaptureRedirectionMode = SuperPuTTY.Settings.RdpRedirectMicrophone;
+            settings.AudioRedirectionMode = (uint)SuperPuTTY.Settings.RdpAudioMode;
+            settings.ConnectToAdministerServer = SuperPuTTY.Settings.RdpConnectToConsole;
+            this.client.SecuredSettings3.KeyboardHookMode = SuperPuTTY.Settings.RdpKeyboardHookMode;
+            if (!string.IsNullOrWhiteSpace(SuperPuTTY.Settings.RdpGatewayHost))
+            {
+                dynamic transport = this.client.TransportSettings4;
+                transport.GatewayHostname = SuperPuTTY.Settings.RdpGatewayHost.Trim();
+                // use the gateway for this connection, with credentials negotiated as needed
+                transport.GatewayUsageMethod = 1u;
+                transport.GatewayProfileUsageMethod = 1u;
+                transport.GatewayCredsSource = 4u;
+            }
             if (!string.IsNullOrEmpty(this.session.Password))
             {
                 settings.ClearTextPassword = this.session.Password;
             }
 
-            Log.InfoFormat("Connecting to {0}:{1} as '{2}' with a {3}x{4} desktop", this.session.Host, this.session.Port, this.session.Username, size.Width, size.Height);
+            Log.InfoFormat("Connecting to {0}:{1} as '{2}' with a {3}x{4} desktop{5}", this.session.Host, this.session.Port, this.session.Username, size.Width, size.Height,
+                string.IsNullOrWhiteSpace(SuperPuTTY.Settings.RdpGatewayHost) ? "" : " through gateway " + SuperPuTTY.Settings.RdpGatewayHost);
             this.client.Connect();
+        }
+
+        /// <summary>True when the remote desktop follows the tab's size (Tools -> Options -> RDP -> Desktop size "Fit the tab")</summary>
+        private bool FitsTab
+        {
+            get { return !string.Equals(SuperPuTTY.Settings.RdpDisplayMode, "Fixed", StringComparison.OrdinalIgnoreCase); }
+        }
+
+        /// <summary>Scan code of the left Shift key</summary>
+        private const int ScanShift = 0x2A;
+
+        /// <summary>Scan code of the left Ctrl key</summary>
+        private const int ScanCtrl = 0x1D;
+
+        /// <summary>Scan code of the left Alt key</summary>
+        private const int ScanAlt = 0x38;
+
+        /// <summary>Flag on a scan code sent to the control for an extended key (arrows, Home, Delete, ...)</summary>
+        private const int ExtendedKeyFlag = 0x100;
+
+        /// <summary>Keys whose scan codes are "extended" (prefixed with E0 on a real keyboard)</summary>
+        private static readonly System.Collections.Generic.HashSet<Keys> ExtendedKeys = new System.Collections.Generic.HashSet<Keys>
+        {
+            Keys.Left, Keys.Right, Keys.Up, Keys.Down, Keys.Home, Keys.End, Keys.PageUp, Keys.PageDown,
+            Keys.Insert, Keys.Delete, Keys.Divide, Keys.NumLock, Keys.RControlKey, Keys.RMenu, Keys.LWin, Keys.RWin, Keys.Apps
+        };
+
+        /// <summary>
+        /// Type a command into the remote desktop as keystrokes: its text, then its key (e.g. Enter), then wait for
+        /// its delay. The keys go through the control's SendKeys as scan codes, mapped with the local keyboard layout,
+        /// so the remote should use the same layout. Characters that can't be typed on that layout are skipped.
+        /// Does nothing until login completes.
+        /// </summary>
+        /// <param name="command">The text, keys and delay to send</param>
+        public void SendCommand(CommandData command)
+        {
+            // the control is a COM object living on the UI thread
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(() => this.SendKeystrokes(command)));
+            }
+            else
+            {
+                this.SendKeystrokes(command);
+            }
+            if (command.Delay > TimeSpan.Zero)
+            {
+                System.Threading.Thread.Sleep(command.Delay);
+            }
+        }
+
+        /// <summary>Convert a command to scan codes and pass them to the control in one SendKeys call</summary>
+        /// <param name="command">The text and keys to send</param>
+        private void SendKeystrokes(CommandData command)
+        {
+            if (!this.loggedIn || this.IsDisposed)
+                return;
+
+            System.Collections.Generic.List<int> scanCodes = new System.Collections.Generic.List<int>();
+            System.Collections.Generic.List<short> keyUps = new System.Collections.Generic.List<short>();
+
+            foreach (char c in command.Command ?? string.Empty)
+            {
+                short vkAndShift = NativeMethods.VkKeyScan(c);
+                if (vkAndShift == -1)
+                {
+                    Log.WarnFormat("Can't type U+{0:X4} on the local keyboard layout; skipped", (int)c);
+                    continue;
+                }
+                int shiftState = (vkAndShift >> 8) & 0xFF;
+                AddKeyPress((Keys)(vkAndShift & 0xFF), (shiftState & 1) != 0, (shiftState & 2) != 0, (shiftState & 4) != 0, scanCodes, keyUps);
+            }
+            if (command.KeyData != null)
+            {
+                AddKeyPress(command.KeyData.KeyCode, command.KeyData.Shift, command.KeyData.Control, command.KeyData.Alt, scanCodes, keyUps);
+            }
+
+            if (scanCodes.Count > 0)
+            {
+                try
+                {
+                    ((IMsRdpClientNonScriptable)this.GetOcx()).SendKeys(scanCodes.Count, keyUps.ToArray(), scanCodes.ToArray());
+                }
+                catch (Exception ex)
+                {
+                    // e.g. E_FAIL while the session is reconnecting; this may run for a background sender, so never throw
+                    Log.Warn("Could not send keys to " + this.session.Host, ex);
+                }
+            }
+        }
+
+        /// <summary>Add one key press (down and up), wrapped in the modifier keys it needs</summary>
+        /// <param name="key">The virtual key</param>
+        /// <param name="shift">Hold Shift</param>
+        /// <param name="ctrl">Hold Ctrl</param>
+        /// <param name="alt">Hold Alt</param>
+        /// <param name="scanCodes">Scan codes to add to</param>
+        /// <param name="keyUps">Matching key-up flags to add to (VARIANT_BOOL: -1 up, 0 down)</param>
+        private static void AddKeyPress(Keys key, bool shift, bool ctrl, bool alt, System.Collections.Generic.List<int> scanCodes, System.Collections.Generic.List<short> keyUps)
+        {
+            int scanCode = (int)NativeMethods.MapVirtualKey((uint)key, 0);
+            if (scanCode == 0)
+            {
+                Log.WarnFormat("No scan code for key {0}; skipped", key);
+                return;
+            }
+            if (ExtendedKeys.Contains(key))
+            {
+                scanCode |= ExtendedKeyFlag;
+            }
+
+            if (shift) { scanCodes.Add(ScanShift); keyUps.Add(0); }
+            if (ctrl) { scanCodes.Add(ScanCtrl); keyUps.Add(0); }
+            if (alt) { scanCodes.Add(ScanAlt); keyUps.Add(0); }
+            scanCodes.Add(scanCode); keyUps.Add(0);
+            scanCodes.Add(scanCode); keyUps.Add(-1);
+            if (alt) { scanCodes.Add(ScanAlt); keyUps.Add(-1); }
+            if (ctrl) { scanCodes.Add(ScanCtrl); keyUps.Add(-1); }
+            if (shift) { scanCodes.Add(ScanShift); keyUps.Add(-1); }
         }
 
         /// <summary>Give the remote desktop the keyboard focus</summary>
@@ -170,7 +309,7 @@ namespace SuperPutty.Gui
         protected override void OnSizeChanged(EventArgs e)
         {
             base.OnSizeChanged(e);
-            if (this.loggedIn && !this.dynamicResizeUnsupported)
+            if (this.loggedIn && this.FitsTab && !this.dynamicResizeUnsupported)
             {
                 this.resizeTimer.Stop();
                 this.resizeTimer.Start();
@@ -186,7 +325,7 @@ namespace SuperPutty.Gui
         private void resizeTimer_Tick(object sender, EventArgs e)
         {
             this.resizeTimer.Stop();
-            if (!this.loggedIn || this.dynamicResizeUnsupported)
+            if (!this.loggedIn || !this.FitsTab || this.dynamicResizeUnsupported)
                 return;
 
             Size size = ClampDesktopSize(this.ClientSize);
@@ -292,6 +431,35 @@ namespace SuperPutty.Gui
             /// <summary>The session ended</summary>
             /// <param name="discReason">The disconnect reason code</param>
             [DispId(4)] void OnDisconnected(int discReason);
+        }
+
+        /// <summary>
+        /// The control's IMsRdpClientNonScriptable interface, which has SendKeys. It's IUnknown-only, so it can't be
+        /// late bound; every method up to SendKeys is declared, in vtable order, so the call lands in the right slot.
+        /// </summary>
+        [ComImport, Guid("2f079c4c-87b2-4afd-97ab-20cdb43038ae"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        internal interface IMsRdpClientNonScriptable
+        {
+            // IMsTscNonScriptable
+            void SetClearTextPassword([MarshalAs(UnmanagedType.BStr)] string password);
+            void SetPortablePassword([MarshalAs(UnmanagedType.BStr)] string password);
+            [return: MarshalAs(UnmanagedType.BStr)] string GetPortablePassword();
+            void SetPortableSalt([MarshalAs(UnmanagedType.BStr)] string salt);
+            [return: MarshalAs(UnmanagedType.BStr)] string GetPortableSalt();
+            void SetBinaryPassword([MarshalAs(UnmanagedType.BStr)] string password);
+            [return: MarshalAs(UnmanagedType.BStr)] string GetBinaryPassword();
+            void SetBinarySalt([MarshalAs(UnmanagedType.BStr)] string salt);
+            [return: MarshalAs(UnmanagedType.BStr)] string GetBinarySalt();
+            void ResetPassword();
+
+            // IMsRdpClientNonScriptable
+            void NotifyRedirectDeviceChange(UIntPtr wParam, IntPtr lParam);
+
+            /// <summary>Send key presses as scan codes</summary>
+            /// <param name="numKeys">Number of entries in both arrays</param>
+            /// <param name="pbArrayKeyUp">For each entry, VARIANT_BOOL: -1 for key up, 0 for key down</param>
+            /// <param name="plKeyData">For each entry, the scan code</param>
+            void SendKeys(int numKeys, [MarshalAs(UnmanagedType.LPArray)] short[] pbArrayKeyUp, [MarshalAs(UnmanagedType.LPArray)] int[] plKeyData);
         }
 
         /// <summary>Receives the control's events and passes them to the <see cref="RdpControl"/></summary>

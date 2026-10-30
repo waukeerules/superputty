@@ -1338,11 +1338,10 @@ namespace SuperPutty
             {
                 foreach (ctlPuttyPanel panel in this.GetSelectedPuttyPanels())
                 {
-                    System.IntPtr hPtr = panel.AppPanel.AppWindowHandle;
-                    int handle = hPtr.ToInt32();
                     //Log.InfoFormat("SendCommand: session={0}, command=[{1}], handle={2}", panel.Session.SessionId, command, handle);
 
-                    command.SendToTerminal(handle);
+                    // a terminal window, or keystrokes to an RDP session
+                    panel.SendCommand(command);
 
                     sent++;
                 }

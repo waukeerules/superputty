@@ -103,7 +103,7 @@ SCP sessions go through `SuperPuTTY.OpenScpSession` → `PscpBrowserPanel` inste
 | `SessionData` | `Data/SessionData.cs` | One saved session. Its setters raise change events that lead to `Sessions.xml` being saved |
 | `PuttyStartInfo` + `*StartInfo` | `Utils/` | Build the command line for each protocol (`RDPStartinfo`, `VNCStartinfo`, `WSLStartInfo`, ...) |
 | `SessionVariables`, `EnvironmentVariablesManager` | `Utils/` | Fork feature: `{key}` placeholders and the per-user values file |
-| `RdpControl`, `IEmbeddedApplication` | `Gui/`, `Utils/` | Fork feature: RDP tabs host the Remote Desktop ActiveX control (late bound, no interop assemblies) inside the `ApplicationPanel` instead of capturing mstsc |
+| `RdpControl`, `IEmbeddedApplication`, `ICommandReceiver` | `Gui/`, `Utils/` | Fork feature: RDP tabs host the Remote Desktop ActiveX control (late bound, no interop assemblies) inside the `ApplicationPanel` instead of capturing mstsc. Options are the `Rdp*` settings (Tools → Options → RDP). To type into any tab, call `ctlPuttyPanel.SendCommand`, never `CommandData.SendToTerminal` with a window handle, so RDP tabs work too |
 | `ButtonBarStrip`, `ButtonBarStore`, `SendStringParser` | `Gui/`, `Utils/` | Fork feature: the button bar above the status bar. Buttons are stored in `ButtonBars.xml` in SettingsFolder; sending uses `CommandData.SendToTerminal`, like the Send Commands toolbar and SPSL |
 | `SessionTreeview`, `LayoutsList`, `SessionDetail`, log viewers | top level | Tool windows (`ToolWindow`), shown and hidden through `SingletonToolWindowHelper<T>` |
 | Dialogs | `dlg*.cs`, `Gui/`, `EnvironmentVariablesForm.cs` | Plain `Form`s with designer files |

@@ -309,6 +309,33 @@ namespace SuperPutty
         /// <summary>
         /// Reset the focus to the child application window
         /// </summary>
+        /// <summary>
+        /// Whether Send Commands, the button bar and SPSL can type into this tab: a captured terminal window, or an
+        /// embedded application that accepts keystrokes (an RDP session)
+        /// </summary>
+        public bool CanReceiveCommands
+        {
+            get { return this.AppPanel.ExternalProcessCaptured || this.AppPanel.EmbeddedApplication is ICommandReceiver; }
+        }
+
+        /// <summary>
+        /// Type a command into this tab: as window messages to a terminal, or as keystrokes to an embedded application
+        /// such as an RDP session. Safe to call from any thread.
+        /// </summary>
+        /// <param name="command">The text, keys and delay to send</param>
+        public void SendCommand(CommandData command)
+        {
+            ICommandReceiver receiver = this.AppPanel.EmbeddedApplication as ICommandReceiver;
+            if (receiver != null)
+            {
+                receiver.SendCommand(command);
+            }
+            else
+            {
+                command.SendToTerminal(this.AppPanel.AppWindowHandle.ToInt32());
+            }
+        }
+
         internal void SetFocusToChildApplication(string caller)
         {
             if (!this.AppPanel.ExternalProcessCaptured && !this.AppPanel.HasEmbeddedApplication) { return; }

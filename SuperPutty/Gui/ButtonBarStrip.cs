@@ -292,11 +292,9 @@ namespace SuperPutty.Gui
         /// <param name="toSelected">true to send to the tabs selected for Send Commands (Shift+click), false for the active tab</param>
         private void RunButton(CommandButton command, bool toSelected)
         {
-            List<IntPtr> handles = this.getTargets(toSelected)
-                .Select(panel => panel.AppPanel.AppWindowHandle)
-                .Where(handle => handle != IntPtr.Zero)
-                .ToList();
-            if (handles.Count == 0)
+            // terminal tabs and RDP tabs; ctlPuttyPanel.SendCommand types into either
+            List<ctlPuttyPanel> targets = this.getTargets(toSelected).Where(panel => panel.CanReceiveCommands).ToList();
+            if (targets.Count == 0)
             {
                 SuperPuTTY.ReportStatus(toSelected ? "No selected sessions to send to" : "No active session to send to");
                 return;
@@ -308,29 +306,41 @@ namespace SuperPutty.Gui
 
             if (command.Action == CommandButtonAction.SpslScript)
             {
-                foreach (IntPtr handle in handles)
+                string[] lines = text.Split('\n');
+                foreach (ctlPuttyPanel panel in targets)
                 {
-                    SPSL.BeginExecuteScript(new ExecuteScriptEventArgs { Script = text, Handle = handle });
+                    // like SPSL.BeginExecuteScript, but sending through the tab so RDP sessions work too
+                    new Thread(() =>
+                    {
+                        foreach (string line in lines)
+                        {
+                            CommandData step;
+                            SPSL.TryParseScriptLine(line.TrimEnd('\r'), out step);
+                            if (step != null)
+                            {
+                                panel.SendCommand(step);
+                            }
+                        }
+                    }) { IsBackground = true, Name = "ButtonBar" }.Start();
                 }
             }
             else
             {
                 List<CommandData> steps = SendStringParser.Parse(text, () => Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty);
-                foreach (IntPtr handle in handles)
+                foreach (ctlPuttyPanel panel in targets)
                 {
-                    int target = handle.ToInt32();
                     new Thread(() =>
                     {
                         foreach (CommandData step in steps)
                         {
-                            step.SendToTerminal(target);
+                            panel.SendCommand(step);
                         }
                     }) { IsBackground = true, Name = "ButtonBar" }.Start();
                 }
             }
 
-            Log.InfoFormat("Button bar: ran \"{0}\" in {1} session(s)", command.Label, handles.Count);
-            SuperPuTTY.ReportStatus($"Sent \"{command.Label}\" to {handles.Count} session(s)");
+            Log.InfoFormat("Button bar: ran \"{0}\" in {1} session(s)", command.Label, targets.Count);
+            SuperPuTTY.ReportStatus($"Sent \"{command.Label}\" to {targets.Count} session(s)");
 
             // clicking the bar took the keyboard away from the terminal; give it back to the active tab
             this.BeginInvoke(new MethodInvoker(() => SuperPuTTY.MainForm.FocusActiveDocument("ButtonBar")));

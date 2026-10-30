@@ -85,6 +85,9 @@ namespace SuperPutty
         /// <summary>Whether this panel hosts an application control rather than a captured process window</summary>
         public bool HasEmbeddedApplication { get { return this.embeddedApplication != null; } }
 
+        /// <summary>The hosted application control, or null when this panel captures a process window</summary>
+        public IEmbeddedApplication EmbeddedApplication { get { return this.embeddedApplication; } }
+
         [Category("Data"), Description("The starting directory for the putty shell.  Relevant only to cygterm sessions"),
 DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         public string ApplicationWorkingDirectory { get; set; }

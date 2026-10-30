@@ -143,6 +143,34 @@
             this.colClear = new System.Windows.Forms.DataGridViewButtonColumn();
             this.keyboardShortcutBindingSource = new System.Windows.Forms.BindingSource(this.components);
             this.tabPageAdvanced = new System.Windows.Forms.TabPage();
+            this.tabPageRdp = new System.Windows.Forms.TabPage();
+            this.groupBoxRdpDisplay = new System.Windows.Forms.GroupBox();
+            this.labelRdpSize = new System.Windows.Forms.Label();
+            this.comboRdpDisplayMode = new System.Windows.Forms.ComboBox();
+            this.numericRdpWidth = new System.Windows.Forms.NumericUpDown();
+            this.labelRdpBy = new System.Windows.Forms.Label();
+            this.numericRdpHeight = new System.Windows.Forms.NumericUpDown();
+            this.labelRdpColor = new System.Windows.Forms.Label();
+            this.comboRdpColorDepth = new System.Windows.Forms.ComboBox();
+            this.checkRdpSmartSizing = new System.Windows.Forms.CheckBox();
+            this.groupBoxRdpResources = new System.Windows.Forms.GroupBox();
+            this.labelRdpRedirect = new System.Windows.Forms.Label();
+            this.checkRdpClipboard = new System.Windows.Forms.CheckBox();
+            this.checkRdpDrives = new System.Windows.Forms.CheckBox();
+            this.checkRdpPrinters = new System.Windows.Forms.CheckBox();
+            this.checkRdpSmartCards = new System.Windows.Forms.CheckBox();
+            this.checkRdpMicrophone = new System.Windows.Forms.CheckBox();
+            this.labelRdpAudio = new System.Windows.Forms.Label();
+            this.comboRdpAudio = new System.Windows.Forms.ComboBox();
+            this.labelRdpKeyboard = new System.Windows.Forms.Label();
+            this.comboRdpKeyboard = new System.Windows.Forms.ComboBox();
+            this.groupBoxRdpConnection = new System.Windows.Forms.GroupBox();
+            this.labelRdpAuth = new System.Windows.Forms.Label();
+            this.comboRdpAuth = new System.Windows.Forms.ComboBox();
+            this.labelRdpGateway = new System.Windows.Forms.Label();
+            this.textBoxRdpGateway = new System.Windows.Forms.TextBox();
+            this.checkRdpConsole = new System.Windows.Forms.CheckBox();
+            this.labelRdpNote = new System.Windows.Forms.Label();
             this.groupBox9 = new System.Windows.Forms.GroupBox();
             this.groupBox5 = new System.Windows.Forms.GroupBox();
             this.comboBoxActivatorType = new System.Windows.Forms.ComboBox();
@@ -166,6 +194,12 @@
             ((System.ComponentModel.ISupportInitialize)(this.dataGridViewShortcuts)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.keyboardShortcutBindingSource)).BeginInit();
             this.tabPageAdvanced.SuspendLayout();
+            this.tabPageRdp.SuspendLayout();
+            this.groupBoxRdpDisplay.SuspendLayout();
+            this.groupBoxRdpResources.SuspendLayout();
+            this.groupBoxRdpConnection.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.numericRdpWidth)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericRdpHeight)).BeginInit();
             this.groupBox9.SuspendLayout();
             this.groupBox5.SuspendLayout();
             this.groupBox4.SuspendLayout();
@@ -698,6 +732,7 @@
             this.tabControl.Controls.Add(this.tabPageGUI);
             this.tabControl.Controls.Add(this.tabPageShortcuts);
             this.tabControl.Controls.Add(this.tabPageAdvanced);
+            this.tabControl.Controls.Add(this.tabPageRdp);
             this.tabControl.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabControl.Location = new System.Drawing.Point(6, 6);
             this.tabControl.Margin = new System.Windows.Forms.Padding(4);
@@ -1612,6 +1647,363 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
             this.Text = "SuperXPuTTY Options";
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown1)).EndInit();
+            // 
+            // tabPageRdp
+            // 
+            this.tabPageRdp.Controls.Add(this.groupBoxRdpDisplay);
+            this.tabPageRdp.Controls.Add(this.groupBoxRdpResources);
+            this.tabPageRdp.Controls.Add(this.groupBoxRdpConnection);
+            this.tabPageRdp.Controls.Add(this.labelRdpNote);
+            this.tabPageRdp.Location = new System.Drawing.Point(4, 29);
+            this.tabPageRdp.Margin = new System.Windows.Forms.Padding(4);
+            this.tabPageRdp.Name = "tabPageRdp";
+            this.tabPageRdp.Padding = new System.Windows.Forms.Padding(4);
+            this.tabPageRdp.Size = new System.Drawing.Size(772, 514);
+            this.tabPageRdp.TabIndex = 4;
+            this.tabPageRdp.Text = "RDP";
+            this.tabPageRdp.UseVisualStyleBackColor = true;
+            // 
+            // groupBoxRdpDisplay
+            // 
+            this.groupBoxRdpDisplay.Controls.Add(this.labelRdpSize);
+            this.groupBoxRdpDisplay.Controls.Add(this.comboRdpDisplayMode);
+            this.groupBoxRdpDisplay.Controls.Add(this.numericRdpWidth);
+            this.groupBoxRdpDisplay.Controls.Add(this.labelRdpBy);
+            this.groupBoxRdpDisplay.Controls.Add(this.numericRdpHeight);
+            this.groupBoxRdpDisplay.Controls.Add(this.labelRdpColor);
+            this.groupBoxRdpDisplay.Controls.Add(this.comboRdpColorDepth);
+            this.groupBoxRdpDisplay.Controls.Add(this.checkRdpSmartSizing);
+            this.groupBoxRdpDisplay.Location = new System.Drawing.Point(8, 8);
+            this.groupBoxRdpDisplay.Margin = new System.Windows.Forms.Padding(4);
+            this.groupBoxRdpDisplay.Name = "groupBoxRdpDisplay";
+            this.groupBoxRdpDisplay.Padding = new System.Windows.Forms.Padding(4);
+            this.groupBoxRdpDisplay.Size = new System.Drawing.Size(756, 140);
+            this.groupBoxRdpDisplay.TabIndex = 0;
+            this.groupBoxRdpDisplay.TabStop = false;
+            this.groupBoxRdpDisplay.Text = "Display";
+            // 
+            // labelRdpSize
+            // 
+            this.labelRdpSize.AutoSize = true;
+            this.labelRdpSize.Location = new System.Drawing.Point(16, 32);
+            this.labelRdpSize.Margin = new System.Windows.Forms.Padding(4);
+            this.labelRdpSize.Name = "labelRdpSize";
+            this.labelRdpSize.TabIndex = 0;
+            this.labelRdpSize.Text = "Desktop size:";
+            // 
+            // comboRdpDisplayMode
+            // 
+            this.comboRdpDisplayMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboRdpDisplayMode.FormattingEnabled = true;
+            this.comboRdpDisplayMode.Items.AddRange(new object[] {
+            "Fit the tab",
+            "Fixed size"});
+            this.comboRdpDisplayMode.Location = new System.Drawing.Point(190, 28);
+            this.comboRdpDisplayMode.Size = new System.Drawing.Size(170, 28);
+            this.comboRdpDisplayMode.Margin = new System.Windows.Forms.Padding(4);
+            this.comboRdpDisplayMode.Name = "comboRdpDisplayMode";
+            this.comboRdpDisplayMode.TabIndex = 1;
+            this.comboRdpDisplayMode.SelectedIndexChanged += new System.EventHandler(this.comboRdpDisplayMode_SelectedIndexChanged);
+            // 
+            // numericRdpWidth
+            // 
+            this.numericRdpWidth.Location = new System.Drawing.Point(370, 29);
+            this.numericRdpWidth.Maximum = new decimal(new int[] {
+            8192,
+            0,
+            0,
+            0});
+            this.numericRdpWidth.Minimum = new decimal(new int[] {
+            200,
+            0,
+            0,
+            0});
+            this.numericRdpWidth.Size = new System.Drawing.Size(80, 27);
+            this.numericRdpWidth.Margin = new System.Windows.Forms.Padding(4);
+            this.numericRdpWidth.Name = "numericRdpWidth";
+            this.numericRdpWidth.TabIndex = 2;
+            this.numericRdpWidth.Value = new decimal(new int[] {
+            1920,
+            0,
+            0,
+            0});
+            // 
+            // labelRdpBy
+            // 
+            this.labelRdpBy.AutoSize = true;
+            this.labelRdpBy.Location = new System.Drawing.Point(454, 32);
+            this.labelRdpBy.Margin = new System.Windows.Forms.Padding(4);
+            this.labelRdpBy.Name = "labelRdpBy";
+            this.labelRdpBy.TabIndex = 3;
+            this.labelRdpBy.Text = "x";
+            // 
+            // numericRdpHeight
+            // 
+            this.numericRdpHeight.Location = new System.Drawing.Point(472, 29);
+            this.numericRdpHeight.Maximum = new decimal(new int[] {
+            8192,
+            0,
+            0,
+            0});
+            this.numericRdpHeight.Minimum = new decimal(new int[] {
+            200,
+            0,
+            0,
+            0});
+            this.numericRdpHeight.Size = new System.Drawing.Size(80, 27);
+            this.numericRdpHeight.Margin = new System.Windows.Forms.Padding(4);
+            this.numericRdpHeight.Name = "numericRdpHeight";
+            this.numericRdpHeight.TabIndex = 4;
+            this.numericRdpHeight.Value = new decimal(new int[] {
+            1920,
+            0,
+            0,
+            0});
+            // 
+            // labelRdpColor
+            // 
+            this.labelRdpColor.AutoSize = true;
+            this.labelRdpColor.Location = new System.Drawing.Point(16, 68);
+            this.labelRdpColor.Margin = new System.Windows.Forms.Padding(4);
+            this.labelRdpColor.Name = "labelRdpColor";
+            this.labelRdpColor.TabIndex = 5;
+            this.labelRdpColor.Text = "Colour depth:";
+            // 
+            // comboRdpColorDepth
+            // 
+            this.comboRdpColorDepth.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboRdpColorDepth.FormattingEnabled = true;
+            this.comboRdpColorDepth.Items.AddRange(new object[] {
+            "15-bit",
+            "16-bit",
+            "24-bit",
+            "32-bit"});
+            this.comboRdpColorDepth.Location = new System.Drawing.Point(190, 64);
+            this.comboRdpColorDepth.Size = new System.Drawing.Size(170, 28);
+            this.comboRdpColorDepth.Margin = new System.Windows.Forms.Padding(4);
+            this.comboRdpColorDepth.Name = "comboRdpColorDepth";
+            this.comboRdpColorDepth.TabIndex = 6;
+            // 
+            // checkRdpSmartSizing
+            // 
+            this.checkRdpSmartSizing.AutoSize = true;
+            this.checkRdpSmartSizing.Location = new System.Drawing.Point(190, 100);
+            this.checkRdpSmartSizing.Margin = new System.Windows.Forms.Padding(4);
+            this.checkRdpSmartSizing.Name = "checkRdpSmartSizing";
+            this.checkRdpSmartSizing.TabIndex = 7;
+            this.checkRdpSmartSizing.Text = "Scale the remote desktop to fit (smart sizing)";
+            this.checkRdpSmartSizing.UseVisualStyleBackColor = true;
+            // 
+            // groupBoxRdpResources
+            // 
+            this.groupBoxRdpResources.Controls.Add(this.labelRdpRedirect);
+            this.groupBoxRdpResources.Controls.Add(this.checkRdpClipboard);
+            this.groupBoxRdpResources.Controls.Add(this.checkRdpDrives);
+            this.groupBoxRdpResources.Controls.Add(this.checkRdpPrinters);
+            this.groupBoxRdpResources.Controls.Add(this.checkRdpSmartCards);
+            this.groupBoxRdpResources.Controls.Add(this.checkRdpMicrophone);
+            this.groupBoxRdpResources.Controls.Add(this.labelRdpAudio);
+            this.groupBoxRdpResources.Controls.Add(this.comboRdpAudio);
+            this.groupBoxRdpResources.Controls.Add(this.labelRdpKeyboard);
+            this.groupBoxRdpResources.Controls.Add(this.comboRdpKeyboard);
+            this.groupBoxRdpResources.Location = new System.Drawing.Point(8, 154);
+            this.groupBoxRdpResources.Margin = new System.Windows.Forms.Padding(4);
+            this.groupBoxRdpResources.Name = "groupBoxRdpResources";
+            this.groupBoxRdpResources.Padding = new System.Windows.Forms.Padding(4);
+            this.groupBoxRdpResources.Size = new System.Drawing.Size(756, 140);
+            this.groupBoxRdpResources.TabIndex = 1;
+            this.groupBoxRdpResources.TabStop = false;
+            this.groupBoxRdpResources.Text = "Local resources";
+            // 
+            // labelRdpRedirect
+            // 
+            this.labelRdpRedirect.AutoSize = true;
+            this.labelRdpRedirect.Location = new System.Drawing.Point(16, 32);
+            this.labelRdpRedirect.Margin = new System.Windows.Forms.Padding(4);
+            this.labelRdpRedirect.Name = "labelRdpRedirect";
+            this.labelRdpRedirect.TabIndex = 0;
+            this.labelRdpRedirect.Text = "Use on remote:";
+            // 
+            // checkRdpClipboard
+            // 
+            this.checkRdpClipboard.AutoSize = true;
+            this.checkRdpClipboard.Location = new System.Drawing.Point(190, 30);
+            this.checkRdpClipboard.Margin = new System.Windows.Forms.Padding(4);
+            this.checkRdpClipboard.Name = "checkRdpClipboard";
+            this.checkRdpClipboard.TabIndex = 1;
+            this.checkRdpClipboard.Text = "Clipboard";
+            this.checkRdpClipboard.UseVisualStyleBackColor = true;
+            // 
+            // checkRdpDrives
+            // 
+            this.checkRdpDrives.AutoSize = true;
+            this.checkRdpDrives.Location = new System.Drawing.Point(300, 30);
+            this.checkRdpDrives.Margin = new System.Windows.Forms.Padding(4);
+            this.checkRdpDrives.Name = "checkRdpDrives";
+            this.checkRdpDrives.TabIndex = 2;
+            this.checkRdpDrives.Text = "Drives";
+            this.checkRdpDrives.UseVisualStyleBackColor = true;
+            // 
+            // checkRdpPrinters
+            // 
+            this.checkRdpPrinters.AutoSize = true;
+            this.checkRdpPrinters.Location = new System.Drawing.Point(390, 30);
+            this.checkRdpPrinters.Margin = new System.Windows.Forms.Padding(4);
+            this.checkRdpPrinters.Name = "checkRdpPrinters";
+            this.checkRdpPrinters.TabIndex = 3;
+            this.checkRdpPrinters.Text = "Printers";
+            this.checkRdpPrinters.UseVisualStyleBackColor = true;
+            // 
+            // checkRdpSmartCards
+            // 
+            this.checkRdpSmartCards.AutoSize = true;
+            this.checkRdpSmartCards.Location = new System.Drawing.Point(490, 30);
+            this.checkRdpSmartCards.Margin = new System.Windows.Forms.Padding(4);
+            this.checkRdpSmartCards.Name = "checkRdpSmartCards";
+            this.checkRdpSmartCards.TabIndex = 4;
+            this.checkRdpSmartCards.Text = "Smart cards";
+            this.checkRdpSmartCards.UseVisualStyleBackColor = true;
+            // 
+            // checkRdpMicrophone
+            // 
+            this.checkRdpMicrophone.AutoSize = true;
+            this.checkRdpMicrophone.Location = new System.Drawing.Point(610, 30);
+            this.checkRdpMicrophone.Margin = new System.Windows.Forms.Padding(4);
+            this.checkRdpMicrophone.Name = "checkRdpMicrophone";
+            this.checkRdpMicrophone.TabIndex = 5;
+            this.checkRdpMicrophone.Text = "Microphone";
+            this.checkRdpMicrophone.UseVisualStyleBackColor = true;
+            // 
+            // labelRdpAudio
+            // 
+            this.labelRdpAudio.AutoSize = true;
+            this.labelRdpAudio.Location = new System.Drawing.Point(16, 68);
+            this.labelRdpAudio.Margin = new System.Windows.Forms.Padding(4);
+            this.labelRdpAudio.Name = "labelRdpAudio";
+            this.labelRdpAudio.TabIndex = 6;
+            this.labelRdpAudio.Text = "Remote audio:";
+            // 
+            // comboRdpAudio
+            // 
+            this.comboRdpAudio.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboRdpAudio.FormattingEnabled = true;
+            this.comboRdpAudio.Items.AddRange(new object[] {
+            "Play on this computer",
+            "Play on the remote computer",
+            "Do not play"});
+            this.comboRdpAudio.Location = new System.Drawing.Point(190, 64);
+            this.comboRdpAudio.Size = new System.Drawing.Size(300, 28);
+            this.comboRdpAudio.Margin = new System.Windows.Forms.Padding(4);
+            this.comboRdpAudio.Name = "comboRdpAudio";
+            this.comboRdpAudio.TabIndex = 7;
+            // 
+            // labelRdpKeyboard
+            // 
+            this.labelRdpKeyboard.AutoSize = true;
+            this.labelRdpKeyboard.Location = new System.Drawing.Point(16, 104);
+            this.labelRdpKeyboard.Margin = new System.Windows.Forms.Padding(4);
+            this.labelRdpKeyboard.Name = "labelRdpKeyboard";
+            this.labelRdpKeyboard.TabIndex = 8;
+            this.labelRdpKeyboard.Text = "Windows key combos:";
+            // 
+            // comboRdpKeyboard
+            // 
+            this.comboRdpKeyboard.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboRdpKeyboard.FormattingEnabled = true;
+            this.comboRdpKeyboard.Items.AddRange(new object[] {
+            "On this computer",
+            "On the remote computer",
+            "Only when full screen"});
+            this.comboRdpKeyboard.Location = new System.Drawing.Point(190, 100);
+            this.comboRdpKeyboard.Size = new System.Drawing.Size(300, 28);
+            this.comboRdpKeyboard.Margin = new System.Windows.Forms.Padding(4);
+            this.comboRdpKeyboard.Name = "comboRdpKeyboard";
+            this.comboRdpKeyboard.TabIndex = 9;
+            // 
+            // groupBoxRdpConnection
+            // 
+            this.groupBoxRdpConnection.Controls.Add(this.labelRdpAuth);
+            this.groupBoxRdpConnection.Controls.Add(this.comboRdpAuth);
+            this.groupBoxRdpConnection.Controls.Add(this.labelRdpGateway);
+            this.groupBoxRdpConnection.Controls.Add(this.textBoxRdpGateway);
+            this.groupBoxRdpConnection.Controls.Add(this.checkRdpConsole);
+            this.groupBoxRdpConnection.Location = new System.Drawing.Point(8, 300);
+            this.groupBoxRdpConnection.Margin = new System.Windows.Forms.Padding(4);
+            this.groupBoxRdpConnection.Name = "groupBoxRdpConnection";
+            this.groupBoxRdpConnection.Padding = new System.Windows.Forms.Padding(4);
+            this.groupBoxRdpConnection.Size = new System.Drawing.Size(756, 140);
+            this.groupBoxRdpConnection.TabIndex = 2;
+            this.groupBoxRdpConnection.TabStop = false;
+            this.groupBoxRdpConnection.Text = "Connection";
+            // 
+            // labelRdpAuth
+            // 
+            this.labelRdpAuth.AutoSize = true;
+            this.labelRdpAuth.Location = new System.Drawing.Point(16, 32);
+            this.labelRdpAuth.Margin = new System.Windows.Forms.Padding(4);
+            this.labelRdpAuth.Name = "labelRdpAuth";
+            this.labelRdpAuth.TabIndex = 0;
+            this.labelRdpAuth.Text = "Server authentication:";
+            // 
+            // comboRdpAuth
+            // 
+            this.comboRdpAuth.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboRdpAuth.FormattingEnabled = true;
+            this.comboRdpAuth.Items.AddRange(new object[] {
+            "Connect without warning",
+            "Do not connect",
+            "Warn me"});
+            this.comboRdpAuth.Location = new System.Drawing.Point(190, 28);
+            this.comboRdpAuth.Size = new System.Drawing.Size(300, 28);
+            this.comboRdpAuth.Margin = new System.Windows.Forms.Padding(4);
+            this.comboRdpAuth.Name = "comboRdpAuth";
+            this.comboRdpAuth.TabIndex = 1;
+            // 
+            // labelRdpGateway
+            // 
+            this.labelRdpGateway.AutoSize = true;
+            this.labelRdpGateway.Location = new System.Drawing.Point(16, 68);
+            this.labelRdpGateway.Margin = new System.Windows.Forms.Padding(4);
+            this.labelRdpGateway.Name = "labelRdpGateway";
+            this.labelRdpGateway.TabIndex = 2;
+            this.labelRdpGateway.Text = "RD Gateway:";
+            // 
+            // textBoxRdpGateway
+            // 
+            this.textBoxRdpGateway.Location = new System.Drawing.Point(190, 65);
+            this.textBoxRdpGateway.Size = new System.Drawing.Size(300, 27);
+            this.textBoxRdpGateway.Margin = new System.Windows.Forms.Padding(4);
+            this.textBoxRdpGateway.Name = "textBoxRdpGateway";
+            this.textBoxRdpGateway.TabIndex = 3;
+            this.toolTip.SetToolTip(this.textBoxRdpGateway, "Remote Desktop Gateway host name. Leave empty to connect directly.");
+            // 
+            // checkRdpConsole
+            // 
+            this.checkRdpConsole.AutoSize = true;
+            this.checkRdpConsole.Location = new System.Drawing.Point(190, 100);
+            this.checkRdpConsole.Margin = new System.Windows.Forms.Padding(4);
+            this.checkRdpConsole.Name = "checkRdpConsole";
+            this.checkRdpConsole.TabIndex = 4;
+            this.checkRdpConsole.Text = "Connect to the admin (console) session";
+            this.checkRdpConsole.UseVisualStyleBackColor = true;
+            // 
+            // labelRdpNote
+            // 
+            this.labelRdpNote.Location = new System.Drawing.Point(12, 452);
+            this.labelRdpNote.Size = new System.Drawing.Size(748, 44);
+            this.labelRdpNote.Margin = new System.Windows.Forms.Padding(4);
+            this.labelRdpNote.Name = "labelRdpNote";
+            this.labelRdpNote.TabIndex = 3;
+            this.labelRdpNote.Text = "These apply to RDP sessions shown with the built-in client (General -> Built-in client), when they connect.";
+            this.groupBoxRdpDisplay.ResumeLayout(false);
+            this.groupBoxRdpDisplay.PerformLayout();
+            this.groupBoxRdpResources.ResumeLayout(false);
+            this.groupBoxRdpResources.PerformLayout();
+            this.groupBoxRdpConnection.ResumeLayout(false);
+            this.groupBoxRdpConnection.PerformLayout();
+            this.tabPageRdp.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.numericRdpWidth)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericRdpHeight)).EndInit();
             this.tabControl.ResumeLayout(false);
             this.tabPageGeneral.ResumeLayout(false);
             this.tabPageGeneral.PerformLayout();
@@ -1692,6 +2084,34 @@
         private System.Windows.Forms.CheckBox checkSessionsTreeShowLines;
         private System.Windows.Forms.Label label10;
         private System.Windows.Forms.TabPage tabPageAdvanced;
+        private System.Windows.Forms.TabPage tabPageRdp;
+        private System.Windows.Forms.GroupBox groupBoxRdpDisplay;
+        private System.Windows.Forms.Label labelRdpSize;
+        private System.Windows.Forms.ComboBox comboRdpDisplayMode;
+        private System.Windows.Forms.NumericUpDown numericRdpWidth;
+        private System.Windows.Forms.Label labelRdpBy;
+        private System.Windows.Forms.NumericUpDown numericRdpHeight;
+        private System.Windows.Forms.Label labelRdpColor;
+        private System.Windows.Forms.ComboBox comboRdpColorDepth;
+        private System.Windows.Forms.CheckBox checkRdpSmartSizing;
+        private System.Windows.Forms.GroupBox groupBoxRdpResources;
+        private System.Windows.Forms.Label labelRdpRedirect;
+        private System.Windows.Forms.CheckBox checkRdpClipboard;
+        private System.Windows.Forms.CheckBox checkRdpDrives;
+        private System.Windows.Forms.CheckBox checkRdpPrinters;
+        private System.Windows.Forms.CheckBox checkRdpSmartCards;
+        private System.Windows.Forms.CheckBox checkRdpMicrophone;
+        private System.Windows.Forms.Label labelRdpAudio;
+        private System.Windows.Forms.ComboBox comboRdpAudio;
+        private System.Windows.Forms.Label labelRdpKeyboard;
+        private System.Windows.Forms.ComboBox comboRdpKeyboard;
+        private System.Windows.Forms.GroupBox groupBoxRdpConnection;
+        private System.Windows.Forms.Label labelRdpAuth;
+        private System.Windows.Forms.ComboBox comboRdpAuth;
+        private System.Windows.Forms.Label labelRdpGateway;
+        private System.Windows.Forms.TextBox textBoxRdpGateway;
+        private System.Windows.Forms.CheckBox checkRdpConsole;
+        private System.Windows.Forms.Label labelRdpNote;
         private System.Windows.Forms.Panel panelBottom;
         private System.Windows.Forms.FontDialog fontDialog;
         private System.Windows.Forms.GroupBox groupBox4;

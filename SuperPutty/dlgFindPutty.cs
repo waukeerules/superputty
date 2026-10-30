@@ -199,6 +199,7 @@ namespace SuperPutty
             this.checkFilterWhileTyping.Checked = SuperPuTTY.Settings.FilterSessionsOnChange;
             this.checkPuttyEnableNewSessionMenu.Checked = SuperPuTTY.Settings.PuttyPanelShowNewSessionMenu;
             this.checkRdpEmbeddedClient.Checked = SuperPuTTY.Settings.RdpUseEmbeddedClient;
+            this.LoadRdpOptions();
             this.checkBoxCheckForUpdates.Checked = SuperPuTTY.Settings.AutoUpdateCheck;
             this.textBoxHomeDirPrefix.Text = SuperPuTTY.Settings.PscpHomePrefix;
             this.textBoxRootDirPrefix.Text = SuperPuTTY.Settings.PscpRootHomePrefix;
@@ -422,6 +423,7 @@ namespace SuperPutty
                 SuperPuTTY.Settings.FilterSessionsOnChange = this.checkFilterWhileTyping.Checked;
                 SuperPuTTY.Settings.PuttyPanelShowNewSessionMenu = this.checkPuttyEnableNewSessionMenu.Checked;
                 SuperPuTTY.Settings.RdpUseEmbeddedClient = this.checkRdpEmbeddedClient.Checked;
+                this.SaveRdpOptions();
                 SuperPuTTY.Settings.AutoUpdateCheck = this.checkBoxCheckForUpdates.Checked;
                 SuperPuTTY.Settings.PscpHomePrefix = this.textBoxHomeDirPrefix.Text;
                 SuperPuTTY.Settings.PscpRootHomePrefix = this.textBoxRootDirPrefix.Text;
@@ -486,6 +488,63 @@ namespace SuperPutty
                     DialogResult = DialogResult.Cancel;
                 }
             }
+        }
+
+        /// <summary>Colour depths offered on the RDP page, in the order of its dropdown</summary>
+        private static readonly int[] RdpColorDepths = { 15, 16, 24, 32 };
+
+        /// <summary>
+        /// Show the RDP settings (used by Gui.RdpControl when a session connects) on the RDP page. The dropdowns'
+        /// item order matches the stored values: audio 0-2, Windows keys 0-2, authentication level 0-2.
+        /// </summary>
+        private void LoadRdpOptions()
+        {
+            this.comboRdpDisplayMode.SelectedIndex = string.Equals(SuperPuTTY.Settings.RdpDisplayMode, "Fixed", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+            this.numericRdpWidth.Value = Math.Max(this.numericRdpWidth.Minimum, Math.Min(this.numericRdpWidth.Maximum, SuperPuTTY.Settings.RdpFixedWidth));
+            this.numericRdpHeight.Value = Math.Max(this.numericRdpHeight.Minimum, Math.Min(this.numericRdpHeight.Maximum, SuperPuTTY.Settings.RdpFixedHeight));
+            int depth = Array.IndexOf(RdpColorDepths, SuperPuTTY.Settings.RdpColorDepth);
+            this.comboRdpColorDepth.SelectedIndex = depth >= 0 ? depth : RdpColorDepths.Length - 1;
+            this.checkRdpSmartSizing.Checked = SuperPuTTY.Settings.RdpSmartSizing;
+            this.checkRdpClipboard.Checked = SuperPuTTY.Settings.RdpRedirectClipboard;
+            this.checkRdpDrives.Checked = SuperPuTTY.Settings.RdpRedirectDrives;
+            this.checkRdpPrinters.Checked = SuperPuTTY.Settings.RdpRedirectPrinters;
+            this.checkRdpSmartCards.Checked = SuperPuTTY.Settings.RdpRedirectSmartCards;
+            this.checkRdpMicrophone.Checked = SuperPuTTY.Settings.RdpRedirectMicrophone;
+            this.comboRdpAudio.SelectedIndex = Math.Max(0, Math.Min(2, SuperPuTTY.Settings.RdpAudioMode));
+            this.comboRdpKeyboard.SelectedIndex = Math.Max(0, Math.Min(2, SuperPuTTY.Settings.RdpKeyboardHookMode));
+            this.comboRdpAuth.SelectedIndex = Math.Max(0, Math.Min(2, SuperPuTTY.Settings.RdpAuthenticationLevel));
+            this.textBoxRdpGateway.Text = SuperPuTTY.Settings.RdpGatewayHost;
+            this.checkRdpConsole.Checked = SuperPuTTY.Settings.RdpConnectToConsole;
+        }
+
+        /// <summary>Store the RDP page's values; they apply to RDP sessions connected from now on</summary>
+        private void SaveRdpOptions()
+        {
+            SuperPuTTY.Settings.RdpDisplayMode = this.comboRdpDisplayMode.SelectedIndex == 1 ? "Fixed" : "FitTab";
+            SuperPuTTY.Settings.RdpFixedWidth = (int)this.numericRdpWidth.Value;
+            SuperPuTTY.Settings.RdpFixedHeight = (int)this.numericRdpHeight.Value;
+            SuperPuTTY.Settings.RdpColorDepth = RdpColorDepths[Math.Max(0, this.comboRdpColorDepth.SelectedIndex)];
+            SuperPuTTY.Settings.RdpSmartSizing = this.checkRdpSmartSizing.Checked;
+            SuperPuTTY.Settings.RdpRedirectClipboard = this.checkRdpClipboard.Checked;
+            SuperPuTTY.Settings.RdpRedirectDrives = this.checkRdpDrives.Checked;
+            SuperPuTTY.Settings.RdpRedirectPrinters = this.checkRdpPrinters.Checked;
+            SuperPuTTY.Settings.RdpRedirectSmartCards = this.checkRdpSmartCards.Checked;
+            SuperPuTTY.Settings.RdpRedirectMicrophone = this.checkRdpMicrophone.Checked;
+            SuperPuTTY.Settings.RdpAudioMode = Math.Max(0, this.comboRdpAudio.SelectedIndex);
+            SuperPuTTY.Settings.RdpKeyboardHookMode = Math.Max(0, this.comboRdpKeyboard.SelectedIndex);
+            SuperPuTTY.Settings.RdpAuthenticationLevel = Math.Max(0, this.comboRdpAuth.SelectedIndex);
+            SuperPuTTY.Settings.RdpGatewayHost = this.textBoxRdpGateway.Text.Trim();
+            SuperPuTTY.Settings.RdpConnectToConsole = this.checkRdpConsole.Checked;
+        }
+
+        /// <summary>Enable the width and height boxes only for a fixed desktop size</summary>
+        /// <param name="sender">The desktop size dropdown</param>
+        /// <param name="e">Not used</param>
+        private void comboRdpDisplayMode_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            bool isFixed = this.comboRdpDisplayMode.SelectedIndex == 1;
+            this.numericRdpWidth.Enabled = isFixed;
+            this.numericRdpHeight.Enabled = isFixed;
         }
 
         /// <summary>
