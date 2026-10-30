@@ -412,6 +412,11 @@ namespace SuperPutty
             ctlPuttyPanel panel = null;
             if (session != null)
             {
+                if (!SessionVariables.EnsureDefined(session, MainForm))
+                {
+                    return null;
+                }
+
                 string Executable = PuttyStartInfo.GetExecutable(session);
                 if (string.IsNullOrEmpty(Executable))
                 {
@@ -533,9 +538,16 @@ namespace SuperPutty
             }
             else if (session != null)
             {
-                var homePrefix = session.Username.ToLower().Equals("root") ? Settings.PscpRootHomePrefix : Settings.PscpHomePrefix;
+                if (!SessionVariables.EnsureDefined(session, MainForm))
+                {
+                    return;
+                }
+
+                // pscp gets a copy with {key} placeholders replaced so the stored session keeps them
+                SessionData resolved = SessionVariables.Resolve(session);
+                var homePrefix = resolved.Username.ToLower().Equals("root") ? Settings.PscpRootHomePrefix : Settings.PscpHomePrefix;
                 PscpBrowserPanel panel = new PscpBrowserPanel(
-                    session, new PscpOptions { PscpLocation = Settings.PscpExe, PscpHomePrefix = homePrefix });
+                    resolved, new PscpOptions { PscpLocation = Settings.PscpExe, PscpHomePrefix = homePrefix });
                 ApplyDockRestrictions(panel);
                 ApplyIconForWindow(panel, session);
                 panel.Show(MainForm.DockPanel, session.LastDockstate);

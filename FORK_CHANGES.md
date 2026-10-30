@@ -2,7 +2,7 @@
 
 Fork: <https://github.com/waukeerules/superputty>
 Upstream: <https://github.com/SilverGreen93/superputty>
-Base: upstream `master` @ `639ef12` (v2.1.1.0). The fork is up to date with upstream, with one feature commit on top (`ea014af`).
+Base: upstream `master` @ `639ef12` (v2.1.1.0). The fork is up to date with upstream, with the feature commits on top.
 
 ## Summary
 
@@ -23,30 +23,41 @@ With `user = jdoe` and `domain = corp.example.com` defined locally, `{user}@{dom
 
 The key *names* must match across the team, but each person's *values* can differ.
 
+## How it works
+
+- **Placeholders** are `{key}`, where the key is made of letters, digits and `_`. Keys are case-insensitive, so `{User}` and `{user}` are the same.
+- **Where:** Host, Login username, Password and Extra arguments.
+- **When:** at launch, through every path: double-click, Connect, Connect All, the quick-connect toolbar, Quick Selector, Restart, Duplicate, layouts, command line, Connect External and SCP. The values are replaced on a **copy** of the session, so the stored session, and `Sessions.xml`, always keeps its `{placeholders}`.
+- **Missing values:** if Host, Login username or Extra arguments uses a key with no value, the launch stops with a message naming the missing keys and an offer to open **Tools → Environment Variables...**. After you define them and click OK, the session launches. This prevents sending a literal `{domain}` to a CyberArk proxy, where repeated failed logins can lock the account. The password isn't checked, since a real password may contain braces.
+- **Preview:** in the Edit Session dialog, a line under Login username shows what the session will connect as, e.g. *Connects as jdoe@corp.example.com to psmp.corp*. Any field that uses an undefined key turns red, and the line reads *Undefined: {domain}. Click here to define them.* Clicking it opens the Environment Variables dialog, and the preview updates when it closes.
+
 ## What changed vs. upstream
 
 ### New files
 
 | File | Purpose |
 |---|---|
+| `SuperPutty/Utils/SessionVariables.cs` | All the placeholder logic in one place: `Load`, `Substitute` (one regex pass), `FindMissing`, `Resolve` (returns a substituted copy) and `EnsureDefined` (the missing-key prompt) |
 | `SuperPutty/Models/EnvironmentVariable.cs` | `EnvironmentVariable` (`Key`, `Value`) and `EnvironmentVariables` (a `BindingList` container) |
-| `SuperPutty/Utils/EnvironmentVariablesManager.cs` | Loads and saves `EnvironmentVariables.json` in the SuperPuTTY settings folder (falls back to `%APPDATA%`). Creates the file if it's missing and retries the save 3× on `IOException` |
-| `SuperPutty/EnvironmentVariablesForm.cs` / `.Designer.cs` / `.resx` | A dialog with a Key/Value grid and Add/OK/Cancel buttons. It rejects empty or duplicate keys (case-insensitive) and drops blank rows on save |
+| `SuperPutty/Utils/EnvironmentVariablesManager.cs` | Loads and saves `EnvironmentVariables.json` in the user's own settings folder (see Storage) |
+| `SuperPutty/EnvironmentVariablesForm.cs` / `.Designer.cs` / `.resx` | A dialog with a Key/Value grid and Add/OK/Cancel buttons. It rejects empty, duplicate (case-insensitive) or invalid keys, drops blank rows on save, and follows the dark theme like the other dialogs |
 
 ### Modified files
 
+Each upstream file changes only by a few lines:
+
 | File | Change |
 |---|---|
-| `frmSuperPutty.Designer.cs` / `frmSuperPutty.cs` | Adds the **Tools → Environment Variables...** menu item. The quick-connect toolbar (`TryConnectFromToolbar`) now substitutes placeholders in host, login and password. The method moved to the bottom of the file; upstream's VNC port fix was merged into it. Adds `SubstituteVariables` and `OpenSessionWithSubstitutions` |
-| `SessionTreeview.cs` | Double-click, **Connect** from the context menu and **Connect All** in a folder now go through `OpenSessionWithSubstitutions`. It clones the session, replaces placeholders in the clone's `Host`, `Username`, `Password` and `ExtraArgs`, then calls `SuperPuTTY.OpenProtoSession` |
-| `Utils/PuttyStartInfo.cs` | Wraps the constructor, `GetExecutable` and `StartStandalone` in try/catch with extra logging. Throws if no executable is found |
-| `dlgEditSession.Designer.cs` | Adds a tooltip on the Login username box: "Enter username or placeholder (e.g., {user})" |
+| `Utils/PuttyStartInfo.cs` | `session = SessionVariables.Resolve(session);` at the top of the constructor. This covers PuTTY, RDP, VNC, Mintty, Cygterm, cmd, PowerShell and WSL |
+| `SuperPuTTY.cs` | `OpenProtoSession` and `OpenScpSession` call `EnsureDefined` first. SCP passes a resolved copy to pscp |
+| `SessionTreeview.cs` | **Connect External** calls `EnsureDefined` |
+| `dlgEditSession.cs` / `.Designer.cs` | The placeholder preview line and red highlighting. A tooltip on Login username: "Enter username or placeholder (e.g., {user})" |
+| `frmSuperPutty.cs` / `.Designer.cs` | The **Tools → Environment Variables...** menu item |
 | `SuperPutty.csproj` | Adds the new files, a `Newtonsoft.Json` 13.0.3 package reference and a `System.Xml.Linq` reference |
-| `Properties/Settings.cs` | Formatting only (brace style, whitespace) |
 
 ### Storage
 
-`EnvironmentVariables.json` sits next to `SuperXPuTTY.settings`:
+`EnvironmentVariables.json` sits next to the user's `SuperXPuTTY.settings`, normally `Documents\SuperXPuTTY\`, or the exe folder for a portable install. It deliberately does **not** go in the configurable settings folder that holds `Sessions.xml`, because that folder may be the shared network drive, and then everyone would share one set of values. Earlier builds stored the file in the settings folder; if a user has no file yet, it's copied from there once.
 
 ```json
 {
@@ -57,27 +68,25 @@ The key *names* must match across the team, but each person's *values* can diffe
 }
 ```
 
-## Known issues / open questions
+## Fixed during review
 
-These are things I'm aware of and would like feedback on before proposing this upstream.
+- **The user's values were saved into `Sessions.xml`.** Substitution modified the live session object, so the next save wrote the values over the placeholders. Substitution now happens on a copy.
+- **Some launch paths skipped substitution** (Quick Selector, Restart, Duplicate, layouts, command line, SCP, Connect External). Substitution now happens in `PuttyStartInfo` and `OpenScpSession`, which every path goes through.
+- **The values file was shared** along with `Sessions.xml`. It's now per-user.
+- **Undefined keys were sent as literal `{key}`.** The launch now stops and explains what's missing.
+- **Passwords in logs.** The extra logging (including the full PuTTY command line with `-pw`) is gone; upstream's masked argument log remains.
+- **`%VAR%` expansion in arguments was dropped.** Upstream's `PuttyStartInfo` is back, so it works again.
+- **Each launch set process environment variables** for every key (`PATH` would have overwritten SuperPuTTY's own). Removed.
+- **Duplicated code and unrelated reformatting** in `frmSuperPutty.cs`, `SessionTreeview.cs`, `PuttyStartInfo.cs` and `Settings.cs` were reverted to upstream, which keeps the diff small for review.
+- **Substitution depended on key order and was case-sensitive** while the dialog's duplicate check was not. It's now one case-insensitive regex pass.
 
-- ~~**Resolved values can be written back to `Sessions.xml`.**~~ **Fixed.** `OpenSessionWithSubstitutions` used to modify the live `SessionData` object from the tree, so a later save wrote that user's values over the placeholders. It now substitutes on `session.Clone()`, which keeps the `SessionId` but not the change handlers, so the stored session keeps its `{placeholders}`.
-- **Not every launch path substitutes.** These all call `OpenProtoSession` directly and skip substitution: Quick Selector (`frmSuperPutty.cs`), Restart/Duplicate session (`ctlPuttyPanel.cs`), layouts and command-line startup (`SuperPuTTY.cs`). Putting substitution in one place (`SuperPuTTY.OpenProtoSession` or `PuttyStartInfo`) would cover all of them.
-- **`%VAR%` expansion regression.** Upstream's `TryParseEnvVars(this.Args)` call at the end of the `PuttyStartInfo` constructor was dropped, so Windows-style `%VAR%` references in arguments are no longer expanded. It should be restored.
-- **Passwords in logs.** The new logging writes `session.Password` (the `?? "[hidden]"` only applies when it's null) and the variable values at INFO level. These should be masked.
-- **Duplicated code.** `SubstituteVariables` and `OpenSessionWithSubstitutions` exist in both `frmSuperPutty.cs` and `SessionTreeview.cs`. `frmSuperPutty.SessionTreeview_SessionDoubleClick` is never subscribed, and `EventHelper` is unused.
-- **Process environment side effect.** Each launch also calls `Environment.SetEnvironmentVariable` for every key. It's unclear whether this is useful (child PuTTY processes inherit it) or just noise.
-- **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Placeholders" or "User Variables" might be clearer.
+## Open questions
+
+- **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
 - **Storage format.** JSON via Newtonsoft adds a dependency. The values could live in `SuperXPuTTY.settings` like other per-user settings.
 - **Secrets.** Values are stored in plain text. If people put passwords in them, a DPAPI-protected store may be warranted.
-- **Nesting and defaults.** Not supported: no `{key:default}`, no recursion, and an undefined key is left as literal `{key}`.
-
-## Environment Variables dialog polish
-
-- Dark mode when the SuperPuTTY theme is dark (`DarkModeCS`), the same way the other dialogs do it
-- Designer-regenerated layout (docked label, grid and button bar)
-
-A hard-coded Segoe UI 12pt font was tried and left out, so the dialog matches the font of the other dialogs.
+- **Dialog details.** Clicking **Add** twice creates two `NewKey` rows (the grid's own new row already covers adding). **OK** closes even if saving fails, and shows a "saved" popup each time.
+- **Nesting and defaults.** Not supported: no `{key:default}`, and values aren't expanded again.
 
 ## Building and testing
 
@@ -94,11 +103,13 @@ Build the `.sln`, not `SuperPutty\SuperPutty.csproj`. The post-build step that c
 Manual test:
 
 1. Run `bin\Debug\SuperXPuTTY.exe` and open **Tools → Environment Variables...**. Add `user = jdoe` and `domain = example.com`, then click OK.
-2. Create a session whose Login username is `{user}@{domain}` and double-click it. PuTTY should open with `-l jdoe@example.com`; the SuperPuTTY log records the PuTTY arguments.
-3. Do the same through the quick-connect toolbar and through **Connect All** on a folder.
-4. Close SuperPuTTY and open `Sessions.xml` (its location is shown in **Tools → Options**). The session should still say `{user}@{domain}`, not `jdoe@example.com`. Verified after the fix in `e1aeecd`.
+2. Create a session whose Login username is `{user}@{domain}`. The preview under it should read *Connects as jdoe@example.com to ...*. Change it to `{user}@{zone}`: the field turns red and the preview says `{zone}` is undefined. Click the preview, add `zone`, and check that it updates.
+3. Double-click the session. PuTTY should open with `-l jdoe@example.com`; the SuperPuTTY log records the PuTTY arguments.
+4. Remove `zone` again and launch: SuperPuTTY should stop and offer to open the Environment Variables dialog instead of connecting.
+5. Try the quick-connect toolbar, **Connect All** on a folder, Quick Selector and Restart.
+6. Close SuperPuTTY and open `Sessions.xml` (its location is shown in **Tools → Options**). The session should still say `{user}@{domain}`, not `jdoe@example.com`.
 
-`SuperPuttyUnitTests` uses an NUnit 2.5 GUI runner, and most of its tests need a live SCP server. There are no automated tests for this feature yet.
+The substitution logic (`SessionVariables.Substitute` and `FindMissing`) was checked directly against the compiled assembly: the CyberArk string, case-insensitive keys, one pass with no re-expansion, undefined keys left in place and reported, and braces in a password not flagged. `SuperPuttyUnitTests` uses an NUnit 2.5 GUI runner, and most of its tests need a live SCP server, so these checks aren't in that project yet.
 
 ---
 *I used Grok/ChatGPT to learn C# and to generate some of this code, so it may not follow best practices. Feedback on the approach is very welcome.*

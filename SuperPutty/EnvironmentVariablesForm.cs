@@ -107,6 +107,11 @@ namespace SuperPutty
                     e.Cancel = true;
                     MessageBox.Show("Key cannot be empty.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
+                else if (!System.Text.RegularExpressions.Regex.IsMatch(newKey, @"^\w+$"))
+                {
+                    e.Cancel = true;
+                    MessageBox.Show("Key can only contain letters, numbers and underscores, e.g. user or vault_user.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
                 else if (_variables.Variables.Any(v => v.Key != null &&
                                                      v.Key.Equals(newKey, StringComparison.OrdinalIgnoreCase) &&
                                                      _variables.Variables.IndexOf(v) != e.RowIndex))

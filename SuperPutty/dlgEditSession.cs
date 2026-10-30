@@ -25,9 +25,11 @@ using SuperPutty.Data;
 using SuperPutty.Gui;
 using SuperPutty.Utils;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Windows.Forms;
 
@@ -43,12 +45,18 @@ namespace SuperPutty
         private String OldHostname;
         private bool isInitialized = false;
         private ImageListPopup imgPopup = null;
+
+        private static readonly Color placeholderMissingColor = Color.IndianRed;
+        private Dictionary<string, string> placeholderValues;
+        private Color placeholderTextColor = Color.Empty;
+        private Color placeholderPreviewColor;
         private System.Collections.Hashtable protoTypesMap;
 
         public dlgEditSession(SessionData session, ImageList iconList)
         {
             Session = session;
             InitializeComponent();
+            placeholderValues = SessionVariables.Load();
 
             // get putty saved settings from the registry to populate
             // the dropdown
@@ -112,9 +120,68 @@ namespace SuperPutty
             }
         }
 
+        /// <summary>
+        /// Show what the {key} placeholders in the host, username and extra arguments resolve to,
+        /// or highlight in red the ones that have no value yet
+        /// </summary>
+        private void UpdatePlaceholderPreview()
+        {
+            if (placeholderTextColor.IsEmpty)
+                return;
+
+            List<string> missing = new List<string>();
+            bool hasPlaceholders = false;
+            foreach (TextBox textBox in new[] { textBoxHostname, textBoxUsername, textBoxExtraArgs })
+            {
+                List<string> fieldMissing = SessionVariables.FindMissing(textBox.Text, placeholderValues);
+                textBox.ForeColor = fieldMissing.Count > 0 ? placeholderMissingColor : placeholderTextColor;
+                missing.AddRange(fieldMissing);
+                hasPlaceholders |= SessionVariables.Substitute(textBox.Text, placeholderValues) != textBox.Text;
+            }
+            missing = missing.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+            string text = string.Empty;
+            if (missing.Count > 0)
+            {
+                text = $"Undefined: {string.Join(", ", missing)}. Click here to define them.";
+            }
+            else if (hasPlaceholders)
+            {
+                string host = SessionVariables.Substitute(textBoxHostname.Text, placeholderValues);
+                string user = SessionVariables.Substitute(textBoxUsername.Text, placeholderValues);
+                text = string.IsNullOrEmpty(user) ? $"Connects to {host}" : $"Connects as {user} to {host}";
+            }
+
+            labelPlaceholderPreview.Text = text;
+            labelPlaceholderPreview.ForeColor = missing.Count > 0 ? placeholderMissingColor : placeholderPreviewColor;
+            labelPlaceholderPreview.Cursor = missing.Count > 0 ? Cursors.Hand : Cursors.Default;
+            toolTip.SetToolTip(labelPlaceholderPreview, text);
+        }
+
+        private void placeholderField_TextChanged(object sender, EventArgs e)
+        {
+            UpdatePlaceholderPreview();
+        }
+
+        private void labelPlaceholderPreview_Click(object sender, EventArgs e)
+        {
+            using (EnvironmentVariablesForm envForm = new EnvironmentVariablesForm())
+            {
+                envForm.ShowDialog(this);
+            }
+            placeholderValues = SessionVariables.Load();
+            UpdatePlaceholderPreview();
+        }
+
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
+
+            // DarkModeCS themes the controls during Load, so capture the themed colors only now,
+            // letting fields switch back from red after a missing placeholder is defined
+            placeholderTextColor = textBoxUsername.ForeColor;
+            placeholderPreviewColor = label5.ForeColor;
+            UpdatePlaceholderPreview();
 
             this.BeginInvoke(new MethodInvoker(delegate { this.textBoxSessionName.Focus(); }));
         }

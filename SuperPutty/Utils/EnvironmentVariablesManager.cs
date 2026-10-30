@@ -12,16 +12,39 @@ namespace SuperPutty.Utils
         private static readonly ILog Log = LogManager.GetLogger(typeof(EnvironmentVariablesManager));
         private readonly string _filePath;
 
+        private const string FileName = "EnvironmentVariables.json";
+
         public EnvironmentVariablesManager()
         {
-            string settingsFolder = SuperPuTTY.Settings.SettingsFolder;
-            if (string.IsNullOrEmpty(settingsFolder))
-            {
-                settingsFolder = Path.GetDirectoryName(Properties.Settings.Default.SettingsFilePath ?? Path.Combine(Application.UserAppDataPath, "SuperXPuTTY.settings"));
-            }
-            Directory.CreateDirectory(settingsFolder);
-            _filePath = Path.Combine(settingsFolder, "EnvironmentVariables.json");
+            // Values are per user, so keep them next to the user's SuperXPuTTY.settings rather than in
+            // SettingsFolder, which may be a shared network drive holding everyone's Sessions.xml
+            string userFolder = Path.GetDirectoryName(Properties.Settings.Default.SettingsFilePath ?? Path.Combine(Application.UserAppDataPath, "SuperXPuTTY.settings"));
+            Directory.CreateDirectory(userFolder);
+            _filePath = Path.Combine(userFolder, FileName);
+            MigrateFromSettingsFolder();
             EnsureFileExists();
+        }
+
+        /// <summary>Copy the file from SettingsFolder, where earlier builds stored it, if this user has none yet</summary>
+        private void MigrateFromSettingsFolder()
+        {
+            string settingsFolder = SuperPuTTY.Settings.SettingsFolder;
+            if (string.IsNullOrEmpty(settingsFolder) || File.Exists(_filePath))
+                return;
+
+            string oldPath = Path.Combine(settingsFolder, FileName);
+            try
+            {
+                if (File.Exists(oldPath) && !string.Equals(Path.GetFullPath(oldPath), Path.GetFullPath(_filePath), StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Copy(oldPath, _filePath);
+                    Log.InfoFormat("Copied {0} from {1} to {2}", FileName, oldPath, _filePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.WarnFormat("Could not copy {0} from {1}: {2}", FileName, oldPath, ex.Message);
+            }
         }
 
         private void EnsureFileExists()

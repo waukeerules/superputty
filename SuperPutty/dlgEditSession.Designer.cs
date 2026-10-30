@@ -38,6 +38,7 @@ namespace SuperPutty
             this.comboBoxPuttyProfile = new System.Windows.Forms.ComboBox();
             this.label5 = new System.Windows.Forms.Label();
             this.textBoxUsername = new System.Windows.Forms.TextBox();
+            this.labelPlaceholderPreview = new System.Windows.Forms.Label();
             this.errorProvider = new System.Windows.Forms.ErrorProvider(this.components);
             this.buttonImageSelect = new System.Windows.Forms.Button();
             this.toolTip = new System.Windows.Forms.ToolTip(this.components);
@@ -88,6 +89,7 @@ namespace SuperPutty
             this.textBoxExtraArgs.Size = new System.Drawing.Size(486, 27);
             this.textBoxExtraArgs.TabIndex = 6;
             this.textBoxExtraArgs.Validating += new System.ComponentModel.CancelEventHandler(this.textBoxExtraArgs_Validating);
+            this.textBoxExtraArgs.TextChanged += new System.EventHandler(this.placeholderField_TextChanged);
             this.textBoxExtraArgs.Validated += new System.EventHandler(this.textBoxExtraArgs_Validated);
             // 
             // label6
@@ -166,6 +168,18 @@ namespace SuperPutty
             this.textBoxUsername.Size = new System.Drawing.Size(486, 27);
             this.textBoxUsername.TabIndex = 5;
             this.toolTip.SetToolTip(this.textBoxUsername, "Enter username or placeholder (e.g., {user})");
+            this.textBoxUsername.TextChanged += new System.EventHandler(this.placeholderField_TextChanged);
+            //
+            // labelPlaceholderPreview
+            //
+            this.labelPlaceholderPreview.AutoEllipsis = true;
+            this.labelPlaceholderPreview.Font = new System.Drawing.Font("Segoe UI", 7.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.labelPlaceholderPreview.Location = new System.Drawing.Point(151, 196);
+            this.labelPlaceholderPreview.Margin = new System.Windows.Forms.Padding(5, 0, 5, 0);
+            this.labelPlaceholderPreview.Name = "labelPlaceholderPreview";
+            this.labelPlaceholderPreview.Size = new System.Drawing.Size(486, 19);
+            this.labelPlaceholderPreview.TabIndex = 31;
+            this.labelPlaceholderPreview.Click += new System.EventHandler(this.labelPlaceholderPreview_Click);
             //
             // errorProvider
             // 
@@ -359,6 +373,7 @@ namespace SuperPutty
             this.textBoxHostname.Size = new System.Drawing.Size(239, 27);
             this.textBoxHostname.TabIndex = 22;
             this.textBoxHostname.Validating += new System.ComponentModel.CancelEventHandler(this.textBoxHostname_Validating);
+            this.textBoxHostname.TextChanged += new System.EventHandler(this.placeholderField_TextChanged);
             // 
             // label3
             // 
@@ -415,6 +430,7 @@ namespace SuperPutty
             this.groupBox1.Controls.Add(this.textBoxExtraArgs);
             this.groupBox1.Controls.Add(this.buttonBrowse);
             this.groupBox1.Controls.Add(this.textBoxUsername);
+            this.groupBox1.Controls.Add(this.labelPlaceholderPreview);
             this.groupBox1.Controls.Add(this.label1);
             this.groupBox1.Controls.Add(this.label5);
             this.groupBox1.Controls.Add(this.textBoxSessionName);
@@ -475,6 +491,7 @@ namespace SuperPutty
         private System.Windows.Forms.ComboBox comboBoxPuttyProfile;
         private System.Windows.Forms.Label label5;
         private System.Windows.Forms.TextBox textBoxUsername;
+        private System.Windows.Forms.Label labelPlaceholderPreview;
         private System.Windows.Forms.ErrorProvider errorProvider;
         private System.Windows.Forms.Label label6;
         private System.Windows.Forms.TextBox textBoxExtraArgs;
