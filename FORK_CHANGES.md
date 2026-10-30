@@ -72,13 +72,12 @@ These are things I'm aware of and would like feedback on before proposing this u
 - **Secrets.** Values are stored in plain text. If people put passwords in them, a DPAPI-protected store may be warranted.
 - **Nesting and defaults.** Not supported: no `{key:default}`, no recursion, and an undefined key is left as literal `{key}`.
 
-## Uncommitted work (not in the fork yet)
+## Environment Variables dialog polish
 
-`C:\Python\superputty_fork` has uncommitted edits to `EnvironmentVariablesForm` that would be a follow-up:
-
-- Segoe UI 12pt font and a larger row height in the grid
-- Dark mode when the SuperPuTTY theme is dark (`DarkModeCS`)
+- Dark mode when the SuperPuTTY theme is dark (`DarkModeCS`), the same way the other dialogs do it
 - Designer-regenerated layout (docked label, grid and button bar)
+
+A hard-coded Segoe UI 12pt font was tried and left out, so the dialog matches the font of the other dialogs.
 
 ## Building and testing
 

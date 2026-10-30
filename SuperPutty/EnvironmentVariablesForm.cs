@@ -4,6 +4,7 @@ using System.Windows.Forms;
 using SuperPutty.Models;
 using SuperPutty.Utils;
 using log4net;
+using DarkModeForms;
 
 namespace SuperPutty
 {
@@ -18,6 +19,15 @@ namespace SuperPutty
             InitializeComponent();
             _envManager = new EnvironmentVariablesManager();
             LoadVariables();
+
+            if (SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme)
+            {
+                new DarkModeCS(this)
+                {
+                    ColorMode = DarkModeCS.DisplayMode.DarkMode,
+                    ColorizeIcons = false
+                };
+            }
         }
 
         private void LoadVariables()
