@@ -341,6 +341,21 @@ Tools → Options → GUI → Interface theme has a fourth choice, **Classic**: 
 
 **Checked against the compiled assembly:** with four same-named tabs in a real DockPanel, opening the tab list through DockPanelSuite's own button handler ticked and bolded only the active tab, in both the Classic (VS2005) and Dark themes. After switching tabs, the mark moved. The Dark palette's selected tab came out as #3C4A5C. The rendered menus were also checked: with DockPanelSuite's dark renderer, the check box had no light pixels before the fix and showed a white tick after it. With DarkModeCS's renderer, the tick was redrawn white too; the harness had only that renderer's light colours, so real dark mode wasn't checked there.
 
+## Portable KiTTY session profiles
+
+With the PuTTY path (Tools → Options) set to KiTTY, SuperPuTTY now finds KiTTY's saved sessions when KiTTY keeps them in files rather than the registry. That's always the case for `kitty_portable.exe`, and for `kitty.exe` with `savemode=dir` in the `kitty.ini` next to it.
+- **Where:** the sessions are read from `<configdir>\Sessions`, where `configdir` comes from `kitty.ini` and defaults to KiTTY's folder. File names are URL-encoded like registry keys, and `fileextension` from `kitty.ini` is stripped if set.
+- **Used by:**
+  - the session profile lists: Edit Session, the quick-connect toolbar, and the session property grid;
+  - File → Import → from PuTTY/KiTTY (`PuttyDataHelper.ReadKittySessionFile`).
+- **Previously:** only the registry was read, so portable KiTTY's sessions never appeared.
+- **Refreshing:** the quick-connect toolbar's Session list is now re-read each time it opens. Before, it was filled at startup, so sessions saved in PuTTY or KiTTY afterwards only showed up after restarting SuperPuTTY. Edit Session already re-read the list every time it opened.
+- **Code:** `PuttyDataHelper.KittySessionFolder`, `ReadKittyIni`, `GetKittySessionFiles`, `SessionStoreDescription`, `GetSessionNames`.
+
+**Checked against the compiled assembly:**
+- With the PuTTY path set (in memory) to `kitty_portable.exe`, the profiles were read from `KiTTY\Sessions`: Default Settings, ssh_key, test and test123, matching KiTTY's own list. The import read all four files.
+- With `putty.exe`, the registry was read as before.
+
 ## Fix: the installer didn't include Newtonsoft.Json.dll
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
@@ -401,6 +416,11 @@ Tab list and Dark colours:
 1. Open several tabs of the same session, select one in the middle, and click the drop-down arrow at the right end of the tab strip: that tab should be ticked and bold. Select another and reopen the list: the mark should move. Try it in Classic and Dark, and in a tab group split off to the side.
 2. In the Dark theme, the selected tab should be a muted slate blue, and hovering other tabs should show grey, not bright blue.
 3. In the Dark theme, right-click a tab: the tick next to "Accept commands" should be a clear light tick. So should the one in the tab list.
+
+Session profiles and portable KiTTY:
+
+1. Set Tools → Options → PuTTY path to `kitty_portable.exe`, then open Edit Session: the profile list should show the KiTTY sessions.
+2. Save a new session in PuTTY or KiTTY while SuperPuTTY is running, then open the quick-connect Session list: it should be there without restarting.
 
 Dropped sessions:
 

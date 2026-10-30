@@ -180,6 +180,9 @@ namespace SuperPutty
             this.scriptsTimer.Tick += (sender, e) => this.UpdateScriptsIndicator();
             this.scriptsTimer.Start();
 
+            // re-read the PuTTY/KiTTY session profiles each time the list opens, so ones saved since startup show up
+            this.tbComboSession.DropDown += (sender, e) => this.RefreshConnectionToolbarData();
+
             this.buttonBar = new ButtonBarStrip(this.GetButtonBarTargets);
             this.toolStripContainer1.ContentPanel.Controls.Add(this.buttonBar);
             this.toolStripContainer1.ContentPanel.Controls.SetChildIndex(this.buttonBar, 1);
