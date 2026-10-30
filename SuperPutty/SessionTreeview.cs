@@ -1110,7 +1110,7 @@ namespace SuperPutty
             Log.InfoFormat("Applying Search: txt={0}.", txt);
 
             // define filter
-            SearchFilter searchFilter = new SearchFilter(SuperPuTTY.Settings.SessionsSearchMode, txt);
+            SearchFilter searchFilter = new SearchFilter(SuperPuTTY.Settings.SessionsSearchMode, txt, GetSearchFieldsSetting());
             this.filter = searchFilter.IsMatch;
 
             // reload
@@ -1132,12 +1132,75 @@ namespace SuperPutty
             CaseSensitive, CaseInSensitive, Regex
         }
 
+        /// <summary>
+        /// The session fields the search box looks in. Chosen with "Search in..." in Tools -> Options and stored
+        /// in Settings.SessionsSearchFields as the flag names, e.g. "Name, Host" or "All". The password is
+        /// never searched.
+        /// </summary>
+        [Flags]
+        public enum SearchFields
+        {
+            /// <summary>Nothing; treated as <see cref="All"/></summary>
+            None = 0,
+            /// <summary>The session name</summary>
+            Name = 1,
+            /// <summary>The folder path the session is in</summary>
+            Folder = 2,
+            /// <summary>Host name or address</summary>
+            Host = 4,
+            /// <summary>Login username</summary>
+            Username = 8,
+            /// <summary>TCP port</summary>
+            Port = 16,
+            /// <summary>Connection type, e.g. SSH or RDP</summary>
+            Protocol = 32,
+            /// <summary>PuTTY saved-session profile</summary>
+            PuttyProfile = 64,
+            /// <summary>Extra arguments, with any -pw password removed</summary>
+            ExtraArgs = 128,
+            /// <summary>The session's notes</summary>
+            Notes = 256,
+            /// <summary>The SPSL script file path</summary>
+            SpslScript = 512,
+            /// <summary>Every field</summary>
+            All = Name | Folder | Host | Username | Port | Protocol | PuttyProfile | ExtraArgs | Notes | SpslScript
+        }
+
+        /// <summary>Each searchable field and its label, in the order shown in Tools -> Options</summary>
+        public static readonly KeyValuePair<SearchFields, string>[] SearchFieldLabels =
+        {
+            new KeyValuePair<SearchFields, string>(SearchFields.Name, "Session name"),
+            new KeyValuePair<SearchFields, string>(SearchFields.Folder, "Folder"),
+            new KeyValuePair<SearchFields, string>(SearchFields.Host, "Host address"),
+            new KeyValuePair<SearchFields, string>(SearchFields.Username, "Login username"),
+            new KeyValuePair<SearchFields, string>(SearchFields.Port, "TCP port"),
+            new KeyValuePair<SearchFields, string>(SearchFields.Protocol, "Connection type"),
+            new KeyValuePair<SearchFields, string>(SearchFields.PuttyProfile, "PuTTY session profile"),
+            new KeyValuePair<SearchFields, string>(SearchFields.ExtraArgs, "Extra arguments"),
+            new KeyValuePair<SearchFields, string>(SearchFields.Notes, "Notes"),
+            new KeyValuePair<SearchFields, string>(SearchFields.SpslScript, "SPSL script file")
+        };
+
+        /// <summary>The fields to search, from Settings.SessionsSearchFields; all fields if the setting is empty or invalid</summary>
+        /// <returns>The fields to search; never <see cref="SearchFields.None"/></returns>
+        public static SearchFields GetSearchFieldsSetting()
+        {
+            SearchFields fields = FormUtils.SafeParseEnum(SuperPuTTY.Settings.SessionsSearchFields ?? string.Empty, true, SearchFields.All);
+            return fields == SearchFields.None ? SearchFields.All : fields;
+        }
+
+        /// <summary>Decides whether a session matches the search box text, in the chosen <see cref="SearchMode"/> and <see cref="SearchFields"/></summary>
         public class SearchFilter
         {
-            public SearchFilter(string mode, string filter)
+            /// <summary>Create a filter</summary>
+            /// <param name="mode">The <see cref="SearchMode"/> name from Settings.SessionsSearchMode</param>
+            /// <param name="filter">The text typed in the search box</param>
+            /// <param name="fields">The session fields to look in</param>
+            public SearchFilter(string mode, string filter, SearchFields fields)
             {
                 this.Mode = FormUtils.SafeParseEnum(mode, true, SearchMode.CaseSensitive);
                 this.Filter = filter;
+                this.Fields = fields;
                 if (this.Mode == SearchMode.Regex)
                 {
                     try
@@ -1150,28 +1213,60 @@ namespace SuperPutty
                     }
                 }
             }
+            /// <summary>Whether any of the chosen fields of <paramref name="s"/> matches the search text</summary>
+            /// <param name="s">The session to test</param>
+            /// <returns>true if the session should be shown; always true for empty text or an invalid regex</returns>
             public bool IsMatch(SessionData s)
             {
-                if (this.Mode == SearchMode.CaseInSensitive)
+                if (string.IsNullOrEmpty(this.Filter) || (this.Mode == SearchMode.Regex && this.Regex == null))
                 {
-                    return
-                        (s.SessionName.ToLower().Contains(this.Filter.ToLower())) ||
-                        (s.Host.ToLower().Contains(this.Filter.ToLower()));
+                    return true;
                 }
-                else if (this.Mode == SearchMode.Regex)
+                return GetSearchValues(s, this.Fields).Any(this.IsMatch);
+            }
+
+            /// <summary>Whether one field value matches the search text</summary>
+            /// <param name="value">The field value; not null</param>
+            /// <returns>true if it matches in the current <see cref="Mode"/></returns>
+            private bool IsMatch(string value)
+            {
+                switch (this.Mode)
                 {
-                    return this.Regex != null ? this.Regex.IsMatch(s.SessionName) : true;
-                }
-                else
-                {
-                    // case sensitive
-                    return
-                        s.SessionName.Contains(this.Filter) ||
-                        s.Host.Contains(this.Filter);
+                    case SearchMode.CaseInSensitive:
+                        return value.IndexOf(this.Filter, StringComparison.OrdinalIgnoreCase) >= 0;
+                    case SearchMode.Regex:
+                        return this.Regex.IsMatch(value);
+                    default:
+                        return value.Contains(this.Filter);
                 }
             }
+
+            /// <summary>The non-empty values of the chosen fields of a session, as text</summary>
+            /// <param name="s">The session</param>
+            /// <param name="fields">Which fields to return</param>
+            /// <returns>The field values to search</returns>
+            public static IEnumerable<string> GetSearchValues(SessionData s, SearchFields fields)
+            {
+                List<string> values = new List<string>();
+                if (fields.HasFlag(SearchFields.Name)) values.Add(s.SessionName);
+                if (fields.HasFlag(SearchFields.Folder)) values.Add(SessionData.GetSessionParentId(s.SessionId));
+                if (fields.HasFlag(SearchFields.Host)) values.Add(s.Host);
+                if (fields.HasFlag(SearchFields.Username)) values.Add(s.Username);
+                if (fields.HasFlag(SearchFields.Port)) values.Add(s.Port.ToString());
+                if (fields.HasFlag(SearchFields.Protocol)) values.Add(s.Proto.ToString());
+                if (fields.HasFlag(SearchFields.PuttyProfile)) values.Add(s.PuttySession);
+                // never let a search reveal a password stored in the extra arguments
+                if (fields.HasFlag(SearchFields.ExtraArgs)) values.Add(CommandLineOptions.replacePassword(s.ExtraArgs, ""));
+                if (fields.HasFlag(SearchFields.Notes)) values.Add(s.Note);
+                if (fields.HasFlag(SearchFields.SpslScript)) values.Add(s.SPSLFileName);
+                return values.Where(v => !string.IsNullOrEmpty(v));
+            }
+
             public SearchMode Mode { get; set; }
             public string Filter { get; set; }
+
+            /// <summary>The session fields searched</summary>
+            public SearchFields Fields { get; set; }
             public Regex Regex { get; set; }
         }
         #endregion

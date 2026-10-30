@@ -958,5 +958,18 @@ namespace SuperPutty.Properties {
                 this["ActiveButtonBar"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("All")]
+        public string SessionsSearchFields {
+            get {
+                return ((string)(this["SessionsSearchFields"]));
+            }
+            set {
+                this["SessionsSearchFields"] = value;
+            }
+        }
     }
 }

@@ -126,6 +126,18 @@ A row of one-click buttons above the status bar, modelled on SecureCRT's Button 
 
 **Not done yet:** keyboard shortcuts for buttons, a default bar per session, and SecureCRT's other button actions (launch an application, menu functions).
 
+## Session search across all fields
+
+Upstream's search box above the session tree only looked at the session name and host, and Regex mode only at the name. It now looks at every field by default: session name, folder, host, login username, port, connection type, PuTTY session profile, extra arguments, notes and SPSL script file.
+
+- **Choosing fields:** **Tools → Options → GUI → Session tree → Search in...** opens a checklist. It stays open while you tick fields and has an "All fields" entry; at least one field always stays ticked. The choice is a per-user setting, `SessionsSearchFields`, stored as flag names such as `Name, Host` or `All` (the default).
+- **Search modes:** case-sensitive, case-insensitive and Regex all apply to every chosen field.
+- **Passwords:** never searched. A `-pw` password in the extra arguments is removed before matching.
+- **Placeholders:** the stored text is searched, so `{user}` finds sessions that use that placeholder.
+- **Bug fixed:** a session with no host no longer crashes the search (`s.Host.ToLower()` threw on null).
+
+**Files:** `SessionTreeview.cs` (the `SearchFields` flags, field labels and `SearchFilter`), `dlgFindPutty.cs` / `.Designer.cs` (the "Search in..." button and checklist), and `Properties/Settings.*` and `App.config` (`SessionsSearchFields`).
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
@@ -165,6 +177,14 @@ Button bar:
 4. Make an SPSL button (`SENDLINE whoami`), and a send string with `\p` between two commands; the pause shouldn't freeze the window.
 5. Create a second bar, switch between them, restart SuperPuTTY: the last bar shown should come back. Check that `ButtonBars.xml` is next to `Sessions.xml`.
 6. Toggle **View → Toolbars → Button Bar**, and go full screen and back. Check the bar and the editor dialog in both light and dark themes.
+
+Session search:
+
+1. Put a word in a session's Notes, then type it in the search box above the session tree: that session should show.
+2. In **Tools → Options → GUI**, click **Search in...**, untick Notes and click OK. The same search should no longer find it.
+3. Try a folder name, a port such as `22`, and `ssh`. In Regex mode, try `^10\.` against hosts.
+
+`SessionTreeview.SearchFilter` was checked directly against the compiled assembly (20 checks): each field, every mode, invalid regex, empty text, a session with no host, a password in the extra arguments, and how the setting text is written and read.
 
 The escape-code parser and the `ButtonBars.xml` format were checked directly against the compiled assembly: Enter, pauses, Tab/Escape/Backspace/line feed, clipboard (read only when `\v` is used), literal and unknown backslashes, typed line breaks, empty input, and an XML round-trip including an SPSL script.
 

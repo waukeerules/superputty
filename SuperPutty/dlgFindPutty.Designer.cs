@@ -129,6 +129,7 @@
             this.checkShowDocumentIcons = new System.Windows.Forms.CheckBox();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.comboSearchMode = new System.Windows.Forms.ComboBox();
+            this.buttonSearchFields = new System.Windows.Forms.Button();
             this.btnFont = new System.Windows.Forms.Button();
             this.label11 = new System.Windows.Forms.Label();
             this.tabPageShortcuts = new System.Windows.Forms.TabPage();
@@ -1334,6 +1335,7 @@
             this.groupBox1.Controls.Add(this.checkSessionTreeFoldersFirst);
             this.groupBox1.Controls.Add(this.checkSessionsShowSearch);
             this.groupBox1.Controls.Add(this.comboSearchMode);
+            this.groupBox1.Controls.Add(this.buttonSearchFields);
             this.groupBox1.Controls.Add(this.label14);
             this.groupBox1.Controls.Add(this.btnFont);
             this.groupBox1.Controls.Add(this.label11);
@@ -1356,8 +1358,20 @@
             this.comboSearchMode.Location = new System.Drawing.Point(95, 55);
             this.comboSearchMode.Margin = new System.Windows.Forms.Padding(4);
             this.comboSearchMode.Name = "comboSearchMode";
-            this.comboSearchMode.Size = new System.Drawing.Size(342, 28);
+            this.comboSearchMode.Size = new System.Drawing.Size(200, 28);
             this.comboSearchMode.TabIndex = 41;
+            //
+            // buttonSearchFields
+            //
+            this.buttonSearchFields.Location = new System.Drawing.Point(303, 54);
+            this.buttonSearchFields.Margin = new System.Windows.Forms.Padding(4);
+            this.buttonSearchFields.Name = "buttonSearchFields";
+            this.buttonSearchFields.Size = new System.Drawing.Size(134, 30);
+            this.buttonSearchFields.TabIndex = 46;
+            this.buttonSearchFields.Text = "Search in...";
+            this.toolTip.SetToolTip(this.buttonSearchFields, "Choose which session fields the search box looks in");
+            this.buttonSearchFields.UseVisualStyleBackColor = true;
+            this.buttonSearchFields.Click += new System.EventHandler(this.buttonSearchFields_Click);
             // 
             // btnFont
             // 
@@ -1684,6 +1698,7 @@
         private System.Windows.Forms.CheckBox checkEnableKeyboardShortcuts;
         private System.Windows.Forms.CheckBox checkEnableControlTabSwitching;
         private System.Windows.Forms.ComboBox comboSearchMode;
+        private System.Windows.Forms.Button buttonSearchFields;
         private System.Windows.Forms.Label label14;
         private System.Windows.Forms.Label label15;
         private System.Windows.Forms.CheckBox checkQuickSelectorCaseSensitiveSearch;

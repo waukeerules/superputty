@@ -45,6 +45,9 @@ namespace SuperPutty
 
         private BindingList<KeyboardShortcut> Shortcuts { get; set; }
 
+        /// <summary>The session fields the search box looks in, as chosen with "Search in..."; saved on OK</summary>
+        private SessionTreeview.SearchFields searchFields;
+
         public dlgFindPutty()
         {
             //this.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
@@ -171,6 +174,7 @@ namespace SuperPutty
                 this.comboSearchMode.Items.Add(name);
             }
             this.comboSearchMode.SelectedItem = SuperPuTTY.Settings.SessionsSearchMode;
+            this.searchFields = SessionTreeview.GetSearchFieldsSetting();
 
             // default layouts
             InitLayouts();
@@ -409,6 +413,7 @@ namespace SuperPutty
                 SuperPuTTY.Settings.WindowActivator = (string) this.comboBoxActivatorType.SelectedItem;
                 SuperPuTTY.Settings.Opacity = (double) this.numericUpDownOpacity.Value / 100.0;
                 SuperPuTTY.Settings.SessionsSearchMode = (string) this.comboSearchMode.SelectedItem;
+                SuperPuTTY.Settings.SessionsSearchFields = this.searchFields.ToString();
                 SuperPuTTY.Settings.QuickSelectorCaseSensitiveSearch = this.checkQuickSelectorCaseSensitiveSearch.Checked;
                 SuperPuTTY.Settings.ShowDocumentIcons = this.checkShowDocumentIcons.Checked;
                 SuperPuTTY.Settings.DockingRestrictFloatingWindows = this.checkRestrictFloatingWindows.Checked;
@@ -479,6 +484,46 @@ namespace SuperPutty
                     DialogResult = DialogResult.Cancel;
                 }
             }
+        }
+
+        /// <summary>
+        /// Show a checklist of session fields under the "Search in..." button. The menu stays open while
+        /// fields are ticked, and at least one field always stays ticked.
+        /// </summary>
+        /// <param name="sender">The "Search in..." button</param>
+        /// <param name="e">Not used</param>
+        private void buttonSearchFields_Click(object sender, EventArgs e)
+        {
+            ContextMenuStrip menu = new ContextMenuStrip();
+            foreach (KeyValuePair<SessionTreeview.SearchFields, string> field in SessionTreeview.SearchFieldLabels)
+            {
+                SessionTreeview.SearchFields flag = field.Key;
+                ToolStripMenuItem item = new ToolStripMenuItem(field.Value) { Checked = this.searchFields.HasFlag(flag) };
+                item.Click += delegate
+                {
+                    SessionTreeview.SearchFields updated = item.Checked ? this.searchFields & ~flag : this.searchFields | flag;
+                    if (updated != SessionTreeview.SearchFields.None)
+                    {
+                        this.searchFields = updated;
+                        item.Checked = !item.Checked;
+                    }
+                };
+                menu.Items.Add(item);
+            }
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(new ToolStripMenuItem("All fields", null, delegate
+            {
+                this.searchFields = SessionTreeview.SearchFields.All;
+                foreach (ToolStripMenuItem item in menu.Items.OfType<ToolStripMenuItem>().Take(SessionTreeview.SearchFieldLabels.Length))
+                {
+                    item.Checked = true;
+                }
+            }));
+
+            // keep the menu open while fields are being ticked; it closes on a click elsewhere
+            menu.Closing += (s, args) => args.Cancel = args.CloseReason == ToolStripDropDownCloseReason.ItemClicked;
+            menu.Closed += (s, args) => this.BeginInvoke(new MethodInvoker(menu.Dispose));
+            menu.Show(this.buttonSearchFields, new Point(0, this.buttonSearchFields.Height));
         }
 
         private void buttonBrowse_Click(object sender, EventArgs e)
