@@ -989,7 +989,13 @@ namespace SuperPutty
     {
         DarkTheme = 0,
         DarkBlueTheme,
-        LightTheme
+        LightTheme,
+        /// <summary>
+        /// The original SuperPuTTY look (DockPanelSuite's VS2005 theme): angled tabs, white when selected, with one
+        /// close button and the tab list at the right end of the tab strip. Light only, so it's after LightTheme and
+        /// the "&lt; LightTheme means dark" checks still hold.
+        /// </summary>
+        ClassicTheme
     }
 
 }

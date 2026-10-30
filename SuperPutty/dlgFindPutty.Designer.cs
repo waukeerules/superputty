@@ -111,6 +111,7 @@
             this.optDarkBlueTheme = new System.Windows.Forms.RadioButton();
             this.optLightTheme = new System.Windows.Forms.RadioButton();
             this.optDarkTheme = new System.Windows.Forms.RadioButton();
+            this.optClassicTheme = new System.Windows.Forms.RadioButton();
             this.groupBox8 = new System.Windows.Forms.GroupBox();
             this.label20 = new System.Windows.Forms.Label();
             this.label19 = new System.Windows.Forms.Label();
@@ -1132,6 +1133,7 @@
             this.groupBox10.Controls.Add(this.optDarkBlueTheme);
             this.groupBox10.Controls.Add(this.optLightTheme);
             this.groupBox10.Controls.Add(this.optDarkTheme);
+            this.groupBox10.Controls.Add(this.optClassicTheme);
             this.groupBox10.Location = new System.Drawing.Point(4, 4);
             this.groupBox10.Margin = new System.Windows.Forms.Padding(4);
             this.groupBox10.Name = "groupBox10";
@@ -1144,25 +1146,25 @@
             // optDarkBlueTheme
             // 
             this.optDarkBlueTheme.AutoSize = true;
-            this.optDarkBlueTheme.Location = new System.Drawing.Point(154, 20);
+            this.optDarkBlueTheme.Location = new System.Drawing.Point(104, 20);
             this.optDarkBlueTheme.Margin = new System.Windows.Forms.Padding(4);
             this.optDarkBlueTheme.Name = "optDarkBlueTheme";
-            this.optDarkBlueTheme.Size = new System.Drawing.Size(140, 24);
+            this.optDarkBlueTheme.Size = new System.Drawing.Size(97, 24);
             this.optDarkBlueTheme.TabIndex = 2;
             this.optDarkBlueTheme.TabStop = true;
-            this.optDarkBlueTheme.Text = "Dark blue theme";
+            this.optDarkBlueTheme.Text = "Dark blue";
             this.optDarkBlueTheme.UseVisualStyleBackColor = true;
             // 
             // optLightTheme
             // 
             this.optLightTheme.AutoSize = true;
-            this.optLightTheme.Location = new System.Drawing.Point(325, 20);
+            this.optLightTheme.Location = new System.Drawing.Point(222, 20);
             this.optLightTheme.Margin = new System.Windows.Forms.Padding(4);
             this.optLightTheme.Name = "optLightTheme";
-            this.optLightTheme.Size = new System.Drawing.Size(109, 24);
+            this.optLightTheme.Size = new System.Drawing.Size(66, 24);
             this.optLightTheme.TabIndex = 1;
             this.optLightTheme.TabStop = true;
-            this.optLightTheme.Text = "Light theme";
+            this.optLightTheme.Text = "Light";
             this.optLightTheme.UseVisualStyleBackColor = true;
             // 
             // optDarkTheme
@@ -1171,11 +1173,24 @@
             this.optDarkTheme.Location = new System.Drawing.Point(18, 20);
             this.optDarkTheme.Margin = new System.Windows.Forms.Padding(4);
             this.optDarkTheme.Name = "optDarkTheme";
-            this.optDarkTheme.Size = new System.Drawing.Size(107, 24);
+            this.optDarkTheme.Size = new System.Drawing.Size(64, 24);
             this.optDarkTheme.TabIndex = 0;
             this.optDarkTheme.TabStop = true;
-            this.optDarkTheme.Text = "Dark theme";
+            this.optDarkTheme.Text = "Dark";
             this.optDarkTheme.UseVisualStyleBackColor = true;
+            //
+            // optClassicTheme
+            //
+            this.optClassicTheme.AutoSize = true;
+            this.optClassicTheme.Location = new System.Drawing.Point(310, 20);
+            this.optClassicTheme.Margin = new System.Windows.Forms.Padding(4);
+            this.optClassicTheme.Name = "optClassicTheme";
+            this.optClassicTheme.Size = new System.Drawing.Size(80, 24);
+            this.optClassicTheme.TabIndex = 3;
+            this.optClassicTheme.TabStop = true;
+            this.optClassicTheme.Text = "Classic";
+            this.toolTip.SetToolTip(this.optClassicTheme, "The original SuperPuTTY look: angled tabs, white when selected, one close button at the right of the tab strip. Light only.");
+            this.optClassicTheme.UseVisualStyleBackColor = true;
             // 
             // groupBox8
             // 
@@ -2343,6 +2358,7 @@
         private System.Windows.Forms.RadioButton optLightTheme;
         private System.Windows.Forms.RadioButton optDarkTheme;
         private System.Windows.Forms.RadioButton optDarkBlueTheme;
+        private System.Windows.Forms.RadioButton optClassicTheme;
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.LinkLabel linkTightVnc;
         private System.Windows.Forms.LinkLabel linkFilezilla;

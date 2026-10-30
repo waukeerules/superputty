@@ -124,6 +124,9 @@ namespace SuperPutty
                 case (int)InterfaceTheme.LightTheme:
                     DockPanel.Theme = new VS2015LightTheme();
                     break;
+                case (int)InterfaceTheme.ClassicTheme:
+                    DockPanel.Theme = new VS2005Theme();
+                    break;
                 default:
                     DockPanel.Theme = new VS2015DarkTheme();
                     break;

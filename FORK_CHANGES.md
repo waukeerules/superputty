@@ -321,6 +321,17 @@ When a PuTTY session drops (network error, the device reloads, the server times 
 - An idle SSH login to 192.168.3.2 was dropped by the server after 2 minutes with "Remote side unexpectedly closed network connection".
 - A restart with nothing listening showed a new error box ("Connection refused").
 
+## Classic tab look
+
+Tools → Options → GUI → Interface theme has a fourth choice, **Classic**: the tab look of the original [jimradford/superputty](https://github.com/jimradford/superputty).
+- **Look:** angled tabs, white when selected and shaded when not, with one close button and the tab-list drop-down at the right end of the tab strip instead of an X on every tab. It's DockPanelSuite's VS2005 theme (the `DockPanelSuite.ThemeVS2005` 3.1.1 package, matching DockPanelSuite 3.1.1).
+- **Why:** upstream moved to the VS2015 themes to get dark mode, which changed the tabs.
+- **Light only:** with Classic, dialogs stay light like the Light theme. The existing `InterfaceTheme < LightTheme` dark-mode checks still hold because `ClassicTheme` comes after `LightTheme`.
+- **Applying it:** like the other themes, it applies after a restart.
+- **Options page:** the theme labels were shortened (Dark / Dark blue / Light / Classic) to fit four.
+- **Installer:** `WeifenLuo.WinFormsUI.Docking.ThemeVS2005.dll` is added to `Product.wxs`.
+- **Code:** `InterfaceTheme.ClassicTheme` (`SuperPuTTY.cs`), the theme switch in `frmSuperPutty`'s constructor, `optClassicTheme` in `dlgFindPutty`.
+
 ## Fix: the installer didn't include Newtonsoft.Json.dll
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
@@ -339,6 +350,10 @@ Requirements: Visual Studio 2022 (or Build Tools) with .NET Framework 4.8 and th
 
 ```bash
 MSBuild.exe SuperPutty.sln /restore /p:Configuration=Debug
+```
+
+```bash
+MSBuild.exe SuperPutty.sln /restore /p:Configuration=Release
 ```
 
 Output: `bin\Debug\SuperXPuTTY.exe` (the installer goes to `SuperPuttyInstaller\bin\x86\Debug\SuperXPuTTYSetup.msi`). Use `/p:Configuration=Release` for `bin\Release\`.
@@ -365,6 +380,12 @@ Secrets, icon-linked bars, logs and WAITFOR:
 7. Click the login button on an already logged-in tab: the status bar should show `▶ Login_Test (...): line 1/4 · WAITFOR login as: · N s`, and the button and the tab (with Show tab icons on) should show a spinner. Click the status-bar item → Stop: all three should go back to normal at once, with "stopped by you" in the status bar.
 
 The script runner was checked against the compiled assembly: a script blocked on `WAITFOR` showed `line 2/3 · WAITFOR password:` and stopped 12 ms after Stop, without typing the next line; a `SLEEP 20000` stopped after 15 ms; and nothing was left running.
+
+Classic theme:
+
+1. Tools → Options → GUI → **Classic**, OK, restart: tabs should be angled, the selected one white, with a single X and the tab list at the right end of the strip. The X closes the active tab.
+2. Check that tab badges (Watch for Activity) and the script spinner still show on tabs, the button bar and Sessions pane look right, and dialogs are light.
+3. Switch back to Dark and restart: everything should be as before.
 
 Dropped sessions:
 

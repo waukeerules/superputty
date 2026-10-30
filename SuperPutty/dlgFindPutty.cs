@@ -241,6 +241,9 @@ namespace SuperPutty
                 case (int)InterfaceTheme.LightTheme:
                     optLightTheme.Checked = true;
                     break;
+                case (int)InterfaceTheme.ClassicTheme:
+                    optClassicTheme.Checked = true;
+                    break;
                 default:
                     optDarkTheme.Checked = true;
                     break;
@@ -458,6 +461,11 @@ namespace SuperPutty
                 else if (optLightTheme.Checked && SuperPuTTY.Settings.InterfaceTheme != (int)InterfaceTheme.LightTheme)
                 {
                     SuperPuTTY.Settings.InterfaceTheme = (int)InterfaceTheme.LightTheme;
+                    warnThemeChange = true;
+                }
+                else if (optClassicTheme.Checked && SuperPuTTY.Settings.InterfaceTheme != (int)InterfaceTheme.ClassicTheme)
+                {
+                    SuperPuTTY.Settings.InterfaceTheme = (int)InterfaceTheme.ClassicTheme;
                     warnThemeChange = true;
                 }
 

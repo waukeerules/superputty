@@ -558,6 +558,9 @@
     <PackageReference Include="DockPanelSuite.ThemeVS2015">
       <Version>3.1.1</Version>
     </PackageReference>
+    <PackageReference Include="DockPanelSuite.ThemeVS2005">
+      <Version>3.1.1</Version>
+    </PackageReference>
     <PackageReference Include="log4net">
       <Version>3.1.0</Version>
     </PackageReference>

@@ -81,6 +81,10 @@
       <Component Id="ProductLibUITheme">
         <File Id="WeifenLuo.WinFormsUI.Docking.ThemeVS2015.dll" Source="$(var.SuperPutty.TargetDir)\WeifenLuo.WinFormsUI.Docking.ThemeVS2015.dll" />
       </Component>
+      <!-- the Classic interface theme (Options -> GUI) -->
+      <Component Id="ProductLibUIThemeClassic">
+        <File Id="WeifenLuo.WinFormsUI.Docking.ThemeVS2005.dll" Source="$(var.SuperPutty.TargetDir)\WeifenLuo.WinFormsUI.Docking.ThemeVS2005.dll" />
+      </Component>
       <!-- reads and writes EnvironmentVariables.json; needed by every session launch ({key} placeholders) -->
       <Component Id="ProductLibJson">
         <File Id="Newtonsoft.Json.dll" Source="$(var.SuperPutty.TargetDir)\Newtonsoft.Json.dll" />
