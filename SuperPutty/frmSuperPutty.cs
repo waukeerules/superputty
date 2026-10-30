@@ -116,7 +116,7 @@ namespace SuperPutty
             switch (SuperPuTTY.Settings.InterfaceTheme)
             {
                 case (int)InterfaceTheme.DarkTheme:
-                    DockPanel.Theme = new VS2015DarkTheme();
+                    DockPanel.Theme = SoftDarkTheme();
                     break;
                 case (int)InterfaceTheme.DarkBlueTheme:
                     DockPanel.Theme = new VS2015BlueTheme();
@@ -128,7 +128,7 @@ namespace SuperPutty
                     DockPanel.Theme = new VS2005Theme();
                     break;
                 default:
-                    DockPanel.Theme = new VS2015DarkTheme();
+                    DockPanel.Theme = SoftDarkTheme();
                     break;
             }
 
@@ -273,6 +273,15 @@ namespace SuperPutty
             DockPanel.Theme.Skin.DockPaneStripSkin.TextFont = new Font("Segoe UI", 10.0f, FontStyle.Regular);
         }
 
+        /// <summary>The Dark theme with muted selected and hovered tab colours instead of bright blue</summary>
+        /// <returns>The theme to give the DockPanel</returns>
+        private static VS2015DarkTheme SoftDarkTheme()
+        {
+            VS2015DarkTheme theme = new VS2015DarkTheme();
+            DocumentTabs.SoftenDarkTheme(theme);
+            return theme;
+        }
+
         private void FixDpiScalingIssues()
         {
             this.tbComboProtocol.Size = DpiUtils.ScaleSize(this.tbComboProtocol.Size);
@@ -315,6 +324,8 @@ namespace SuperPutty
 
         void DockPanel_ContentAdded(object sender, DockContentEventArgs e)
         {
+            // new tabs can mean a new pane, whose tab list needs the current-tab mark
+            DocumentTabs.MarkCurrentTabInLists(this.DockPanel);
             ctlPuttyPanel p = e.Content as ctlPuttyPanel;
             if (p != null)
             {
@@ -405,6 +416,8 @@ namespace SuperPutty
         /// <param name="e"></param>
         private void dockPanel1_ActiveDocumentChanged(object sender, EventArgs e)
         {
+            // tabs split off or floated into a new pane only show up here
+            DocumentTabs.MarkCurrentTabInLists(this.DockPanel);
             FocusActiveDocument("ActiveDocumentChanged");
 
             // switch the button bar to the one linked to this tab's icon; sessions without an icon use the default one

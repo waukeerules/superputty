@@ -68,6 +68,8 @@ namespace SuperPutty
             CreatePanel();
             AdjustMenu();
             AddOutputMenuItems();
+            // the black check glyph is hard to see on the dark menu
+            MenuCheckMarks.Apply(this.contextMenuStrip1);
 
             aboutPuttyToolStripMenuItem.Text = "About " + SuperPuTTY.PuTTYAppName;
         }

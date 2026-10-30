@@ -332,6 +332,15 @@ Tools → Options → GUI → Interface theme has a fourth choice, **Classic**: 
 - **Installer:** `WeifenLuo.WinFormsUI.Docking.ThemeVS2005.dll` is added to `Product.wxs`.
 - **Code:** `InterfaceTheme.ClassicTheme` (`SuperPuTTY.cs`), the theme switch in `frmSuperPutty`'s constructor, `optClassicTheme` in `dlgFindPutty`.
 
+## Current tab marked in the tab list, softer Dark tab colours
+
+- **Tab list:** the drop-down arrow at the right end of a tab strip lists every tab, but DockPanelSuite never showed which one is current, so with many same-named tabs there was no telling. The current tab is now ticked and bold, in every theme. DockPanelSuite fills that menu just before showing it, tagging each item with its tab, so SuperPuTTY marks the matching item in the menu's `Opening` event. The menu is a private field of each theme's tab strip, found by its type. Panes are re-checked when content is added and when the active document changes, so split-off and floating panes get it too.
+- **Dark theme colours:** the selected tab is now a muted slate blue (#3C4A5C) instead of bright blue (#007ACC). Hovered tabs and the close-button highlights are muted to match. Dark blue and Light are unchanged.
+- **Readable check marks in dark menus:** both renderers involved build on `ToolStripProfessionalRenderer`: DockPanelSuite's Visual Studio renderer for the tab list, and DarkModeCS's renderer for the tab's right-click menu (e.g. "Accept commands"). That renderer draws Windows' black check glyph, which almost vanished on the dark check box. `Gui/MenuCheckMarks.cs` handles each renderer's `RenderItemCheck` event, which is raised after the glyph is drawn, and paints a light tick over it. It does this only when the check box colour is dark, so light themes are untouched. It's applied to each tab's menu and to the tab-list menus.
+- **Code:** `Gui/DocumentTabs.cs` (`MarkCurrentTabInLists`, `SoftenDarkTheme`), `Gui/MenuCheckMarks.cs`, called from `frmSuperPutty` (`SoftDarkTheme`, `DockPanel_ContentAdded`, `dockPanel1_ActiveDocumentChanged`).
+
+**Checked against the compiled assembly:** with four same-named tabs in a real DockPanel, opening the tab list through DockPanelSuite's own button handler ticked and bolded only the active tab, in both the Classic (VS2005) and Dark themes. After switching tabs, the mark moved. The Dark palette's selected tab came out as #3C4A5C. The rendered menus were also checked: with DockPanelSuite's dark renderer, the check box had no light pixels before the fix and showed a white tick after it. With DarkModeCS's renderer, the tick was redrawn white too; the harness had only that renderer's light colours, so real dark mode wasn't checked there.
+
 ## Fix: the installer didn't include Newtonsoft.Json.dll
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
@@ -386,6 +395,12 @@ Classic theme:
 1. Tools → Options → GUI → **Classic**, OK, restart: tabs should be angled, the selected one white, with a single X and the tab list at the right end of the strip. The X closes the active tab.
 2. Check that tab badges (Watch for Activity) and the script spinner still show on tabs, the button bar and Sessions pane look right, and dialogs are light.
 3. Switch back to Dark and restart: everything should be as before.
+
+Tab list and Dark colours:
+
+1. Open several tabs of the same session, select one in the middle, and click the drop-down arrow at the right end of the tab strip: that tab should be ticked and bold. Select another and reopen the list: the mark should move. Try it in Classic and Dark, and in a tab group split off to the side.
+2. In the Dark theme, the selected tab should be a muted slate blue, and hovering other tabs should show grey, not bright blue.
+3. In the Dark theme, right-click a tab: the tick next to "Accept commands" should be a clear light tick. So should the one in the tab list.
 
 Dropped sessions:
 

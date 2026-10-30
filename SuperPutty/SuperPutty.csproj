@@ -230,6 +230,8 @@
     </Compile>
     <Compile Include="Gui\Spinner.cs" />
     <Compile Include="Gui\TabBadges.cs" />
+    <Compile Include="Gui\DocumentTabs.cs" />
+    <Compile Include="Gui\MenuCheckMarks.cs" />
     <Compile Include="Gui\dlgSearchOutput.cs">
       <SubType>Form</SubType>
     </Compile>
