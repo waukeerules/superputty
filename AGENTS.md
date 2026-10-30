@@ -66,6 +66,79 @@ MSBuild.exe SuperPutty.sln /restore /p:Configuration=Debug /v:minimal
 - `SuperPuttyUnitTests` uses an old NUnit 2.5 GUI runner, and most of its tests need a live SCP server. For new logic, keep it in small static methods that can be checked directly, and list the manual test steps in FORK_CHANGES.md.
 - Say what you actually verified (built, ran, checked in the UI) and what you didn't.
 
+## Architecture
+
+**Stack:** C# WinForms on .NET Framework 4.8, built with Visual Studio 2022. The assembly is named `SuperXPuTTY`. NuGet packages:
+
+- DockPanelSuite 3.1.1 and DockPanelSuite.ThemeVS2015 3.1.1, for Visual Studio-style docking
+- log4net 3.1.0
+- Microsoft.VisualBasic 10.3.0
+- Newtonsoft.Json 13.0.3 (fork only, used for the placeholder values)
+
+PuTTY, or [PuTTY Plus](https://github.com/SilverGreen93/putty), is an external runtime requirement.
+
+### How a session gets on screen
+
+```
+SessionTreeview / toolbar / Quick Selector / layout restore / command line
+  → SuperPuTTY.OpenProtoSession(SessionData)         checks placeholders, creates the tab
+      → new ctlPuttyPanel(session)                   the tab; builds PuttyStartInfo
+          → PuttyStartInfo / *StartInfo              executable + arguments per protocol, placeholders resolved
+          → ApplicationPanel (inner Panel)           starts the process and reparents its window
+      → panel.Show(DockPanel, LastDockstate)         docks and lays out the tab
+      → panel.AppPanel.StartApplication()            Process.Start → SetParent → MoveWindow to the tab's size
+```
+
+SCP sessions go through `SuperPuTTY.OpenScpSession` → `PscpBrowserPanel` instead.
+
+### Key types
+
+| Type | File | Role |
+|---|---|---|
+| `SuperPuTTY` | `SuperPuTTY.cs` | Static app core: settings, the session list, loading and saving `Sessions.xml`, layouts, and opening sessions |
+| `frmSuperPutty` | `frmSuperPutty.cs` | Main form: the `DockPanel`, menus, the quick-connect and send-command toolbars, the status bar, and theme selection |
+| `ToolWindow` → `ToolWindowDocument` | `ToolWindow.cs` | Base classes for everything docked. `ToolWindow : DockContent` is for tool panes; `ToolWindowDocument` is for document tabs |
+| `ctlPuttyPanel` | `ctlPuttyPanel.cs` | The tab for **every** terminal protocol: PuTTY, RDP, VNC, Mintty, Cygterm, cmd, PowerShell and WSL. It holds one `ApplicationPanel`. `GetPersistString` and `FromPersistString` save and restore it in layouts |
+| `ApplicationPanel` | `ctlApplicationPanel.cs` | A plain `Panel`, not a tab. It starts the external process, captures its window (`SetParent`, `MoveWindow`) and keeps it sized and focused. All the Win32 embedding code is here |
+| `SessionData` | `Data/SessionData.cs` | One saved session. Its setters raise change events that lead to `Sessions.xml` being saved |
+| `PuttyStartInfo` + `*StartInfo` | `Utils/` | Build the command line for each protocol (`RDPStartinfo`, `VNCStartinfo`, `WSLStartInfo`, ...) |
+| `SessionVariables`, `EnvironmentVariablesManager` | `Utils/` | Fork feature: `{key}` placeholders and the per-user values file |
+| `SessionTreeview`, `LayoutsList`, `SessionDetail`, log viewers | top level | Tool windows (`ToolWindow`), shown and hidden through `SingletonToolWindowHelper<T>` |
+| Dialogs | `dlg*.cs`, `Gui/`, `EnvironmentVariablesForm.cs` | Plain `Form`s with designer files |
+
+### Folders
+
+| Folder | Contents |
+|---|---|
+| `Data/` | Session, layout, history and shortcut data, and importers for PuTTY, MobaXterm and RDP sessions |
+| `Utils/` | Command-line builders, `NativeMethods` (Win32), settings provider, single-instance, hotkeys, focus helpers |
+| `Gui/` | Reusable UI: Quick Selector, the shortcut editor, `DpiUtils`, image picker |
+| `Scp/` | The pscp file browser and file transfers (MVP: View, Presenter, ViewModel) |
+| `Scripting/` | SPSL, the session scripting language (`Spsl.cs` plus one class per command) |
+| `DarkModeForms/` | Copied in from [BlueMystical/Dark-Mode-Forms](https://github.com/BlueMystical/Dark-Mode-Forms): `DarkModeCS`, `Messenger` (themed message boxes), `Flat*` controls |
+| `Models/` | Fork additions (`EnvironmentVariable`) |
+| `Resources/themes/` | Session icons, copied to `bin\<Configuration>\themes` after each build |
+
+### Settings and files
+
+- **`SuperXPuTTY.settings`** holds per-user settings, through `PortableSettingsProvider`. It's stored in `Documents\SuperXPuTTY\`, or next to the exe in a portable install. Access it in code through `SuperPuTTY.Settings`.
+- **`SettingsFolder`** is configurable, and may be a shared drive. It holds `Sessions.xml` and `layouts\`.
+- **`EnvironmentVariables.json`** is per-user, next to `SuperXPuTTY.settings`.
+
+### UI conventions
+
+- **Message boxes:** use `Messenger.MessageBox` rather than `MessageBox.Show`, so they follow the theme.
+- **Themes:** test UI changes in both the light and dark themes. The `DockPanel` theme (`VS2015*Theme`) is set in `frmSuperPutty`; individual forms apply `DarkModeCS`.
+- **Docking:** for docking changes, test saving and restoring a layout, floating windows, and multiple monitors. `ApplicationPanel.MoveWindow` has a fix specific to a second screen.
+- **High DPI:** use `DpiUtils` (see `frmSuperPutty.FixDpiScalingIssues`).
+- **Logging:** use log4net, through a `private static readonly ILog Log = LogManager.GetLogger(typeof(...))` field in each class.
+
+### References
+
+- Upstream: <https://github.com/SilverGreen93/superputty>. The original SuperPuTTY wiki: <https://github.com/jimradford/superputty/wiki/Documentation>
+- DockPanel Suite: <https://docs.dockpanelsuite.com/>
+- Upstream records user-facing changes in `ReleaseNotes.txt`. This fork records its changes in `FORK_CHANGES.md` and leaves `ReleaseNotes.txt` as upstream's.
+
 ## Things that bite in this codebase
 
 - **Mixed line endings.** Some files are CRLF and some LF; some are mixed. Preserve each file's existing endings. A script that reads in text mode and writes back can turn a 3-line change into a whole-file diff, so check `git diff --stat` before committing.
