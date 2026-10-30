@@ -260,9 +260,10 @@ namespace SuperPutty.Gui
             if (BrandLogos.Exists(name))
             {
                 Color logoColor = color ?? BrandLogos.DefaultColorOf(name);
-                if (DarkBackground && logoColor.GetBrightness() < 0.22f)
+                if (color == null && DarkBackground && logoColor.GetBrightness() < 0.22f)
                 {
-                    // black logos (Apple, AlmaLinux, ...) would vanish on a dark interface
+                    // black brand colours (Apple, AlmaLinux, ...) would vanish on a dark interface; a colour someone
+                    // chose is used as it is
                     logoColor = Color.FromArgb(0xE0, 0xE0, 0xE0);
                 }
                 return BrandLogos.Render(name, logoColor, size);

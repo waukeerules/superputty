@@ -31,6 +31,18 @@ namespace SuperPutty.Gui
         /// <summary>The swatch buttons, with the colour each picks (Empty for "Default")</summary>
         private readonly Dictionary<Button, Color> swatches = new Dictionary<Button, Color>();
 
+        /// <summary>The More... button, outlined when the chosen colour isn't one of the swatches</summary>
+        private Button moreButton;
+
+        /// <summary>
+        /// Whether the grid shows the chosen colour on the logos (a logo is selected) rather than on the device and
+        /// general icons
+        /// </summary>
+        private bool tintLogos;
+
+        /// <summary>Set while the grid is being refilled, so selecting the remembered item doesn't refill it again</summary>
+        private bool filling;
+
         /// <summary>The key to store in the session; set when the dialog closes with OK</summary>
         public string SelectedKey { get; private set; }
 
@@ -96,7 +108,8 @@ namespace SuperPutty.Gui
                 this.panelSwatches.Controls.Add(swatch);
             }
 
-            Button more = new Button { Text = "More...", AutoSize = true, Height = size + 4, Margin = new Padding(6, 0, 0, 0) };
+            Button more = new Button { Text = "More...", AutoSize = true, Height = size + 4, Margin = new Padding(6, 0, 0, 0), FlatStyle = FlatStyle.Flat };
+            this.moreButton = more;
             this.toolTip.SetToolTip(more, "Any colour");
             more.Click += (s, e) =>
             {
@@ -134,7 +147,9 @@ namespace SuperPutty.Gui
         }
 
         /// <summary>
-        /// Fill the grid: device templates (in the chosen colour), logos, then other icons, filtered by the search box
+        /// Fill the grid: device and general icons, logos, then other icons, filtered by the search box. The chosen
+        /// colour is shown on the group the selected icon belongs to (logos, or the device and general icons), so it
+        /// previews what picking that colour will look like; the other group keeps its own colours.
         /// </summary>
         /// <param name="selectName">The icon to select afterwards; null keeps the current selection</param>
         private void FillList(string selectName)
@@ -145,7 +160,9 @@ namespace SuperPutty.Gui
             }
             string filter = this.textBoxSearch.Text.Trim();
             int size = this.gridImages.ImageSize.Width;
+            this.tintLogos = BrandLogos.Exists(selectName);
 
+            this.filling = true;
             this.listIcons.BeginUpdate();
             this.listIcons.Items.Clear();
             this.listIcons.Groups.Clear();
@@ -170,9 +187,8 @@ namespace SuperPutty.Gui
                     && name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
                     continue;
 
-                // only device templates show the chosen colour here; logos keep their brand colours in the grid
-                Image image = IconTemplates.Exists(name) ? IconLibrary.RenderDrawn(this.KeyFor(name), size)
-                    : IconLibrary.IsDrawn(name) ? IconLibrary.RenderDrawn(name, size)
+                bool tinted = this.tintLogos ? BrandLogos.Exists(name) : IconTemplates.Exists(name);
+                Image image = IconLibrary.IsDrawn(name) ? IconLibrary.RenderDrawn(tinted ? this.KeyFor(name) : name, size)
                     : IconLibrary.Scale(SuperPuTTY.Images.Images[name], size);
                 this.gridImages.Images.Add(name, image);
                 ListViewItem item = new ListViewItem(title, name, entry.Item2) { Tag = name, ToolTipText = name };
@@ -183,6 +199,7 @@ namespace SuperPutty.Gui
                 }
             }
             this.listIcons.EndUpdate();
+            this.filling = false;
             if (this.listIcons.SelectedItems.Count > 0)
             {
                 this.listIcons.SelectedItems[0].EnsureVisible();
@@ -220,12 +237,18 @@ namespace SuperPutty.Gui
             this.btnOK.Enabled = key != null;
             bool colorable = key != null && IconLibrary.IsColorable(key);
             this.panelSwatches.Enabled = colorable;
+            bool fromSwatch = false;
             foreach (KeyValuePair<Button, Color> swatch in this.swatches)
             {
                 bool chosen = swatch.Value.ToArgb() == this.chosenColor.ToArgb();
+                fromSwatch |= chosen;
                 swatch.Key.FlatAppearance.BorderSize = chosen ? 3 : 1;
                 swatch.Key.FlatAppearance.BorderColor = chosen ? this.ForeColor : Color.Gray;
             }
+            // a colour from More... has no swatch, so outline More... instead
+            this.moreButton.FlatAppearance.BorderSize = fromSwatch ? 1 : 3;
+            this.moreButton.FlatAppearance.BorderColor = fromSwatch ? Color.Gray : this.ForeColor;
+            this.toolTip.SetToolTip(this.moreButton, fromSwatch ? "Any colour" : "Any colour (now " + ColorTranslator.ToHtml(this.chosenColor) + ")");
 
             Image old = this.pictureBoxPreview.Image;
             this.pictureBoxPreview.Image = key == null ? null
@@ -253,6 +276,15 @@ namespace SuperPutty.Gui
         /// <param name="e">Not used</param>
         private void listIcons_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (this.filling)
+                return;
+            string selected = this.listIcons.SelectedItems.Count > 0 ? (string)this.listIcons.SelectedItems[0].Tag : null;
+            if (!this.chosenColor.IsEmpty && selected != null && BrandLogos.Exists(selected) != this.tintLogos)
+            {
+                // moved between a logo and a device icon: show the colour on the selected one's group
+                this.FillList(selected);
+                return;
+            }
             this.UpdateSelection();
         }
 

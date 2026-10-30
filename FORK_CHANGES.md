@@ -398,7 +398,10 @@ Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom netw
 - **Icon picker** (`Gui/dlgIconPicker.cs`), from Edit Session's icon button:
   - **Layout:** a searchable grid grouped as Devices, General, Logos and Other icons, plus a large preview.
   - **Dark theme:** the grid uses Windows' dark "items view" style, so the group headings are readable. DarkModeCS's dark Explorer style left them dark blue.
-  - **Colour row:** Default, ten named colours, and More... for any colour. Choosing a colour shows every device template in it; logos keep their brand colours in the grid.
+  - **Colour row:** Default, ten named colours, and More... for any colour; More... is outlined when the chosen colour isn't one of the ten.
+  - **Colour preview:** the grid shows the chosen colour on the selected icon's group. With a logo selected, every logo shows it while the device and general icons keep their own colours; with a device or general icon selected, it's the other way round.
+    - **Before:** the grid always recoloured the device and general icons, so choosing e.g. white for Apple turned every device icon white and left the logos unchanged.
+  - **Explicit colours:** a colour chosen for a logo is used as it is. Only near-black brand colours are lightened on the dark theme.
   - **Result:** the picker returns the key to store, with the colour left off when it's the icon's own.
   - **Replaces:** the old plain grid popup. The toolbar's icon filter still uses the grid.
 - **Code:**
@@ -488,6 +491,7 @@ Icons:
 2. Tools → Options → GUI → Misc → Icon size: try 16, 20 and 32 (each needs a restart). Everything should be sharp at each size, and the tabs a little taller at 24 and 32.
    - **Tab icons:** each should be as tall as the tab text, centred, with a small gap before the text, in Dark, Light and Classic. Watch for Activity and the script spinner should still show on tabs, and the tab-list drop-down should show each tab's icon and name with no leading blank.
 3. Edit a session → click its icon: search for "switch", pick Blue, OK, Save. The tree and tab should show a blue switch, and Sessions.xml should say `ImageKey="switch#1E63B4"`.
+   - **Logo colours:** select Apple and pick white with More...: the logos should turn white in the grid, the device icons should keep their colours, and More... should be outlined.
 4. In the dark theme, an Apple or AlmaLinux logo should show light grey, not black.
 
 Dropped sessions:
