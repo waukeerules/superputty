@@ -88,13 +88,16 @@ Requirements: Visual Studio 2022 (or Build Tools) with .NET Framework 4.8 and th
 MSBuild.exe SuperPutty.sln /restore /p:Configuration=Debug
 ```
 
-Output: `bin\Debug\SuperXPuTTY.exe` (the installer goes to `SuperPuttyInstaller\bin\x86\Debug\SuperXPuTTYSetup.msi`).
+Output: `bin\Debug\SuperXPuTTY.exe` (the installer goes to `SuperPuttyInstaller\bin\x86\Debug\SuperXPuTTYSetup.msi`). Use `/p:Configuration=Release` for `bin\Release\`.
+
+Build the `.sln`, not `SuperPutty\SuperPutty.csproj`. The post-build step that copies the themes folder uses `$(SolutionDir)`, which is empty when the project is built on its own.
 
 Manual test:
 
 1. Run `bin\Debug\SuperXPuTTY.exe` and open **Tools → Environment Variables...**. Add `user = jdoe` and `domain = example.com`, then click OK.
 2. Create a session whose Login username is `{user}@{domain}` and double-click it. PuTTY should open with `-l jdoe@example.com`; the SuperPuTTY log records the PuTTY arguments.
 3. Do the same through the quick-connect toolbar and through **Connect All** on a folder.
+4. Close SuperPuTTY and open `Sessions.xml` (its location is shown in **Tools → Options**). The session should still say `{user}@{domain}`, not `jdoe@example.com`. Verified after the fix in `e1aeecd`.
 
 `SuperPuttyUnitTests` uses an NUnit 2.5 GUI runner, and most of its tests need a live SCP server. There are no automated tests for this feature yet.
 
