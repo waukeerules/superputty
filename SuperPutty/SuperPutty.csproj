@@ -353,6 +353,7 @@
     <Compile Include="Utils\IEmbeddedApplication.cs" />
     <Compile Include="Utils\ICommandReceiver.cs" />
     <Compile Include="Utils\SessionLog.cs" />
+    <Compile Include="Utils\PuttyWindow.cs" />
     <Compile Include="Utils\ScriptRun.cs" />
     <Compile Include="Utils\RdpOptions.cs" />
     <Compile Include="Scripting\WaitForCommand.cs" />

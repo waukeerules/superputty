@@ -1359,7 +1359,7 @@ namespace SuperPutty
             {
                 this.buttonBar.UpdateRunningButtons();
             }
-            // output alerts on watched tabs, checked about once a second
+            // output alerts on watched tabs and dropped sessions, checked about once a second
             bool checkAlerts = ++this.alertTick % (1000 / Spinner.FrameMs) == 0;
             bool appInFront = checkAlerts && this.IsInFront();
             foreach (ctlPuttyPanel panel in this.DockPanel.Documents.OfType<ctlPuttyPanel>())
@@ -1368,6 +1368,11 @@ namespace SuperPutty
                 if (checkAlerts && panel.IsWatched)
                 {
                     panel.CheckOutputAlerts(appInFront && panel == this.DockPanel.ActiveDocument, appInFront);
+                }
+                if (checkAlerts)
+                {
+                    // dropped sessions and auto-reconnect
+                    panel.CheckConnection(appInFront);
                 }
             }
 

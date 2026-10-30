@@ -176,6 +176,13 @@
             this.comboBoxActivatorType = new System.Windows.Forms.ComboBox();
             this.groupBox4 = new System.Windows.Forms.GroupBox();
             this.groupBoxSessionLog = new System.Windows.Forms.GroupBox();
+            this.groupBoxReconnect = new System.Windows.Forms.GroupBox();
+            this.checkAutoReconnect = new System.Windows.Forms.CheckBox();
+            this.labelReconnectEvery = new System.Windows.Forms.Label();
+            this.numericReconnectDelay = new System.Windows.Forms.NumericUpDown();
+            this.labelReconnectUpTo = new System.Windows.Forms.Label();
+            this.numericReconnectAttempts = new System.Windows.Forms.NumericUpDown();
+            this.labelReconnectTimes = new System.Windows.Forms.Label();
             this.checkSessionLog = new System.Windows.Forms.CheckBox();
             this.labelSessionLogFolder = new System.Windows.Forms.Label();
             this.textBoxSessionLogFolder = new System.Windows.Forms.TextBox();
@@ -209,6 +216,9 @@
             this.groupBox5.SuspendLayout();
             this.groupBox4.SuspendLayout();
             this.groupBoxSessionLog.SuspendLayout();
+            this.groupBoxReconnect.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.numericReconnectDelay)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericReconnectAttempts)).BeginInit();
             this.panelBottom.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -1554,6 +1564,7 @@
             this.tabPageAdvanced.Controls.Add(this.groupBox5);
             this.tabPageAdvanced.Controls.Add(this.groupBox4);
             this.tabPageAdvanced.Controls.Add(this.groupBoxSessionLog);
+            this.tabPageAdvanced.Controls.Add(this.groupBoxReconnect);
             this.tabPageAdvanced.Location = new System.Drawing.Point(4, 29);
             this.tabPageAdvanced.Margin = new System.Windows.Forms.Padding(4);
             this.tabPageAdvanced.Name = "tabPageAdvanced";
@@ -2073,6 +2084,89 @@
             this.buttonBrowseSessionLogFolder.Click += new System.EventHandler(this.buttonBrowseSessionLogFolder_Click);
             this.groupBoxSessionLog.ResumeLayout(false);
             this.groupBoxSessionLog.PerformLayout();
+            //
+            // groupBoxReconnect
+            //
+            this.groupBoxReconnect.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.groupBoxReconnect.Controls.Add(this.checkAutoReconnect);
+            this.groupBoxReconnect.Controls.Add(this.labelReconnectEvery);
+            this.groupBoxReconnect.Controls.Add(this.numericReconnectDelay);
+            this.groupBoxReconnect.Controls.Add(this.labelReconnectUpTo);
+            this.groupBoxReconnect.Controls.Add(this.numericReconnectAttempts);
+            this.groupBoxReconnect.Controls.Add(this.labelReconnectTimes);
+            this.groupBoxReconnect.Location = new System.Drawing.Point(4, 412);
+            this.groupBoxReconnect.Margin = new System.Windows.Forms.Padding(4);
+            this.groupBoxReconnect.Name = "groupBoxReconnect";
+            this.groupBoxReconnect.Padding = new System.Windows.Forms.Padding(4);
+            this.groupBoxReconnect.Size = new System.Drawing.Size(762, 96);
+            this.groupBoxReconnect.TabIndex = 5;
+            this.groupBoxReconnect.TabStop = false;
+            this.groupBoxReconnect.Text = "Dropped sessions";
+            //
+            // checkAutoReconnect
+            //
+            this.checkAutoReconnect.AutoSize = true;
+            this.checkAutoReconnect.Location = new System.Drawing.Point(16, 28);
+            this.checkAutoReconnect.Margin = new System.Windows.Forms.Padding(4);
+            this.checkAutoReconnect.Name = "checkAutoReconnect";
+            this.checkAutoReconnect.TabIndex = 0;
+            this.checkAutoReconnect.Text = "Reconnect automatically when a session drops (the tab stays open with its scrollback)";
+            this.toolTip.SetToolTip(this.checkAutoReconnect, "PuTTY tabs: closes PuTTY's error box and restarts the session. RDP tabs: the Remote Desktop control's own auto-reconnect. When off, right-click the tab -> Reconnect.");
+            this.checkAutoReconnect.UseVisualStyleBackColor = true;
+            //
+            // labelReconnectEvery
+            //
+            this.labelReconnectEvery.AutoSize = true;
+            this.labelReconnectEvery.Location = new System.Drawing.Point(16, 62);
+            this.labelReconnectEvery.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.labelReconnectEvery.Name = "labelReconnectEvery";
+            this.labelReconnectEvery.TabIndex = 1;
+            this.labelReconnectEvery.Text = "PuTTY tabs: try every";
+            //
+            // numericReconnectDelay
+            //
+            this.numericReconnectDelay.Location = new System.Drawing.Point(190, 58);
+            this.numericReconnectDelay.Margin = new System.Windows.Forms.Padding(4);
+            this.numericReconnectDelay.Maximum = new decimal(new int[] { 3600, 0, 0, 0 });
+            this.numericReconnectDelay.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
+            this.numericReconnectDelay.Name = "numericReconnectDelay";
+            this.numericReconnectDelay.Size = new System.Drawing.Size(80, 27);
+            this.numericReconnectDelay.TabIndex = 2;
+            this.numericReconnectDelay.Value = new decimal(new int[] { 10, 0, 0, 0 });
+            //
+            // labelReconnectUpTo
+            //
+            this.labelReconnectUpTo.AutoSize = true;
+            this.labelReconnectUpTo.Location = new System.Drawing.Point(278, 62);
+            this.labelReconnectUpTo.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.labelReconnectUpTo.Name = "labelReconnectUpTo";
+            this.labelReconnectUpTo.TabIndex = 3;
+            this.labelReconnectUpTo.Text = "seconds, up to";
+            //
+            // numericReconnectAttempts
+            //
+            this.numericReconnectAttempts.Location = new System.Drawing.Point(400, 58);
+            this.numericReconnectAttempts.Margin = new System.Windows.Forms.Padding(4);
+            this.numericReconnectAttempts.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
+            this.numericReconnectAttempts.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
+            this.numericReconnectAttempts.Name = "numericReconnectAttempts";
+            this.numericReconnectAttempts.Size = new System.Drawing.Size(80, 27);
+            this.numericReconnectAttempts.TabIndex = 4;
+            this.numericReconnectAttempts.Value = new decimal(new int[] { 6, 0, 0, 0 });
+            //
+            // labelReconnectTimes
+            //
+            this.labelReconnectTimes.AutoSize = true;
+            this.labelReconnectTimes.Location = new System.Drawing.Point(488, 62);
+            this.labelReconnectTimes.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.labelReconnectTimes.Name = "labelReconnectTimes";
+            this.labelReconnectTimes.TabIndex = 5;
+            this.labelReconnectTimes.Text = "times";
+            ((System.ComponentModel.ISupportInitialize)(this.numericReconnectDelay)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericReconnectAttempts)).EndInit();
+            this.groupBoxReconnect.ResumeLayout(false);
+            this.groupBoxReconnect.PerformLayout();
             this.tabControl.ResumeLayout(false);
             this.tabPageGeneral.ResumeLayout(false);
             this.tabPageGeneral.PerformLayout();
@@ -2185,6 +2279,13 @@
         private System.Windows.Forms.FontDialog fontDialog;
         private System.Windows.Forms.GroupBox groupBox4;
         private System.Windows.Forms.GroupBox groupBoxSessionLog;
+        private System.Windows.Forms.GroupBox groupBoxReconnect;
+        private System.Windows.Forms.CheckBox checkAutoReconnect;
+        private System.Windows.Forms.Label labelReconnectEvery;
+        private System.Windows.Forms.NumericUpDown numericReconnectDelay;
+        private System.Windows.Forms.Label labelReconnectUpTo;
+        private System.Windows.Forms.NumericUpDown numericReconnectAttempts;
+        private System.Windows.Forms.Label labelReconnectTimes;
         private System.Windows.Forms.CheckBox checkSessionLog;
         private System.Windows.Forms.Label labelSessionLogFolder;
         private System.Windows.Forms.TextBox textBoxSessionLogFolder;

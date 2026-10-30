@@ -5,13 +5,15 @@ namespace SuperPutty.Gui
 {
     /// <summary>
     /// 16x16 tab icons for output alerts (ctlPuttyPanel.CheckOutputAlerts): an orange dot when a watched tab prints
-    /// something, and grey pause bars when it goes quiet. Drawn on a white disc, like the tab spinner, so they stand out
+    /// something, and grey pause bars when it goes quiet; and a red cross when a tab's session has dropped
+    /// (ctlPuttyPanel.CheckConnection). Drawn on a white disc, like the tab spinner, so they stand out
     /// on the blue selected tab and on dark or light tabs. Created once and kept for the life of the program.
     /// </summary>
     public static class TabBadges
     {
         private static Icon activity;
         private static Icon silence;
+        private static Icon disconnected;
 
         /// <summary>The "new output" badge: an orange dot</summary>
         public static Icon Activity
@@ -49,6 +51,26 @@ namespace SuperPutty.Gui
                     });
                 }
                 return silence;
+            }
+        }
+
+        /// <summary>The "session dropped" badge: a red cross</summary>
+        public static Icon Disconnected
+        {
+            get
+            {
+                if (disconnected == null)
+                {
+                    disconnected = Make(g =>
+                    {
+                        using (Pen cross = new Pen(Color.FromArgb(0xD7, 0x3A, 0x49), 2.5f))
+                        {
+                            g.DrawLine(cross, 4.5f, 4.5f, 10.5f, 10.5f);
+                            g.DrawLine(cross, 10.5f, 4.5f, 4.5f, 10.5f);
+                        }
+                    });
+                }
+                return disconnected;
             }
         }
 

@@ -202,6 +202,9 @@ namespace SuperPutty
             this.LoadRdpOptions();
             this.checkSessionLog.Checked = SuperPuTTY.Settings.SessionLogEnabled;
             this.textBoxSessionLogFolder.Text = SuperPuTTY.Settings.SessionLogFolder;
+            this.checkAutoReconnect.Checked = SuperPuTTY.Settings.AutoReconnect;
+            this.numericReconnectDelay.Value = Math.Max(this.numericReconnectDelay.Minimum, Math.Min(this.numericReconnectDelay.Maximum, SuperPuTTY.Settings.AutoReconnectDelaySeconds));
+            this.numericReconnectAttempts.Value = Math.Max(this.numericReconnectAttempts.Minimum, Math.Min(this.numericReconnectAttempts.Maximum, SuperPuTTY.Settings.AutoReconnectAttempts));
             this.checkBoxCheckForUpdates.Checked = SuperPuTTY.Settings.AutoUpdateCheck;
             this.textBoxHomeDirPrefix.Text = SuperPuTTY.Settings.PscpHomePrefix;
             this.textBoxRootDirPrefix.Text = SuperPuTTY.Settings.PscpRootHomePrefix;
@@ -428,6 +431,9 @@ namespace SuperPutty
                 this.SaveRdpOptions();
                 SuperPuTTY.Settings.SessionLogEnabled = this.checkSessionLog.Checked;
                 SuperPuTTY.Settings.SessionLogFolder = this.textBoxSessionLogFolder.Text.Trim();
+                SuperPuTTY.Settings.AutoReconnect = this.checkAutoReconnect.Checked;
+                SuperPuTTY.Settings.AutoReconnectDelaySeconds = (int)this.numericReconnectDelay.Value;
+                SuperPuTTY.Settings.AutoReconnectAttempts = (int)this.numericReconnectAttempts.Value;
                 SuperPuTTY.Settings.AutoUpdateCheck = this.checkBoxCheckForUpdates.Checked;
                 SuperPuTTY.Settings.PscpHomePrefix = this.textBoxHomeDirPrefix.Text;
                 SuperPuTTY.Settings.PscpRootHomePrefix = this.textBoxRootDirPrefix.Text;

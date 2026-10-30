@@ -579,12 +579,13 @@ namespace SuperPutty
         }
 
         /// <summary>
-        /// Show the tab's icon by priority: the script spinner, then an activity badge, then a silence badge, then the
-        /// tab's own icon
+        /// Show the tab's icon by priority: the script spinner, then the disconnected badge, then an activity badge, then
+        /// a silence badge, then the tab's own icon
         /// </summary>
         private void UpdateTabIcon()
         {
             System.Drawing.Icon badge = this.scriptRunning ? Spinner.CurrentIcon()
+                : this.connection != ConnectionState.Connected ? TabBadges.Disconnected
                 : this.outputAlert == OutputAlert.Activity ? TabBadges.Activity
                 : this.outputAlert == OutputAlert.Silence ? TabBadges.Silence
                 : null;
@@ -725,11 +726,232 @@ namespace SuperPutty
             this.SetOutputAlert(OutputAlert.None);
         }
 
+        /// <summary>Where a PuTTY tab's session stands, as far as auto-reconnect knows</summary>
+        private enum ConnectionState
+        {
+            /// <summary>Connected, or never seen to drop</summary>
+            Connected,
+            /// <summary>Dropped or ended; the tab shows the disconnected badge</summary>
+            Disconnected,
+            /// <summary>Restart Session was sent; waiting for the session to print something</summary>
+            Reconnecting
+        }
+
+        /// <summary>The session's state; see <see cref="CheckConnection"/></summary>
+        private ConnectionState connection = ConnectionState.Connected;
+
+        /// <summary>Automatic reconnects tried since the session last dropped</summary>
+        private int reconnectAttempts;
+
+        /// <summary>When the next reconnect is due; DateTime.MinValue when none is scheduled</summary>
+        private DateTime nextReconnectAt = DateTime.MinValue;
+
+        /// <summary>When Restart Session was last sent</summary>
+        private DateTime reconnectSentAt;
+
+        /// <summary>The session log's length when Restart Session was sent; more output means the session is back</summary>
+        private long logLengthAtReconnect;
+
+        /// <summary>
+        /// Whether PuTTY has shown the session as inactive since it dropped. Until it has, an active title just means
+        /// PuTTY hasn't caught up after its error box closed, not that the session was restarted from PuTTY's own menu.
+        /// </summary>
+        private bool seenInactive;
+
+        /// <summary>The error box already handled, so it isn't reported again while it stays open</summary>
+        private IntPtr handledErrorBox;
+
+        /// <summary>How often, while reconnecting, Restart Session is sent again in case PuTTY wasn't ready for it</summary>
+        private const int ResendRestartSeconds = 5;
+
+        /// <summary>How long a reconnected session may print nothing before it's taken to be back anyway</summary>
+        private const int QuietReconnectSeconds = 15;
+
+        /// <summary>Whether the session has dropped or ended and isn't back yet</summary>
+        public bool IsDisconnected
+        {
+            get { return this.connection != ConnectionState.Connected; }
+        }
+
+        /// <summary>
+        /// Check whether this PuTTY tab's session has dropped, and reconnect it (called about once a second by
+        /// frmSuperPutty). A drop shows PuTTY's "Fatal Error" box: the tab then gets the disconnected badge and a status
+        /// message, and with Options -> Advanced -> Dropped sessions on, the box is closed and Restart Session is sent
+        /// after the set delay, up to the set number of attempts. A session that ends without an error (still open,
+        /// title "(inactive)") gets the badge but isn't reconnected automatically. The session is back once it prints
+        /// something again. Only PuTTY protocols are checked; see <see cref="PuttyWindow"/>.
+        /// </summary>
+        /// <param name="appInFront">Whether SuperPuTTY is in front; if not, a drop also flashes its taskbar button</param>
+        public void CheckConnection(bool appInFront)
+        {
+            IntPtr window = this.AppPanel.AppWindowHandle;
+            if (this.SessionLogPath == null || window == IntPtr.Zero || this.AppPanel.HasEmbeddedApplication)
+                return;
+
+            string error;
+            IntPtr box = PuttyWindow.FindFatalErrorBox(window, out error);
+            bool inactive = PuttyWindow.IsInactive(window);
+            bool autoReconnect = SuperPuTTY.Settings.AutoReconnect;
+            int maxAttempts = Math.Max(1, SuperPuTTY.Settings.AutoReconnectAttempts);
+            int delay = Math.Max(1, SuperPuTTY.Settings.AutoReconnectDelaySeconds);
+
+            if (box != IntPtr.Zero && box != this.handledErrorBox)
+            {
+                // the connection dropped, or a reconnect failed
+                this.handledErrorBox = box;
+                bool dropped = this.connection == ConnectionState.Connected;
+                this.SetConnection(ConnectionState.Disconnected);
+                if (dropped)
+                {
+                    this.reconnectAttempts = 0;
+                    Log.InfoFormat("Session {0} dropped: {1}", this.Text, error);
+                    if (!appInFront)
+                    {
+                        NativeMethods.FlashWindow(SuperPuTTY.MainForm.Handle, NativeMethods.FLASHW_TRAY | NativeMethods.FLASHW_TIMERNOFG);
+                    }
+                }
+
+                if (!autoReconnect)
+                {
+                    // PuTTY's own box stays up; Reconnect in the tab menu closes it
+                    SuperPuTTY.ReportStatus($"{this.Text} disconnected: {error}");
+                }
+                else if (this.reconnectAttempts < maxAttempts)
+                {
+                    PuttyWindow.DismissFatalError(box);
+                    this.nextReconnectAt = DateTime.Now.AddSeconds(delay);
+                    SuperPuTTY.ReportStatus(dropped
+                        ? $"{this.Text} disconnected: {error}. Reconnecting in {delay} s"
+                        : $"Reconnect {this.reconnectAttempts} of {maxAttempts} to {this.Text} failed: {error}. Trying again in {delay} s");
+                }
+                else
+                {
+                    PuttyWindow.DismissFatalError(box);
+                    this.nextReconnectAt = DateTime.MinValue;
+                    Log.InfoFormat("Gave up reconnecting {0} after {1} attempts", this.Text, maxAttempts);
+                    SuperPuTTY.ReportStatus($"Gave up reconnecting {this.Text} after {maxAttempts} attempts ({error}). Right-click the tab -> Reconnect to try again");
+                }
+                return;
+            }
+            if (box != IntPtr.Zero)
+                return;
+
+            switch (this.connection)
+            {
+                case ConnectionState.Connected:
+                    if (inactive)
+                    {
+                        // ended without an error, e.g. a non-zero exit status: not a drop, so don't reconnect
+                        this.SetConnection(ConnectionState.Disconnected);
+                        SuperPuTTY.ReportStatus($"{this.Text} ended. Right-click the tab -> Reconnect to start it again");
+                    }
+                    break;
+
+                case ConnectionState.Disconnected:
+                    this.seenInactive |= inactive;
+                    if (this.nextReconnectAt != DateTime.MinValue && DateTime.Now >= this.nextReconnectAt)
+                    {
+                        this.reconnectAttempts++;
+                        SuperPuTTY.ReportStatus($"Reconnecting {this.Text} ({this.reconnectAttempts} of {maxAttempts})...");
+                        this.SendRestart();
+                    }
+                    else if (!inactive && this.seenInactive && this.nextReconnectAt == DateTime.MinValue)
+                    {
+                        // restarted from PuTTY's own menu
+                        this.SendRestart();
+                    }
+                    break;
+
+                case ConnectionState.Reconnecting:
+                    if (inactive)
+                    {
+                        if ((DateTime.Now - this.reconnectSentAt).TotalSeconds >= ResendRestartSeconds)
+                        {
+                            // PuTTY ignores Restart Session until the session is inactive, so the first may have been early
+                            this.SendRestart();
+                        }
+                    }
+                    else if (SessionLog.LengthOf(this.SessionLogPath) > this.logLengthAtReconnect
+                        || (DateTime.Now - this.reconnectSentAt).TotalSeconds >= QuietReconnectSeconds)
+                    {
+                        this.reconnectAttempts = 0;
+                        this.SetConnection(ConnectionState.Connected);
+                        Log.InfoFormat("Session {0} reconnected", this.Text);
+                        SuperPuTTY.ReportStatus($"{this.Text} reconnected");
+                    }
+                    break;
+            }
+        }
+
+        /// <summary>Reconnect now, from the tab menu: close PuTTY's error box if it's up, then restart the session</summary>
+        public void Reconnect()
+        {
+            IntPtr window = this.AppPanel.AppWindowHandle;
+            if (window == IntPtr.Zero)
+                return;
+            this.reconnectAttempts = 0;
+            string error;
+            IntPtr box = PuttyWindow.FindFatalErrorBox(window, out error);
+            if (box != IntPtr.Zero)
+            {
+                // PuTTY can't restart until its box is closed and it has marked the session inactive; the next check
+                // sends Restart Session
+                this.handledErrorBox = box;
+                PuttyWindow.DismissFatalError(box);
+                this.nextReconnectAt = DateTime.Now.AddSeconds(1);
+            }
+            else
+            {
+                this.SendRestart();
+            }
+            SuperPuTTY.ReportStatus($"Reconnecting {this.Text}...");
+        }
+
+        /// <summary>Stop the automatic reconnects scheduled for this tab, from the tab menu</summary>
+        private void StopReconnecting()
+        {
+            this.nextReconnectAt = DateTime.MinValue;
+            SuperPuTTY.ReportStatus($"Stopped reconnecting {this.Text}");
+        }
+
+        /// <summary>Send PuTTY's Restart Session and wait for the session to come back</summary>
+        private void SendRestart()
+        {
+            this.nextReconnectAt = DateTime.MinValue;
+            if (this.connection != ConnectionState.Reconnecting)
+            {
+                this.logLengthAtReconnect = SessionLog.LengthOf(this.SessionLogPath);
+                this.SetConnection(ConnectionState.Reconnecting);
+            }
+            this.reconnectSentAt = DateTime.Now;
+            PuttyWindow.Restart(this.AppPanel.AppWindowHandle);
+        }
+
+        /// <summary>Change the connection state and the tab badge with it</summary>
+        /// <param name="state">The new state</param>
+        private void SetConnection(ConnectionState state)
+        {
+            if (state == this.connection)
+                return;
+            this.connection = state;
+            if (state == ConnectionState.Disconnected)
+            {
+                this.seenInactive = false;
+            }
+            this.UpdateTabIcon();
+        }
+
         /// <summary>Silence times offered in the tab menu, in seconds</summary>
         private static readonly int[] SilenceChoices = { 10, 30, 60, 300 };
 
         /// <summary>The tab menu items added by <see cref="AddOutputMenuItems"/></summary>
         private ToolStripMenuItem menuSearchOutput, menuWatchActivity, menuWatchSilence;
+
+        /// <summary>"Reconnect" and "Stop Reconnecting" at the top of the tab menu, shown while the session is down</summary>
+        private ToolStripMenuItem menuReconnect, menuStopReconnecting;
+
+        /// <summary>The separator under <see cref="menuReconnect"/></summary>
+        private ToolStripSeparator menuReconnectSeparator;
 
         /// <summary>
         /// Add "Search Output...", "Watch for Activity" and "Watch for Silence" to the tab's menu, after "Accept Commands".
@@ -753,6 +975,14 @@ namespace SuperPutty
             this.contextMenuStrip1.Items.Insert(index + 1, this.menuSearchOutput);
             this.contextMenuStrip1.Items.Insert(index + 2, this.menuWatchActivity);
             this.contextMenuStrip1.Items.Insert(index + 3, this.menuWatchSilence);
+
+            this.menuReconnect = new ToolStripMenuItem("&Reconnect", null, (s, e) => this.Reconnect());
+            this.menuReconnect.Font = new System.Drawing.Font(this.menuReconnect.Font, System.Drawing.FontStyle.Bold);
+            this.menuStopReconnecting = new ToolStripMenuItem("Stop Reconnecting", null, (s, e) => this.StopReconnecting());
+            this.menuReconnectSeparator = new ToolStripSeparator();
+            this.contextMenuStrip1.Items.Insert(0, this.menuReconnect);
+            this.contextMenuStrip1.Items.Insert(1, this.menuStopReconnecting);
+            this.contextMenuStrip1.Items.Insert(2, this.menuReconnectSeparator);
         }
 
         /// <summary>Tick and enable the output menu items to match this tab before the menu opens</summary>
@@ -768,6 +998,9 @@ namespace SuperPutty
             {
                 item.Checked = (int)item.Tag == this.watchSilenceSeconds;
             }
+            this.menuReconnect.Visible = this.IsDisconnected;
+            this.menuReconnectSeparator.Visible = this.IsDisconnected;
+            this.menuStopReconnecting.Visible = this.connection == ConnectionState.Disconnected && this.nextReconnectAt != DateTime.MinValue;
         }
 
         /// <summary>Delete this session's temporary log once the tab has closed (kept logs stay)</summary>

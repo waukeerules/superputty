@@ -163,6 +163,8 @@ namespace SuperPutty.Gui
             settings.AudioCaptureRedirectionMode = this.options.RedirectMicrophone.Value;
             settings.AudioRedirectionMode = (uint)this.options.AudioMode.Value;
             settings.ConnectToAdministerServer = this.options.ConnectToConsole.Value;
+            // ride out network drops with the control's own "reconnecting" overlay (Options -> Advanced -> Dropped sessions)
+            settings.EnableAutoReconnect = SuperPuTTY.Settings.AutoReconnect;
             this.client.SecuredSettings3.KeyboardHookMode = this.options.KeyboardHookMode.Value;
             if (!string.IsNullOrWhiteSpace(this.options.GatewayHost))
             {

@@ -294,6 +294,33 @@ Right-click a tab → **Search Output...** opens a window (one per tab, closed w
 - Matching: plain text, match case and regex work, and an invalid regex is reported.
 - Alerts on a real tab object: output while unseen gives Activity; looking at the tab clears it; output while looking gives no alert; 1 s of quiet with a 1 s silence watch gives Silence, once, and again after the next output and quiet spell.
 
+## Dropped sessions stay open and reconnect
+
+When a PuTTY session drops (network error, the device reloads, the server times out an idle login), the tab now stays open with its scrollback, gets a red-cross badge, and reconnects in the same window.
+
+- **Detecting a drop:** PuTTY shows a "PuTTY Fatal Error" box with the reason (e.g. "Remote side unexpectedly closed network connection"). About once a second SuperPuTTY looks for that box among the windows of each tab's PuTTY process.
+- **Badge and status:** the tab gets a red-cross badge, which beats the activity and silence badges; only a running script's spinner beats it. The status bar shows the reason, and if SuperPuTTY isn't in front, its taskbar button flashes.
+- **Reconnecting automatically** (Tools → Options → Advanced → **Dropped sessions**; on by default, every 10 s, up to 6 times):
+  - SuperPuTTY closes PuTTY's error box and, after the delay, sends PuTTY's own **Restart Session**. That reconnects in the same window and appends to the same session log, so Search Output and alerts carry on.
+  - A failed attempt shows a new error box, which counts as an attempt; after the last one it gives up and says so.
+  - The session counts as back once it prints something again (e.g. `login as:`), or after 15 s active with no output. The badge then clears and the status bar says "reconnected".
+- **Reconnecting by hand:** right-click the tab → **Reconnect** (bold, at the top, shown only while the session is down). It closes PuTTY's error box if it's up, then restarts. **Stop Reconnecting** cancels a scheduled automatic attempt.
+- **Auto-reconnect off:** PuTTY's error box stays up as before, and the tab still gets the badge.
+- **Sessions that end without an error,** e.g. a non-zero exit status, leave PuTTY open as "(inactive)". They get the badge, but aren't reconnected automatically.
+- **Unchanged:**
+  - A clean exit (typing `exit`) still closes the tab.
+  - This relies on the PuTTY session's "Close window on exit" being "Only on clean exit", PuTTY's default. With "Always", a drop closes the tab as before.
+  - Raw-protocol sessions also close on a reset, because PuTTY exits.
+  - The session's SPSL login script isn't re-run after a reconnect.
+- **RDP tabs:** the Remote Desktop control's own auto-reconnect (`EnableAutoReconnect`, with its "reconnecting" overlay) follows the same checkbox. If it gives up, the tab closes as before.
+- **Code:** `Utils/PuttyWindow.cs` finds, reads and closes the error box, reads the "(inactive)" title, and sends Restart Session. `ctlPuttyPanel.CheckConnection` / `Reconnect` and the connection state machine are called from the timer in `frmSuperPutty`. Also `TabBadges.Disconnected`, and the settings `AutoReconnect`, `AutoReconnectDelaySeconds` and `AutoReconnectAttempts`.
+
+**Checked against PuTTY 0.85 and the compiled assembly:**
+- On a telnet session whose connection was reset, `PuttyWindow` found the error box and read "Network error: Software caused connection abort".
+- Closing the box left the window "(inactive)". Restart Session reconnected the same window; the session log was appended to, not overwritten; and the window was active again.
+- An idle SSH login to 192.168.3.2 was dropped by the server after 2 minutes with "Remote side unexpectedly closed network connection".
+- A restart with nothing listening showed a new error box ("Connection refused").
+
 ## Fix: the installer didn't include Newtonsoft.Json.dll
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
@@ -338,6 +365,14 @@ Secrets, icon-linked bars, logs and WAITFOR:
 7. Click the login button on an already logged-in tab: the status bar should show `▶ Login_Test (...): line 1/4 · WAITFOR login as: · N s`, and the button and the tab (with Show tab icons on) should show a spinner. Click the status-bar item → Stop: all three should go back to normal at once, with "stopped by you" in the status bar.
 
 The script runner was checked against the compiled assembly: a script blocked on `WAITFOR` showed `line 2/3 · WAITFOR password:` and stopped 12 ms after Stop, without typing the next line; a `SLEEP 20000` stopped after 15 ms; and nothing was left running.
+
+Dropped sessions:
+
+1. Open an SSH session to a device without logging in (e.g. 192.168.3.2 at `login as:`) and wait for the server's login timeout (about 2 minutes). The tab should stay open with a red-cross badge. The status bar should say "... disconnected: Remote side unexpectedly closed network connection. Reconnecting in 10 s", and about 10 s later `login as:` should come back in the same tab, with the badge gone and "reconnected" in the status bar.
+2. Untick **Tools → Options → Advanced → Reconnect automatically** and repeat: PuTTY's error box stays up and the tab gets the badge. Right-click the tab → **Reconnect**: the box closes and the session comes back.
+3. Pull the network (or point a session at a host that's down) with auto-reconnect on: each failed attempt should show "Reconnect n of 6 ... failed" in the status bar, then "Gave up reconnecting ...". Right-click → **Stop Reconnecting** during the wait should cancel the next attempt.
+4. Type `exit` in a logged-in session: the tab should close as before.
+5. RDP: with an RDP tab connected, briefly disconnect the network: the remote desktop should show its own "reconnecting" overlay and come back.
 
 Alerts and search:
 

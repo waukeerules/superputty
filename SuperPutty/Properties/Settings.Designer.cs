@@ -1205,5 +1205,44 @@ namespace SuperPutty.Properties {
                 this["SessionLogFolder"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool AutoReconnect {
+            get {
+                return ((bool)(this["AutoReconnect"]));
+            }
+            set {
+                this["AutoReconnect"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("10")]
+        public int AutoReconnectDelaySeconds {
+            get {
+                return ((int)(this["AutoReconnectDelaySeconds"]));
+            }
+            set {
+                this["AutoReconnectDelaySeconds"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("6")]
+        public int AutoReconnectAttempts {
+            get {
+                return ((int)(this["AutoReconnectAttempts"]));
+            }
+            set {
+                this["AutoReconnectAttempts"] = value;
+            }
+        }
     }
 }

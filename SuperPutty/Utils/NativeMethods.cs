@@ -1175,6 +1175,23 @@ namespace SuperPutty.Utils
         public static extern short VkKeyScan(char ch);
 
         public delegate bool CallBackPtr(int hwnd, int lParam);
+
+        /// <summary>Callback for <see cref="EnumWindows(EnumWindowsProc, IntPtr)"/>; return false to stop</summary>
+        public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        /// <summary>List the top-level windows, with pointer-sized handles</summary>
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+
+        /// <summary>A control in a dialog, by its ID</summary>
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetDlgItem(IntPtr hDlg, int nIDDlgItem);
+
+        /// <summary>Post a message with pointer-sized parameters</summary>
+        [DllImport("user32.dll", EntryPoint = "PostMessageW")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool PostMessagePtr(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
         public delegate IntPtr LowLevelKMProc(int nCode, IntPtr wParam, IntPtr lParam);
         public delegate bool EnumWindowProc(IntPtr hWnd, IntPtr parameter);
 
