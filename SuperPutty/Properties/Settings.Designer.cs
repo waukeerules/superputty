@@ -932,5 +932,31 @@ namespace SuperPutty.Properties {
                 this["Action_CopyAllToClipboard_Shortcut"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ShowButtonBar {
+            get {
+                return ((bool)(this["ShowButtonBar"]));
+            }
+            set {
+                this["ShowButtonBar"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string ActiveButtonBar {
+            get {
+                return ((string)(this["ActiveButtonBar"]));
+            }
+            set {
+                this["ActiveButtonBar"] = value;
+            }
+        }
     }
 }

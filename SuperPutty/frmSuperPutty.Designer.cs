@@ -62,6 +62,7 @@ namespace SuperPutty
             this.toolbarsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.quickConnectionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.sendCommandsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.buttonBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItem6 = new System.Windows.Forms.ToolStripSeparator();
             this.showStatusBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.showMenuBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -353,7 +354,8 @@ namespace SuperPutty
             // 
             this.toolbarsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.quickConnectionToolStripMenuItem,
-            this.sendCommandsToolStripMenuItem});
+            this.sendCommandsToolStripMenuItem,
+            this.buttonBarToolStripMenuItem});
             this.toolbarsToolStripMenuItem.Name = "toolbarsToolStripMenuItem";
             this.toolbarsToolStripMenuItem.Size = new System.Drawing.Size(186, 26);
             this.toolbarsToolStripMenuItem.Text = "&Toolbars";
@@ -375,6 +377,15 @@ namespace SuperPutty
             this.sendCommandsToolStripMenuItem.Size = new System.Drawing.Size(208, 26);
             this.sendCommandsToolStripMenuItem.Text = "&Send Commands";
             this.sendCommandsToolStripMenuItem.Click += new System.EventHandler(this.toggleCheckedState);
+            //
+            // buttonBarToolStripMenuItem
+            //
+            this.buttonBarToolStripMenuItem.Checked = true;
+            this.buttonBarToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.buttonBarToolStripMenuItem.Name = "buttonBarToolStripMenuItem";
+            this.buttonBarToolStripMenuItem.Size = new System.Drawing.Size(208, 26);
+            this.buttonBarToolStripMenuItem.Text = "&Button Bar";
+            this.buttonBarToolStripMenuItem.Click += new System.EventHandler(this.toggleCheckedState);
             // 
             // toolStripMenuItem6
             // 
@@ -957,6 +968,7 @@ namespace SuperPutty
         private System.Windows.Forms.ToolStripMenuItem toolbarsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem quickConnectionToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem sendCommandsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem buttonBarToolStripMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripMenuItem6;
         private System.Windows.Forms.ToolStripMenuItem showStatusBarToolStripMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripMenuItem7;

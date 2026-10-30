@@ -95,6 +95,37 @@ This is a long-standing upstream bug, not part of the placeholder feature. It's 
 
 The focus retry loop also returns immediately now, since PuTTY isn't running yet while `Show()` is in progress.
 
+## Button bar
+
+A row of one-click buttons above the status bar, modelled on SecureCRT's Button Bar. Show or hide it with **View → Toolbars → Button Bar**. The Send Commands toolbar is unchanged and still works alongside it.
+
+**Using it:**
+- **Click** a button to send it to the active tab. **Shift+click** sends it to every tab selected in the Send Commands toolbar's "Select documents" picker, filtered by its icon group the same way.
+- **Right-click** the bar to add, edit, delete or move buttons, and to create, rename or delete bars. The dropdown on the left switches bars.
+- Each button either sends a string or runs an SPSL script.
+  - **Send string:** escape codes `\r` Enter, `\n` line feed, `\t` Tab, `\b` Backspace, `\e` Escape, `\p` 1-second pause, `\v` paste clipboard, `\\` backslash. A line break typed in the editor also means Enter.
+  - **SPSL script:** the existing scripting language (`SENDLINE`, `SENDKEY`, `SLEEP`, ...).
+- `{key}` placeholders work in both and are filled in from **Tools → Environment Variables**. A button that uses an undefined key stops and offers to open that dialog, the same way a session does.
+- **Icons:** a button can show a colored circle, like SecureCRT's (eight presets or any custom color), or one of SuperPuTTY's session icons. The circle is stored as `Color="#3FB950"` and the icon as `ImageKey`.
+- **Focus:** one click is enough even while you're typing in a terminal, and the keyboard goes back to the active tab afterwards. A ToolStrip normally uses the first click on an inactive window only to activate it (`WM_MOUSEACTIVATE` → `MA_ACTIVATEANDEAT`); the bar answers `MA_ACTIVATE` instead, then calls `FocusActiveDocument`.
+
+**Storage:** `ButtonBars.xml` sits in the settings folder next to `Sessions.xml`, so a team that shares that folder shares the buttons; placeholders keep per-user values out of the file. Which bar is showing, and whether the bar is visible, are per-user settings (`ActiveButtonBar`, `ShowButtonBar`). The file is reloaded whenever the right-click menu opens, so edits apply to the latest version, and it's saved through a temporary file so a failed write can't leave a half-written file. If two people save at the same moment, the last one wins.
+
+**Files:**
+
+| File | Purpose |
+|---|---|
+| `Data/ButtonBarData.cs` | New. `CommandButton`, `ButtonBar` and `ButtonBarList`, the XML model |
+| `Utils/ButtonBarStore.cs` | New. Loads and saves `ButtonBars.xml` |
+| `Utils/SendStringParser.cs` | New. Turns a send string with escape codes into `CommandData` steps for the existing `SendToTerminal` |
+| `Gui/ButtonBarStrip.cs` | New. The toolbar: dropdown, buttons, right-click menu, and sending on background threads |
+| `Gui/dlgEditCommandButton.cs` / `.Designer.cs` | New. The button editor dialog, with dark mode |
+| `frmSuperPutty.cs` / `.Designer.cs` | Hosts the bar, adds the menu item, and hides it in full screen. The Send Commands target filter is moved, unchanged, into `GetSelectedPuttyPanels()` so both toolbars use it |
+| `Utils/SessionVariables.cs` | `EnsureDefined` also checks arbitrary text, for buttons |
+| `Properties/Settings.*`, `App.config` | `ShowButtonBar` (default on) and `ActiveButtonBar` |
+
+**Not done yet:** keyboard shortcuts for buttons, a default bar per session, and SecureCRT's other button actions (launch an application, menu functions).
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
@@ -123,6 +154,19 @@ Manual test:
 4. Remove `zone` again and launch: SuperPuTTY should stop and offer to open the Environment Variables dialog instead of connecting.
 5. Try the quick-connect toolbar, **Connect All** on a folder, Quick Selector and Restart.
 6. Close SuperPuTTY and open `Sessions.xml` (its location is shown in **Tools → Options**). The session should still say `{user}@{domain}`, not `jdoe@example.com`.
+
+Button bar:
+
+1. Right-click the bar → **New Button...**. Label `uptime`, Send string `uptime\r`. Click it with a session tab active: it should type `uptime` and press Enter.
+   - Click into the terminal, then click the button **once**: it should send right away, and you should be able to keep typing in the terminal without clicking it.
+   - Edit the button and pick a color from **Icon**, then **Custom color...**, then a session icon. Each should show on the button.
+2. Open two sessions and Shift+click the button: both should run it. Untick one in the Send Commands "Select documents" picker and Shift+click again: only the ticked one should.
+3. Make a button with `echo {user}\r`, then one with `echo {nokey}\r`. The first should echo your value; the second should stop and offer to open Environment Variables.
+4. Make an SPSL button (`SENDLINE whoami`), and a send string with `\p` between two commands; the pause shouldn't freeze the window.
+5. Create a second bar, switch between them, restart SuperPuTTY: the last bar shown should come back. Check that `ButtonBars.xml` is next to `Sessions.xml`.
+6. Toggle **View → Toolbars → Button Bar**, and go full screen and back. Check the bar and the editor dialog in both light and dark themes.
+
+The escape-code parser and the `ButtonBars.xml` format were checked directly against the compiled assembly: Enter, pauses, Tab/Escape/Backspace/line feed, clipboard (read only when `\v` is used), literal and unknown backslashes, typed line breaks, empty input, and an XML round-trip including an SPSL script.
 
 The substitution logic (`SessionVariables.Substitute` and `FindMissing`) was checked directly against the compiled assembly: the CyberArk string, case-insensitive keys, one pass with no re-expansion, undefined keys left in place and reported, and braces in a password not flagged. `SuperPuttyUnitTests` uses an NUnit 2.5 GUI runner, and most of its tests need a live SCP server, so these checks aren't in that project yet.
 

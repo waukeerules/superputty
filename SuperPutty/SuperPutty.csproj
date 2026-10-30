@@ -210,6 +210,7 @@
     <Compile Include="Data\LayoutData.cs" />
     <Compile Include="Data\PuttyDataHelper.cs" />
     <Compile Include="Data\RDPDataHelper.cs" />
+    <Compile Include="Data\ButtonBarData.cs" />
     <Compile Include="Data\SessionData.cs" />
     <Compile Include="Data\SessionDataStartInfo.cs" />
     <Compile Include="DebugLogViewer.cs">
@@ -223,6 +224,15 @@
     </Compile>
     <Compile Include="dlgMouseFeedback.Designer.cs">
       <DependentUpon>dlgMouseFeedback.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Gui\ButtonBarStrip.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Gui\dlgEditCommandButton.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Gui\dlgEditCommandButton.Designer.cs">
+      <DependentUpon>dlgEditCommandButton.cs</DependentUpon>
     </Compile>
     <Compile Include="Gui\dlgRenameItem.cs">
       <SubType>Form</SubType>
@@ -318,6 +328,8 @@
     <Compile Include="Models\EnvironmentVariable.cs" />
     <Compile Include="Utils\EnvironmentVariablesManager.cs" />
     <Compile Include="Utils\SessionVariables.cs" />
+    <Compile Include="Utils\ButtonBarStore.cs" />
+    <Compile Include="Utils\SendStringParser.cs" />
     <EmbeddedResource Include="AboutBox.resx">
       <DependentUpon>AboutBox.cs</DependentUpon>
       <SubType>Designer</SubType>

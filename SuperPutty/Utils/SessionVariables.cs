@@ -90,15 +90,41 @@ namespace SuperPutty.Utils
         /// <returns>true if the session can be launched</returns>
         public static bool EnsureDefined(SessionData session, IWin32Window owner = null)
         {
+            return EnsureDefined(variables => FindMissing(session, variables), $"Session \"{session.SessionName}\"", owner);
+        }
+
+        /// <summary>
+        /// Check that every placeholder in <paramref name="text"/> has a value. If not, tell the user which
+        /// are missing and offer to open the Environment Variables dialog to define them.
+        /// </summary>
+        /// <param name="text">Text that may contain placeholders, e.g. a button bar command</param>
+        /// <param name="subject">What the text belongs to, for the message, e.g. "Button \"Show version\""</param>
+        /// <param name="owner">Owner window for the dialogs</param>
+        /// <returns>true if the text can be used</returns>
+        public static bool EnsureDefined(string text, string subject, IWin32Window owner = null)
+        {
+            return EnsureDefined(variables => FindMissing(text, variables), subject, owner);
+        }
+
+        /// <summary>
+        /// Repeatedly check for undefined placeholders and offer to open the Environment Variables dialog,
+        /// until none are missing or the user gives up
+        /// </summary>
+        /// <param name="findMissing">Returns the undefined placeholders, given the user's current values</param>
+        /// <param name="subject">What is being checked, for the message and the log</param>
+        /// <param name="owner">Owner window for the dialogs</param>
+        /// <returns>true once nothing is missing; false if the user declined or cancelled</returns>
+        private static bool EnsureDefined(Func<Dictionary<string, string>, List<string>> findMissing, string subject, IWin32Window owner)
+        {
             while (true)
             {
-                List<string> missing = FindMissing(session, Load());
+                List<string> missing = findMissing(Load());
                 if (missing.Count == 0)
                     return true;
 
-                Log.WarnFormat("Session {0} has undefined placeholders: {1}", session.SessionId, string.Join(", ", missing));
+                Log.WarnFormat("{0} has undefined placeholders: {1}", subject, string.Join(", ", missing));
                 DialogResult result = Messenger.MessageBox(
-                    $"Session \"{session.SessionName}\" uses placeholders that have no value yet:\n\n{string.Join(", ", missing)}\n\n" +
+                    $"{subject} uses placeholders that have no value yet:\n\n{string.Join(", ", missing)}\n\n" +
                     "Define them in Tools -> Environment Variables. Open it now?",
                     "Undefined placeholders", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
                 if (result != DialogResult.Yes)

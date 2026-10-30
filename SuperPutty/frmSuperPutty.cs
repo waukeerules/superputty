@@ -82,6 +82,9 @@ namespace SuperPutty
         /// <summary>A collection containing send command history</summary>
         private SortableBindingList<HistoryEntry> tsCommandHistory = new SortableBindingList<HistoryEntry>();
 
+        /// <summary>The button bar above the status bar (View -> Toolbars -> Button Bar)</summary>
+        private ButtonBarStrip buttonBar;
+
         /// <summary>The main SuperPuTTY application form</summary>
         public frmSuperPutty()
         {
@@ -146,6 +149,12 @@ namespace SuperPutty
             this.tbFocusHelperUserName = new TextBoxFocusHelper(this.tbTxtBoxLogin.TextBox);
             this.tbFocusHelperPassword = new TextBoxFocusHelper(this.tbTxtBoxPassword.TextBox);
             this.sendCommandsDocumentSelector = new frmDocumentSelector(this.DockPanel) {Owner = this};
+
+            // Button bar, docked above the status bar. Docking goes in reverse child order, so keep the
+            // status bar last (docked first, bottom-most) and the button bar just before it.
+            this.buttonBar = new ButtonBarStrip(this.GetButtonBarTargets);
+            this.toolStripContainer1.ContentPanel.Controls.Add(this.buttonBar);
+            this.toolStripContainer1.ContentPanel.Controls.SetChildIndex(this.buttonBar, 1);
 
             // Send Command toolbar history
             PropertyDescriptor pd = TypeDescriptor.GetProperties(typeof(HistoryEntry))["TimeStamp"];
@@ -602,6 +611,7 @@ namespace SuperPutty
             SuperPuTTY.Settings.ShowStatusBar = this.showStatusBarToolStripMenuItem.Checked;
             SuperPuTTY.Settings.ShowToolBarConnections = this.quickConnectionToolStripMenuItem.Checked;
             SuperPuTTY.Settings.ShowToolBarCommands = this.sendCommandsToolStripMenuItem.Checked;
+            SuperPuTTY.Settings.ShowButtonBar = this.buttonBarToolStripMenuItem.Checked;
             SuperPuTTY.Settings.AlwaysOnTop = this.alwaysOnTopToolStripMenuItem.Checked;
             SuperPuTTY.Settings.ShowMenuBar = this.showMenuBarToolStripMenuItem.Checked;
             SuperPuTTY.Settings.ShowLogViewerTool = this.showLogViewerToolStripMenuItem.Checked;
@@ -622,6 +632,9 @@ namespace SuperPutty
 
             this.tsCommands.Visible = SuperPuTTY.Settings.ShowToolBarCommands;
             this.sendCommandsToolStripMenuItem.Checked = SuperPuTTY.Settings.ShowToolBarCommands;
+
+            this.buttonBar.Visible = SuperPuTTY.Settings.ShowButtonBar;
+            this.buttonBarToolStripMenuItem.Checked = SuperPuTTY.Settings.ShowButtonBar;
 
             this.TopMost = SuperPuTTY.Settings.AlwaysOnTop;
             this.alwaysOnTopToolStripMenuItem.Checked = SuperPuTTY.Settings.AlwaysOnTop;
@@ -724,6 +737,8 @@ namespace SuperPutty
             public bool MenuBar { get; set; }
             public bool ConnectionBar { get; set; }
             public bool CommandBar { get; set; }
+            /// <summary>Whether the button bar was shown before going full screen</summary>
+            public bool ButtonBar { get; set; }
             public bool SessionsWindow { get; set; }
             public bool LogWindow { get; set; }
             public bool LayoutWindow { get; set; }
@@ -744,6 +759,7 @@ namespace SuperPutty
 
                 this.ConnectionBar = this.MainForm.quickConnectionToolStripMenuItem.Checked;
                 this.CommandBar = this.MainForm.sendCommandsToolStripMenuItem.Checked;
+                this.ButtonBar = this.MainForm.buttonBarToolStripMenuItem.Checked;
 
                 this.LogWindow = this.MainForm.showLogViewerToolStripMenuItem.Checked;
 
@@ -777,6 +793,7 @@ namespace SuperPutty
                     // toolbars
                     this.MainForm.tsCommands.Visible = false;
                     this.MainForm.tsConnect.Visible = false;
+                    this.MainForm.buttonBar.Visible = false;
 
                     // menubar
                     this.MainForm.menuStrip1.Hide();
@@ -827,6 +844,7 @@ namespace SuperPutty
                     }
                     else if (this.CommandBar) { this.MainForm.tsCommands.Visible = true; }
                     else if (this.ConnectionBar) { this.MainForm.tsConnect.Visible = true; }
+                    if (this.ButtonBar) { this.MainForm.buttonBar.Visible = true; }
 
                     // menubar
                     if (this.MenuBar) { this.MainForm.menuStrip1.Show(); }
@@ -1269,6 +1287,45 @@ namespace SuperPutty
             return TrySendCommandsFromToolbar(new CommandData(this.tsSendCommandCombo.Text), saveHistory);
         }
 
+        /// <summary>
+        /// The terminal tabs that Send Commands sends to: those ticked in the "Select documents" picker
+        /// and, if an icon group is chosen on the toolbar, only those with that icon
+        /// </summary>
+        /// <returns>The selected tabs, in visual order</returns>
+        private List<ctlPuttyPanel> GetSelectedPuttyPanels()
+        {
+            List<ctlPuttyPanel> panels = new List<ctlPuttyPanel>();
+            foreach (IDockContent doc in VisualOrderTabSwitchStrategy.GetDocuments(this.DockPanel))
+            {
+                if (doc is ctlPuttyPanel)
+                {
+                    ctlPuttyPanel panel = doc as ctlPuttyPanel;
+                    if (this.toolStripButtonChooseIconGroup.ImageKey != "" && this.toolStripButtonChooseIconGroup.ImageKey != "stop" && (panel.Session.ImageKey == "" || panel.Session.ImageKey != this.toolStripButtonChooseIconGroup.ImageKey))
+                    {
+                        continue;
+                    }
+                    if (this.sendCommandsDocumentSelector.IsDocumentSelected(panel))
+                    {
+                        panels.Add(panel);
+                    }
+                }
+            }
+            return panels;
+        }
+
+        /// <summary>The tabs a button bar click sends to (see <see cref="ButtonBarStrip"/>)</summary>
+        /// <param name="selected">true for Shift+click: the tabs selected for Send Commands; false: just the active tab</param>
+        /// <returns>The target tabs; empty if there are none</returns>
+        private IList<ctlPuttyPanel> GetButtonBarTargets(bool selected)
+        {
+            if (selected)
+            {
+                return this.GetSelectedPuttyPanels();
+            }
+            ctlPuttyPanel active = this.DockPanel.ActiveDocument as ctlPuttyPanel;
+            return active != null ? new List<ctlPuttyPanel> { active } : new List<ctlPuttyPanel>();
+        }
+
         /// <summary>Send commands to open sessions</summary>
         /// <param name="command">The <seealso cref="CommandData"/> object containing text and or keyboard commands</param>
         /// <param name="saveHistory">If True, save the history in the command toolbar combobox</param>
@@ -1279,27 +1336,16 @@ namespace SuperPutty
 
             if(this.DockPanel.Contents.Count > 0)
             {
-                foreach (IDockContent doc in VisualOrderTabSwitchStrategy.GetDocuments(this.DockPanel))
+                foreach (ctlPuttyPanel panel in this.GetSelectedPuttyPanels())
                 {
-                    if (doc is ctlPuttyPanel)
-                    {
-                        ctlPuttyPanel panel = doc as ctlPuttyPanel;
-                        if (this.toolStripButtonChooseIconGroup.ImageKey != "" && this.toolStripButtonChooseIconGroup.ImageKey != "stop" && (panel.Session.ImageKey == "" || panel.Session.ImageKey != this.toolStripButtonChooseIconGroup.ImageKey))
-                        {
-                            continue;
-                        }
-                        if (this.sendCommandsDocumentSelector.IsDocumentSelected(panel))
-                        {
-                            System.IntPtr hPtr = panel.AppPanel.AppWindowHandle;
-                            int handle = hPtr.ToInt32();
-                            //Log.InfoFormat("SendCommand: session={0}, command=[{1}], handle={2}", panel.Session.SessionId, command, handle);
+                    System.IntPtr hPtr = panel.AppPanel.AppWindowHandle;
+                    int handle = hPtr.ToInt32();
+                    //Log.InfoFormat("SendCommand: session={0}, command=[{1}], handle={2}", panel.Session.SessionId, command, handle);
 
-                            command.SendToTerminal(handle);
+                    command.SendToTerminal(handle);
 
-                            sent++;                 
-                        }
-                    }
-                }                 
+                    sent++;
+                }
 
                 if (sent > 0)
                 {
