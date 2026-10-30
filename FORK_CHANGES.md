@@ -80,6 +80,21 @@ Each upstream file changes only by a few lines:
 - **Duplicated code and unrelated reformatting** in `frmSuperPutty.cs`, `SessionTreeview.cs`, `PuttyStartInfo.cs` and `Settings.cs` were reverted to upstream, which keeps the diff small for review.
 - **Substitution depended on key order and was case-sensitive** while the dialog's duplicate check was not. It's now one case-insensitive regex pass.
 
+## Other fix: first tab opens with a squished terminal
+
+This is a long-standing upstream bug, not part of the placeholder feature. It's a separate commit, so it can go upstream on its own.
+
+**Symptom:** the first session opened after starting SuperPuTTY shows its login banner wrapped at about 24 columns. Every later session is fine.
+
+**Cause:** `ctlPuttyPanel.CreatePanel()` sets `ApplicationName` and then calls `Controls.Add(AppPanel)`. Adding a control to a hidden parent raises `OnVisibleChanged`, and `ApplicationPanel` starts PuTTY there, while the tab is still being constructed at its placeholder size. From the second tab on, the tab area already exists, so PuTTY is moved to full size within milliseconds. For the first tab, the tab area is created and laid out only at the end of `Show()`, after `FocusActiveDocument` → `SetFocusToChildApplication` retries for about 0.4 s. By then PuTTY has connected with a tiny terminal and the server's banner has wrapped. The log shows it as `MoveWindow [OnVisChanged] w=198, h=78`, then `[OnResize] w=1656, h=875` about 0.5 s later.
+
+**Fix:**
+- `ApplicationPanel` gets a `StartOnVisible` property (default `true`, the old behavior) and a public `StartApplication()`. The startup code moved there unchanged.
+- `ctlPuttyPanel` sets `StartOnVisible = false` before `Controls.Add`.
+- `SuperPuTTY.OpenProtoSession` calls `StartApplication()` right after `panel.Show()`. Every tab goes through it, including layout restore. PuTTY's window exists as soon as `Show()` returns, so the SPSL script handle code is unchanged.
+
+The focus retry loop also returns immediately now, since PuTTY isn't running yet while `Show()` is in progress.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

@@ -109,6 +109,9 @@ namespace SuperPutty
             this.AppPanel.Size = new System.Drawing.Size(this.Width, this.Height);
             this.AppPanel.TabIndex = 0;            
             this.AppPanel.m_CloseCallback = this.m_ApplicationExit;
+            // Adding the panel raises OnVisibleChanged, which would start PuTTY right here at this tab's
+            // placeholder size. SuperPuTTY.OpenProtoSession starts it once the tab has been shown and laid out.
+            this.AppPanel.StartOnVisible = false;
             this.Controls.Add(this.AppPanel);
 
             this.ResumeLayout();

@@ -470,6 +470,11 @@ namespace SuperPutty
                     ApplyDockRestrictions(panel);
                     ApplyIconForWindow(panel, session);
                     panel.Show(MainForm.DockPanel, session.LastDockstate);
+
+                    // Start PuTTY only now that Show() has laid out the tab. Starting it earlier (as the panel
+                    // used to, when it was created or first became visible) makes it connect with a tiny
+                    // terminal on the first tab, and the server then wraps its output at that width.
+                    panel.AppPanel.StartApplication("Opened");
                     ReportStatus($"Opened session: {session.SessionId} [{session.Proto}]");
 
                     if (!string.IsNullOrWhiteSpace(session.SPSLFileName))

@@ -76,6 +76,12 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         // Some windows need closed with WM_DESTROY others need closed with WM_CLOSE or they leave zombies
         public bool ApplicationCloseWithDestroy { get; set; }
 
+        /// <summary>
+        /// Start the application as soon as the panel becomes visible. Set to false to call
+        /// <see cref="StartApplication"/> yourself once the panel has its final size.
+        /// </summary>
+        public bool StartOnVisible { get; set; } = true;
+
         #endregion
 
         public ApplicationPanel(SuperPutty.Data.ConnectionProtocol proto)
@@ -443,130 +449,154 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         /// <param name="e">Not used</param>
         protected override void OnVisibleChanged(EventArgs e)
         {           
-            if (!m_Created && !String.IsNullOrEmpty(ApplicationName)) // only allow one instance of the child
+            if (!m_Created && this.StartOnVisible)
             {
-                m_Created = true;
-                m_AppWin = IntPtr.Zero;
-                try
+                this.StartApplication("OnVisChanged");
+            }
+            else if (this.Visible && this.m_Created && this.b_AppWinFinal && this.ExternalProcessCaptured)
+            {
+                this.ShowApplicationWindow("OnVisChanged");
+            }
+
+            base.OnVisibleChanged(e);
+        }
+
+        /// <summary>
+        /// Start the hosted application and capture its window. Only the first call has any effect.
+        /// </summary>
+        /// <param name="caller">Name logged with the window move</param>
+        public void StartApplication(string caller)
+        {
+            if (m_Created || String.IsNullOrEmpty(ApplicationName)) // only allow one instance of the child
+            {
+                return;
+            }
+
+            m_Created = true;
+            m_AppWin = IntPtr.Zero;
+            try
+            {
+                if (!File.Exists(ApplicationName))
                 {
-                    if (!File.Exists(ApplicationName))
+                    Messenger.MessageBox(ApplicationName + " not found in configured path, please go to Tools->Settings and set the correct path", "Application Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                m_Process = new Process
+                {
+                    EnableRaisingEvents = true,
+                    StartInfo =
                     {
-                        Messenger.MessageBox(ApplicationName + " not found in configured path, please go to Tools->Settings and set the correct path", "Application Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return;
+                        FileName = ApplicationName,
+                        Arguments = ApplicationParameters,
+                        WindowStyle = ProcessWindowStyle.Maximized
                     }
-                    m_Process = new Process
+                };
+
+                if (!string.IsNullOrEmpty(this.ApplicationWorkingDirectory) &&
+                    Directory.Exists(this.ApplicationWorkingDirectory))
+                {
+                    m_Process.StartInfo.WorkingDirectory = this.ApplicationWorkingDirectory;
+                }
+
+                m_Process.Exited += delegate {
+                    m_CloseCallback(true);
+                };
+
+                m_Process.Start();
+
+                m_Process = this.WaitForTargetProcess(m_Process);
+                if (this.IsWindowAppliesForInherit(m_Process.MainWindowHandle))
+                {
+                    m_AppWin = m_Process.MainWindowHandle;
+
+                    if (IntPtr.Zero == m_AppWin)
                     {
-                        EnableRaisingEvents = true,
-                        StartInfo =
+                        int poolInterval = this.GetMaxWindowPoolingTime();
+                        Log.WarnFormat("Unable to get handle for process on first try.{0}", LoopWaitForHandle ? "  Polling " + poolInterval + " s for handle." : "");
+                        if (LoopWaitForHandle)
                         {
-                            FileName = ApplicationName,
-                            Arguments = ApplicationParameters,
-                            WindowStyle = ProcessWindowStyle.Maximized
-                        }
-                    };
-
-                    if (!string.IsNullOrEmpty(this.ApplicationWorkingDirectory) &&
-                        Directory.Exists(this.ApplicationWorkingDirectory))
-                    {
-                        m_Process.StartInfo.WorkingDirectory = this.ApplicationWorkingDirectory;
-                    }
-
-                    m_Process.Exited += delegate {
-                        m_CloseCallback(true);
-                    };
-
-                    m_Process.Start();
-
-                    m_Process = this.WaitForTargetProcess(m_Process);
-                    if (this.IsWindowAppliesForInherit(m_Process.MainWindowHandle))
-                    {
-                        m_AppWin = m_Process.MainWindowHandle;
-
-                        if (IntPtr.Zero == m_AppWin)
-                        {
-                            int poolInterval = this.GetMaxWindowPoolingTime();
-                            Log.WarnFormat("Unable to get handle for process on first try.{0}", LoopWaitForHandle ? "  Polling " + poolInterval + " s for handle." : "");
-                            if (LoopWaitForHandle)
+                            DateTime startTime = DateTime.Now;
+                            while ((DateTime.Now - startTime).TotalSeconds < poolInterval)
                             {
-                                DateTime startTime = DateTime.Now;
-                                while ((DateTime.Now - startTime).TotalSeconds < poolInterval)
-                                {
-                                    System.Threading.Thread.Sleep(50);
+                                System.Threading.Thread.Sleep(50);
 
-                                    // Refresh Process object's view of real process
-                                    m_Process.Refresh();
-                                    if (!this.IsWindowAppliesForInherit(m_Process.MainWindowHandle))
-                                        continue;
-                                    m_AppWin = m_Process.MainWindowHandle;
-                                    if (IntPtr.Zero != m_AppWin)
-                                    {
-                                        Log.Info("Successfully found handle via polling " + (DateTime.Now - startTime).TotalMilliseconds + " ms");
-                                        break;
-                                    }
+                                // Refresh Process object's view of real process
+                                m_Process.Refresh();
+                                if (!this.IsWindowAppliesForInherit(m_Process.MainWindowHandle))
+                                    continue;
+                                m_AppWin = m_Process.MainWindowHandle;
+                                if (IntPtr.Zero != m_AppWin)
+                                {
+                                    Log.Info("Successfully found handle via polling " + (DateTime.Now - startTime).TotalMilliseconds + " ms");
+                                    break;
                                 }
                             }
                         }
                     }
-                    else
-                    {
-                        b_AppWinFinal = false;
-                        this.CreateVirtWindow();
-                        bgWinTracker.DoWork += new DoWorkEventHandler(bgWinTracker_DoWork);
-                        bgWinTracker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(bgWinTracker_Done);
-                        bgWinTracker.RunWorkerAsync();
-                    }
                 }
-                catch (InvalidOperationException ex)
+                else
                 {
-                    /* Possible Causes:
-                     * No file name was specified in the Process component's StartInfo.
-                     * -or-
-                     * The ProcessStartInfo.UseShellExecute member of the StartInfo property is true while ProcessStartInfo.RedirectStandardInput, 
-                     * ProcessStartInfo.RedirectStandardOutput, or ProcessStartInfo.RedirectStandardError is true. 
-                     */
-                    Messenger.MessageBox(ex.Message, "Invalid Operation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    b_AppWinFinal = false;
+                    this.CreateVirtWindow();
+                    bgWinTracker.DoWork += new DoWorkEventHandler(bgWinTracker_DoWork);
+                    bgWinTracker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(bgWinTracker_Done);
+                    bgWinTracker.RunWorkerAsync();
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                /* Possible Causes:
+                 * No file name was specified in the Process component's StartInfo.
+                 * -or-
+                 * The ProcessStartInfo.UseShellExecute member of the StartInfo property is true while ProcessStartInfo.RedirectStandardInput, 
+                 * ProcessStartInfo.RedirectStandardOutput, or ProcessStartInfo.RedirectStandardError is true. 
+                 */
+                Messenger.MessageBox(ex.Message, "Invalid Operation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                throw;
+            }
+            catch (Win32Exception ex)
+            {
+                /*
+                 * Checks are elsewhere to ensure these don't occur, but incase they do we're gonna bail with a nasty exception
+                 * which will hopefully send users kicking and screaming at me to fix this (And hopefully they will include a 
+                 * stacktrace!)
+                 */
+                if (ex.NativeErrorCode == NativeMethods.ERROR_ACCESS_DENIED)
+                {
                     throw;
                 }
-                catch (Win32Exception ex)
+                else if (ex.NativeErrorCode == NativeMethods.ERROR_FILE_NOT_FOUND)
                 {
-                    /*
-                     * Checks are elsewhere to ensure these don't occur, but incase they do we're gonna bail with a nasty exception
-                     * which will hopefully send users kicking and screaming at me to fix this (And hopefully they will include a 
-                     * stacktrace!)
-                     */
-                    if (ex.NativeErrorCode == NativeMethods.ERROR_ACCESS_DENIED)
-                    {
-                        throw;
-                    }
-                    else if (ex.NativeErrorCode == NativeMethods.ERROR_FILE_NOT_FOUND)
-                    {
-                        throw;
-                    }
+                    throw;
                 }
-
-                if (SuperPuTTY.PuTTYAppName + " Command Line Error" == this.m_Process.MainWindowTitle)
-                {
-                    // dont' try to capture or manipulate the window
-                    Log.WarnFormat("Error while creating putty session: title={0}, handle={1}.  Abort capture window", this.m_Process.MainWindowTitle, this.m_AppWin);
-                    Messenger.MessageBox("Could not start putty session: Arguments passed to commandline are invalid.", "PuTTY command line error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    this.m_AppWin = IntPtr.Zero;
-                }
-                
-                this.AttachToWindow();
             }
 
-            if (this.Visible && this.m_Created && this.b_AppWinFinal && this.ExternalProcessCaptured)
+            if (SuperPuTTY.PuTTYAppName + " Command Line Error" == this.m_Process.MainWindowTitle)
             {
-                // Move the child so it's located over the parent
-                this.MoveWindow("OnVisChanged");
-                
-                if (RefocusOnVisChanged && NativeMethods.GetForegroundWindow() != this.m_AppWin)
-                {
-                    this.BeginInvoke(new MethodInvoker(delegate { this.ReFocusPuTTY("OnVisChanged"); }));
-                }
+                // dont' try to capture or manipulate the window
+                Log.WarnFormat("Error while creating putty session: title={0}, handle={1}.  Abort capture window", this.m_Process.MainWindowTitle, this.m_AppWin);
+                Messenger.MessageBox("Could not start putty session: Arguments passed to commandline are invalid.", "PuTTY command line error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                this.m_AppWin = IntPtr.Zero;
             }
+            
+            this.AttachToWindow();
 
-            base.OnVisibleChanged(e);
+            if (this.Visible && this.b_AppWinFinal && this.ExternalProcessCaptured)
+            {
+                this.ShowApplicationWindow(caller);
+            }
+        }
+
+        /// <summary>Move the hosted window over this panel and give it focus</summary>
+        private void ShowApplicationWindow(string caller)
+        {
+            // Move the child so it's located over the parent
+            this.MoveWindow(caller);
+
+            if (RefocusOnVisChanged && NativeMethods.GetForegroundWindow() != this.m_AppWin)
+            {
+                this.BeginInvoke(new MethodInvoker(delegate { this.ReFocusPuTTY(caller); }));
+            }
         }
 
         
