@@ -95,6 +95,8 @@ This is a long-standing upstream bug, not part of the placeholder feature. It's 
 
 The focus retry loop also returns immediately now, since PuTTY isn't running yet while `Show()` is in progress.
 
+**Follow-up fix:** `ChildWindowFocusHelper` kept a dictionary keyed by each tab's window handle, filled when the tab is added. Since PuTTY now starts after that, every new tab was added with handle `0`, and the second one threw `ArgumentException: An item with the same key has already been added` from `DockPanel_ContentAdded`. The helper now keeps a list of the tabs and compares their current handles when it needs to, in `ContainsChild`. That also stays correct for RDP, whose window handle can change after capture.
+
 ## Button bar
 
 A row of one-click buttons above the status bar, modelled on SecureCRT's Button Bar. Show or hide it with **View → Toolbars → Button Bar**. The Send Commands toolbar is unchanged and still works alongside it.
@@ -150,6 +152,19 @@ Upstream loads icons from `themes\default\icons` under the **current directory**
 4. `Program Files (x86)` and `Program Files`, under both `SuperXPuTTY` and `SuperPuTTY`.
 
 The log lists each folder used and how many icons came from it.
+
+## Other fix: cmd, PowerShell and WSL open in their own window on Windows 11
+
+**Symptom:** on Windows 11, double-clicking a PowerShell (or cmd, or WSL) session opens it in a separate Windows Terminal window instead of a tab. The log shows `Unable to get handle for process on first try. Polling 10 s for handle.`, and the session takes 10 seconds to give up.
+
+**Cause:** Windows 11's default terminal setting ("Let Windows decide", or Windows Terminal) hands console programs to Windows Terminal. The started `powershell.exe` never owns a window; the window that appears is Windows Terminal's (`CASCADIA_HOSTING_WINDOW_CLASS`), owned by a different process, so there's nothing SuperPuTTY can embed.
+
+**Fix:**
+- `PuttyStartInfo.UsesConsoleHost` starts these three protocols as `conhost.exe "<program>" <args>` on Windows 11 and later (build 22000+, read from the registry). Running a program under `conhost.exe` explicitly skips the hand-off and gives a classic console window (`ConsoleWindowClass`). Windows 10 keeps upstream's behavior.
+- Windows reports a console window as belonging to the program inside it, not to `conhost`. `ApplicationPanel.WaitForTargetProcess`, upstream's hook for programs that start other programs, now follows `conhost` to its child (`FindChildProcess`, using WMI) and captures that, exactly as on Windows 10.
+- The project now references `System.Management`.
+
+**Checked:** `PuttyStartInfo` produces `conhost.exe "...\powershell.exe"` for PS and `conhost.exe "...\cmd.exe"` for WINCMD, and leaves SSH unchanged. Starting `conhost` with PowerShell the way `ApplicationPanel` does, `FindChildProcess` found `powershell` in about 230 ms, and its window was a `ConsoleWindowClass`. Started directly, cmd's only window was Windows Terminal's.
 
 ## Open questions
 

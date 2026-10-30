@@ -198,7 +198,49 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
                 proto != SuperPutty.Data.ConnectionProtocol.WSL) /* Console applications don't respond to some GUI specific calls */
                 prc.WaitForInputIdle();
 
+            // Console sessions started under conhost.exe (see PuttyStartInfo.UsesConsoleHost): Windows reports
+            // the console window as belonging to the shell conhost starts, not to conhost, so capture that
+            if (string.Equals(Path.GetFileName(prc.StartInfo.FileName), "conhost.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                Process child = FindChildProcess(prc, TimeSpan.FromSeconds(5));
+                if (child != null)
+                {
+                    Log.InfoFormat("Following conhost (pid {0}) to {1} (pid {2})", prc.Id, child.ProcessName, child.Id);
+                    return child;
+                }
+                Log.WarnFormat("conhost (pid {0}) started no child process; the console window may not be captured", prc.Id);
+            }
+
             return prc;
+        }
+
+        /// <summary>Wait for a process to start a child process, and return the first one found</summary>
+        /// <param name="parent">The parent process</param>
+        /// <param name="timeout">How long to wait</param>
+        /// <returns>The child process, or null if none started in time or the parent exited</returns>
+        private static Process FindChildProcess(Process parent, TimeSpan timeout)
+        {
+            DateTime giveUp = DateTime.Now + timeout;
+            string query = "SELECT ProcessId FROM Win32_Process WHERE ParentProcessId=" + parent.Id;
+            while (DateTime.Now < giveUp && !parent.HasExited)
+            {
+                using (System.Management.ManagementObjectSearcher searcher = new System.Management.ManagementObjectSearcher(query))
+                {
+                    foreach (System.Management.ManagementBaseObject child in searcher.Get())
+                    {
+                        try
+                        {
+                            return Process.GetProcessById(Convert.ToInt32(child["ProcessId"]));
+                        }
+                        catch (ArgumentException)
+                        {
+                            // the child already exited; keep looking
+                        }
+                    }
+                }
+                System.Threading.Thread.Sleep(50);
+            }
+            return null;
         }
 
         private void AttachToWindow()

@@ -98,10 +98,57 @@ namespace SuperPutty.Utils
                 argsToLog = MakeArgs(session, false);
             }
 
+            // Windows 11 hands console programs to the default terminal (usually Windows Terminal), whose window
+            // belongs to another process and can't be embedded. Under conhost.exe they keep a classic console
+            // window; ApplicationPanel.WaitForTargetProcess then follows conhost to the shell to find it.
+            if (UsesConsoleHost(session.Proto))
+            {
+                this.Args = ("\"" + this.Executable + "\" " + this.Args).TrimEnd();
+                this.Executable = ConsoleHostPath;
+            }
+
             // attempt to parse env vars
             this.Args = this.Args.Contains('%') ? TryParseEnvVars(this.Args) : this.Args;
 
             Log.InfoFormat("Putty Args: '{0}'", argsToLog ?? this.Args);
+        }
+
+        /// <summary>Full path of conhost.exe, the classic Windows console host</summary>
+        public static readonly string ConsoleHostPath = Environment.ExpandEnvironmentVariables(@"%systemroot%\system32\conhost.exe");
+
+        /// <summary>First Windows build (Windows 11) that can hand console programs to another terminal such as Windows Terminal</summary>
+        private const int FirstBuildWithTerminalDelegation = 22000;
+
+        /// <summary>The Windows build number, read once from the registry (Environment.OSVersion reports 6.2 to apps without a manifest)</summary>
+        private static readonly Lazy<int> WindowsBuild = new Lazy<int>(() =>
+        {
+            try
+            {
+                using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
+                {
+                    int build;
+                    return int.TryParse(key?.GetValue("CurrentBuildNumber") as string, out build) ? build : 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Could not read the Windows build number", ex);
+                return 0;
+            }
+        });
+
+        /// <summary>
+        /// Whether sessions of this protocol are started under conhost.exe so their window can be embedded:
+        /// the console protocols (cmd, PowerShell, WSL) on Windows 11 and later, where the default terminal
+        /// may otherwise take the window
+        /// </summary>
+        /// <param name="proto">The session's protocol</param>
+        /// <returns>true to start the session as "conhost.exe &lt;program&gt; &lt;args&gt;"</returns>
+        public static bool UsesConsoleHost(ConnectionProtocol proto)
+        {
+            return (proto == ConnectionProtocol.WINCMD || proto == ConnectionProtocol.PS || proto == ConnectionProtocol.WSL)
+                && WindowsBuild.Value >= FirstBuildWithTerminalDelegation
+                && File.Exists(ConsoleHostPath);
         }
 
         static string MakeArgs(SessionData session, bool includePassword)
