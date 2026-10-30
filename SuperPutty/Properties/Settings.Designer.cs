@@ -971,5 +971,18 @@ namespace SuperPutty.Properties {
                 this["SessionsSearchFields"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool RdpUseEmbeddedClient {
+            get {
+                return ((bool)(this["RdpUseEmbeddedClient"]));
+            }
+            set {
+                this["RdpUseEmbeddedClient"] = value;
+            }
+        }
     }
 }

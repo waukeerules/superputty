@@ -73,6 +73,8 @@ namespace SuperPutty.Utils
                 RDPStartInfo rdp = new RDPStartInfo(session, this.Executable);
                 this.Args = rdp.Args;
                 this.WorkingDir = rdp.StartingDir;
+                // the remote desktop is sized to the tab once its size is known (see ApplicationPanel.StartApplication)
+                this.ArgsForSize = size => { string args = rdp.GetArgs(size); return args.Contains('%') ? TryParseEnvVars(args) : args; };
             }
             else if (session.Proto == ConnectionProtocol.WINCMD)
             {
@@ -214,6 +216,12 @@ namespace SuperPutty.Utils
         public SessionData Session { get; private set; }
 
         public string Args { get; private set; }
+
+        /// <summary>
+        /// For protocols whose arguments depend on the window size (RDP), builds the arguments for a given
+        /// size; null for the others, which always use <see cref="Args"/>
+        /// </summary>
+        public Func<System.Drawing.Size, string> ArgsForSize { get; private set; }
         public string WorkingDir { get; private set; }
         public string Executable { get; private set; }
 

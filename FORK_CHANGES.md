@@ -166,6 +166,28 @@ The log lists each folder used and how many icons came from it.
 
 **Checked:** `PuttyStartInfo` produces `conhost.exe "...\powershell.exe"` for PS and `conhost.exe "...\cmd.exe"` for WINCMD, and leaves SSH unchanged. Starting `conhost` with PowerShell the way `ApplicationPanel` does, `FindChildProcess` found `powershell` in about 230 ms, and its window was a `ConsoleWindowClass`. Started directly, cmd's only window was Windows Terminal's.
 
+## RDP sessions fit the tab (built-in Remote Desktop client)
+
+**Before:** RDP tabs started `mstsc -v:host /span` and captured its window. `/span` makes the remote desktop as large as all monitors combined, so a tab only showed its top-left part. mstsc can't fix this from outside: in full-screen mode, the only mode SuperPuTTY can embed, it ignores the requested size and uses the monitor's resolution. Smart sizing and "size to the window" only work in windowed mode, and a windowed mstsc doesn't stay embedded. Both were tried.
+
+**Now**, RDP tabs host Microsoft's Remote Desktop ActiveX control (`mstscax.dll`, part of Windows) directly, as Remote Desktop Connection Manager (RDCMan) does:
+- **Sized to the tab:** the remote desktop is set to the tab's size when connecting.
+- **Resizing:** when the tab is resized (after a 0.5 s pause), the remote resolution changes to match (`UpdateSessionDisplaySettings`, Windows 8.1 / Server 2012 R2 and later). Older remotes such as Windows 7 are scaled to fit instead (`SmartSizing`).
+- **Login:** the session's host, port and login username are used. Windows asks for credentials as mstsc does (CredSSP), unless the session has a password. A server whose identity can't be verified gets mstsc's usual warning.
+- **When the session ends** (disconnect, log off) the tab closes. If it can't connect, Windows' own error text is shown first, e.g. "Remote Desktop can't connect to the remote computer...".
+- **Turning it off:** **Tools → Options → General → Built-in client**, next to the RDP client path (setting `RdpUseEmbeddedClient`, on by default). It's also skipped when the RDP client is FreeRDP (`wfreerdp.exe`), or when the control isn't installed. Untick it to go back to starting the RDP client program.
+- **Not supported with the built-in client:** the session's extra arguments are mstsc command-line switches, so they aren't used.
+
+**How it fits in:**
+- **`Gui/RdpControl.cs` (new):** an `AxHost` for `MsRdpClient9NotSafeForScripting` (CLSID `8b918b82-7985-4c24-89df-c33ad2bbfbcd`). It's late bound through `dynamic`, so no generated interop assemblies are needed. Only the two events used (`OnLoginComplete`, `OnDisconnected`) are declared, in a hand-written `IMsTscAxEvents` dispinterface.
+- **`Utils/IEmbeddedApplication.cs` (new):** `Start`, `FocusApplication` and an `Ended` event, for anything hosted as a control rather than a captured process.
+- **`ctlApplicationPanel.cs`:** with `EmbeddedApplicationFactory` set, `StartApplication` adds the control and fills the tab with it instead of starting a process. `Ended` closes the tab like a process exit, and focus goes to the control. RDP tabs are still `ctlPuttyPanel`s, so layouts, closing, icons and restart work as before.
+- **`ctlPuttyPanel.cs`:** sets the factory for RDP sessions when `RdpControl.ShouldEmbed` says so; placeholders are resolved first.
+- **`Utils/RDPStartinfo.cs`:** mstsc (when the built-in client is off) gets upstream's arguments again. FreeRDP gets `/size:` set to the tab's size instead of a fixed 1920x1080, through `ApplicationPanel.ApplicationParametersForSize`.
+- **`SuperPutty.csproj`:** references `Microsoft.CSharp`, which `dynamic` needs; it's part of .NET Framework.
+
+**Checked outside the app:** `RdpControl` was hosted on a hidden form and connected to `127.0.0.1` port 1 (closed). The control was created; the server, port, username, desktop size (the control's 884x601), smart sizing and CredSSP were all accepted; `Connect()` started connecting. The disconnect event (reason 516) arrived through the hand-declared event interface, and Windows' error text was read. A real login, resizing while connected, and the tab itself are tested by hand.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

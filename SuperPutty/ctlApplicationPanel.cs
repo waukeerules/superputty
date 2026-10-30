@@ -67,6 +67,24 @@ namespace SuperPutty
         DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         public string ApplicationParameters { get; set; }
 
+        /// <summary>
+        /// Optional: builds the parameters from this panel's size when the application starts, used instead of
+        /// <see cref="ApplicationParameters"/> so an RDP desktop can be sized to fit the tab
+        /// </summary>
+        public Func<System.Drawing.Size, string> ApplicationParametersForSize { get; set; }
+
+        /// <summary>
+        /// Optional: creates an application hosted as a control in this panel (e.g. Gui.RdpControl), used instead of
+        /// starting <see cref="ApplicationName"/> as a process and capturing its window
+        /// </summary>
+        public Func<IEmbeddedApplication> EmbeddedApplicationFactory { get; set; }
+
+        /// <summary>The hosted application created by <see cref="EmbeddedApplicationFactory"/>, once started</summary>
+        private IEmbeddedApplication embeddedApplication;
+
+        /// <summary>Whether this panel hosts an application control rather than a captured process window</summary>
+        public bool HasEmbeddedApplication { get { return this.embeddedApplication != null; } }
+
         [Category("Data"), Description("The starting directory for the putty shell.  Relevant only to cygterm sessions"),
 DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         public string ApplicationWorkingDirectory { get; set; }
@@ -166,6 +184,12 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
 
         public bool ReFocusPuTTY(string caller)
         {
+            if (this.embeddedApplication != null)
+            {
+                this.embeddedApplication.FocusApplication();
+                return true;
+            }
+
             bool result = false;
             if (proto == Data.ConnectionProtocol.VNC ||
                 proto == Data.ConnectionProtocol.RDP)
@@ -515,6 +539,12 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
             }
 
             m_Created = true;
+            if (this.EmbeddedApplicationFactory != null)
+            {
+                this.StartEmbeddedApplication();
+                return;
+            }
+
             m_AppWin = IntPtr.Zero;
             try
             {
@@ -529,7 +559,9 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
                     StartInfo =
                     {
                         FileName = ApplicationName,
-                        Arguments = ApplicationParameters,
+                        Arguments = this.ApplicationParametersForSize != null && this.Width > 0 && this.Height > 0
+                            ? this.ApplicationParametersForSize(this.ClientSize)
+                            : ApplicationParameters,
                         WindowStyle = ProcessWindowStyle.Maximized
                     }
                 };
@@ -626,6 +658,28 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
             if (this.Visible && this.b_AppWinFinal && this.ExternalProcessCaptured)
             {
                 this.ShowApplicationWindow(caller);
+            }
+        }
+
+        /// <summary>
+        /// Create the hosted application control, fill this panel with it and start it. When it ends the tab
+        /// closes, as when a captured process exits.
+        /// </summary>
+        private void StartEmbeddedApplication()
+        {
+            try
+            {
+                this.embeddedApplication = this.EmbeddedApplicationFactory();
+                Control control = (Control)this.embeddedApplication;
+                control.Dock = DockStyle.Fill;
+                this.Controls.Add(control);
+                this.embeddedApplication.Ended += (sender, e) => m_CloseCallback(true);
+                this.embeddedApplication.Start();
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Could not start the embedded application for " + this.Name, ex);
+                Messenger.MessageBox("Could not start the session: " + ex.Message, "Session error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

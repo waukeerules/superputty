@@ -24,53 +24,87 @@ using log4net;
 using SuperPutty.Data;
 using System.Text.RegularExpressions;
 using System.IO;
+using System.Drawing;
+using System.Windows.Forms;
 
 namespace SuperPutty.Utils
 {
 
     /// <summary>
-    /// Helper class for RDP support
+    /// Helper class for RDP support.
+    /// <para>
+    /// For FreeRDP the remote desktop is sized to the tab: ApplicationPanel calls <see cref="GetArgs"/> with the
+    /// tab's size just before starting the client. mstsc is started full screen as upstream does; RDP tabs
+    /// normally use the built-in Remote Desktop control (Gui.RdpControl) instead, which fits the tab.
+    /// </para>
     /// </summary>
     public class RDPStartInfo
     {
         private static readonly ILog Log = LogManager.GetLogger(typeof(RDPStartInfo));
 
+        /// <summary>Smallest desktop size mstsc accepts</summary>
+        private const int MinDesktopSize = 200;
+
+        /// <summary>Largest desktop size mstsc accepts</summary>
+        private const int MaxDesktopSize = 8192;
+
         private SessionData session;
+
+        /// <summary>True for FreeRDP (wfreerdp.exe), false for Microsoft's mstsc</summary>
+        private readonly bool isFreeRdp;
 
         public RDPStartInfo(SessionData session, String binName)
         {
             this.session = session;
-            if (binName.EndsWith("\\wfreerdp.exe"))
-            {
-                this.Args = "/cert-ignore /size:1920x1080 +window-drag /disp /workarea /network:wan +auto-reconnect /auto-reconnect-max-retries:0 +bitmap-cache /v:" + session.Host;
+            this.isFreeRdp = binName.EndsWith("\\wfreerdp.exe");
 
-                if (session.Port != 0)
-                    this.Args += ":" + session.Port.ToString() + " ";
-                
-                if (session.Username != "")
-                    this.Args += "/u:"+session.Username;
-
-                if (!String.IsNullOrEmpty(session.ExtraArgs))
-                    this.Args += session.ExtraArgs + " ";
-            }
-            else
-            {
-                this.Args = "-v:" + session.Host;
-
-                if (session.Port != 0)
-                    this.Args += ":" + session.Port.ToString() + " ";
-
-                if (!String.IsNullOrEmpty(session.ExtraArgs))
-                    this.Args += session.ExtraArgs + " ";
-
-                this.Args += "/span";
-            }
-
+            // a fallback for callers that don't know the tab size, e.g. "Connect External"
+            this.Args = this.GetArgs(Screen.PrimaryScreen.WorkingArea.Size);
             this.StartingDir = "%userprofile%\\Desktop";
         }
 
         public string Args { get; set; }
         public string StartingDir { get; set; }
+
+        /// <summary>Build the command line for a remote desktop of the given size</summary>
+        /// <param name="desktopSize">The size of the area the remote desktop is shown in, in pixels</param>
+        /// <returns>The arguments for mstsc or wfreerdp</returns>
+        public string GetArgs(Size desktopSize)
+        {
+            int width = Math.Max(MinDesktopSize, Math.Min(MaxDesktopSize, desktopSize.Width));
+            int height = Math.Max(MinDesktopSize, Math.Min(MaxDesktopSize, desktopSize.Height));
+            string args;
+
+            if (this.isFreeRdp)
+            {
+                // /disp lets FreeRDP change the remote resolution when the window is resized
+                args = "/cert-ignore /size:" + width + "x" + height + " +window-drag /disp /workarea /network:wan +auto-reconnect /auto-reconnect-max-retries:0 +bitmap-cache /v:" + session.Host;
+
+                if (session.Port != 0)
+                    args += ":" + session.Port.ToString() + " ";
+
+                if (session.Username != "")
+                    args += "/u:"+session.Username;
+
+                if (!String.IsNullOrEmpty(session.ExtraArgs))
+                    args += session.ExtraArgs + " ";
+            }
+            else
+            {
+                // upstream's mstsc command line: full screen, which is the window ApplicationPanel can embed, so
+                // the size can't be applied. RDP tabs normally use the built-in client (Gui.RdpControl) instead.
+                args = "-v:" + session.Host;
+
+                if (session.Port != 0)
+                    args += ":" + session.Port.ToString() + " ";
+
+                if (!String.IsNullOrEmpty(session.ExtraArgs))
+                    args += session.ExtraArgs + " ";
+
+                args += "/span";
+            }
+            return args;
+        }
 
     }
 }

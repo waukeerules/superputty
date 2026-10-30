@@ -102,6 +102,13 @@ namespace SuperPutty
             this.AppPanel.Dock = System.Windows.Forms.DockStyle.Fill;
             this.AppPanel.ApplicationName = this.m_puttyStartInfo.Executable;
             this.AppPanel.ApplicationParameters = this.m_puttyStartInfo.Args;
+            this.AppPanel.ApplicationParametersForSize = this.m_puttyStartInfo.ArgsForSize;
+            if (this.Session.Proto == ConnectionProtocol.RDP && RdpControl.ShouldEmbed(this.m_puttyStartInfo.Executable))
+            {
+                // host the Remote Desktop ActiveX control in the tab, sized to it, instead of capturing an mstsc window
+                SessionData resolved = SessionVariables.Resolve(this.Session);
+                this.AppPanel.EmbeddedApplicationFactory = () => new RdpControl(resolved);
+            }
             this.AppPanel.ApplicationWorkingDirectory = this.m_puttyStartInfo.WorkingDir;
             this.AppPanel.ApplicationCloseWithDestroy = this.Session.Proto == ConnectionProtocol.Mintty ? false : true;
             this.AppPanel.Location = new System.Drawing.Point(0, 0);
@@ -304,7 +311,7 @@ namespace SuperPutty
         /// </summary>
         internal void SetFocusToChildApplication(string caller)
         {
-            if (!this.AppPanel.ExternalProcessCaptured) { return; }
+            if (!this.AppPanel.ExternalProcessCaptured && !this.AppPanel.HasEmbeddedApplication) { return; }
 
             bool success = false;
             for (int i = 0; i < RefocusAttempts; i++)

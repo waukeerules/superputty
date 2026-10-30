@@ -80,6 +80,7 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Management" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.Linq" />
@@ -226,6 +227,9 @@
     <Compile Include="dlgMouseFeedback.Designer.cs">
       <DependentUpon>dlgMouseFeedback.cs</DependentUpon>
     </Compile>
+    <Compile Include="Gui\RdpControl.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Gui\ButtonBarStrip.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -331,6 +335,7 @@
     <Compile Include="Utils\SessionVariables.cs" />
     <Compile Include="Utils\ButtonBarStore.cs" />
     <Compile Include="Utils\SendStringParser.cs" />
+    <Compile Include="Utils\IEmbeddedApplication.cs" />
     <EmbeddedResource Include="AboutBox.resx">
       <DependentUpon>AboutBox.cs</DependentUpon>
       <SubType>Designer</SubType>

@@ -88,6 +88,7 @@
             this.textBoxVNCLocation = new System.Windows.Forms.TextBox();
             this.btnBrowseRDP = new System.Windows.Forms.Button();
             this.textBoxRDPLocation = new System.Windows.Forms.TextBox();
+            this.checkRdpEmbeddedClient = new System.Windows.Forms.CheckBox();
             this.buttonBrowseWinSCP = new System.Windows.Forms.Button();
             this.textBoxWinSCPLocation = new System.Windows.Forms.TextBox();
             this.panel1 = new System.Windows.Forms.Panel();
@@ -716,6 +717,7 @@
             this.tabPageGeneral.Controls.Add(this.textBoxVNCLocation);
             this.tabPageGeneral.Controls.Add(this.btnBrowseRDP);
             this.tabPageGeneral.Controls.Add(this.textBoxRDPLocation);
+            this.tabPageGeneral.Controls.Add(this.checkRdpEmbeddedClient);
             this.tabPageGeneral.Controls.Add(this.buttonBrowseWinSCP);
             this.tabPageGeneral.Controls.Add(this.textBoxWinSCPLocation);
             this.tabPageGeneral.Controls.Add(this.buttonBrowsePutty);
@@ -836,9 +838,22 @@
             this.textBoxRDPLocation.Location = new System.Drawing.Point(215, 371);
             this.textBoxRDPLocation.Margin = new System.Windows.Forms.Padding(4);
             this.textBoxRDPLocation.Name = "textBoxRDPLocation";
-            this.textBoxRDPLocation.Size = new System.Drawing.Size(445, 27);
+            this.textBoxRDPLocation.Size = new System.Drawing.Size(300, 27);
             this.textBoxRDPLocation.TabIndex = 31;
             this.textBoxRDPLocation.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.textBoxRDPLocation_DoubleClick);
+            //
+            // checkRdpEmbeddedClient
+            //
+            this.checkRdpEmbeddedClient.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.checkRdpEmbeddedClient.AutoSize = true;
+            this.checkRdpEmbeddedClient.Location = new System.Drawing.Point(523, 373);
+            this.checkRdpEmbeddedClient.Margin = new System.Windows.Forms.Padding(4);
+            this.checkRdpEmbeddedClient.Name = "checkRdpEmbeddedClient";
+            this.checkRdpEmbeddedClient.Size = new System.Drawing.Size(129, 24);
+            this.checkRdpEmbeddedClient.TabIndex = 33;
+            this.checkRdpEmbeddedClient.Text = "Built-in client";
+            this.toolTip.SetToolTip(this.checkRdpEmbeddedClient, "Show RDP sessions with Windows' built-in Remote Desktop control, sized to the tab (like RDCMan).\r\nUntick to start the RDP client program above instead.");
+            this.checkRdpEmbeddedClient.UseVisualStyleBackColor = true;
             // 
             // buttonBrowseWinSCP
             // 
@@ -1659,6 +1674,7 @@
         private System.Windows.Forms.TextBox textBoxVNCLocation;
         private System.Windows.Forms.Button btnBrowseVNC;
         private System.Windows.Forms.TextBox textBoxRDPLocation;
+        private System.Windows.Forms.CheckBox checkRdpEmbeddedClient;
         private System.Windows.Forms.Button btnBrowseRDP;
         private System.Windows.Forms.Label label8;
         private System.Windows.Forms.ComboBox comboBoxTabText;
