@@ -138,6 +138,19 @@ Upstream's search box above the session tree only looked at the session name and
 
 **Files:** `SessionTreeview.cs` (the `SearchFields` flags, field labels and `SearchFilter`), `dlgFindPutty.cs` / `.Designer.cs` (the "Search in..." button and checklist), and `Properties/Settings.*` and `App.config` (`SessionsSearchFields`).
 
+## Other fix: session icons missing depending on how SuperPuTTY is started
+
+Upstream loads icons from `themes\default\icons` under the **current directory**, the folder the process was started from, rather than where the exe is. Started from a shortcut with another "Start in" folder, a file association, the command line or a script, SuperPuTTY found no icons. The log showed `theme directory not found`, and sessions fell back to the plain computer icon.
+
+`SuperPuTTY.GetThemeIconFolders` now checks these locations in order and merges every one that exists. An earlier folder wins when two have an icon with the same name.
+
+1. `<SettingsFolder>\themes\default\icons`: put custom `.png`, `.jpg` or `.bmp` icons here. If the settings folder is shared, the whole team gets them, and they can replace a built-in icon of the same name.
+2. The folder `SuperXPuTTY.exe` is in.
+3. The current directory (upstream's behavior).
+4. `Program Files (x86)` and `Program Files`, under both `SuperXPuTTY` and `SuperPuTTY`.
+
+The log lists each folder used and how many icons came from it.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
@@ -177,6 +190,8 @@ Button bar:
 4. Make an SPSL button (`SENDLINE whoami`), and a send string with `\p` between two commands; the pause shouldn't freeze the window.
 5. Create a second bar, switch between them, restart SuperPuTTY: the last bar shown should come back. Check that `ButtonBars.xml` is next to `Sessions.xml`.
 6. Toggle **View → Toolbars → Button Bar**, and go full screen and back. Check the bar and the editor dialog in both light and dark themes.
+
+Icons: start `bin\Debug\SuperXPuTTY.exe` from another folder (for example, from a command prompt in `C:\`) and check that session icons still show. Copy a `.png` into `<SettingsFolder>\themes\default\icons`, restart, and check that it appears in the Edit Session icon picker. `GetThemeIconFolders` was checked against the compiled assembly from the Temp folder: it found the exe's `themes` folder and `C:\Program Files (x86)\SuperXPuTTY\themes\default\icons`, and loaded 49 icons.
 
 Session search:
 

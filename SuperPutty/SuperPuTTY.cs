@@ -751,37 +751,83 @@ namespace SuperPutty
             imgIcons.Images.Add(SessionTreeview.ImageKeyFolder, Resources.folder);
             imgIcons.Images.Add(SessionTreeview.ImageKeySession, Resources.computer);
 
-            try
+            List<string> themeFolders = GetThemeIconFolders(theme);
+            if (themeFolders.Count == 0)
             {
-                string themeFolder = Directory.GetCurrentDirectory();
-                themeFolder = Path.Combine(themeFolder, "themes");
-                themeFolder = Path.Combine(themeFolder, theme);
-                themeFolder = Path.Combine(themeFolder, "icons");
-
-                if (Directory.Exists(themeFolder))
+                Log.WarnFormat($"theme directory not found, no images loaded. theme={theme}");
+            }
+            foreach (string themeFolder in themeFolders)
+            {
+                try
                 {
+                    int loaded = 0;
                     foreach (FileInfo fi in new DirectoryInfo(themeFolder).GetFiles())
                     {
-                        if (Regex.IsMatch(fi.Extension, @"\.(bmp|jpg|jpeg|png)", RegexOptions.IgnoreCase))
+                        string key = Path.GetFileNameWithoutExtension(fi.Name);
+                        // folders earlier in the list win, so a custom icon can replace an installed one
+                        if (Regex.IsMatch(fi.Extension, @"\.(bmp|jpg|jpeg|png)", RegexOptions.IgnoreCase) && !imgIcons.Images.ContainsKey(key))
                         {
                             Image img = Image.FromFile(fi.FullName);
-                            imgIcons.Images.Add(Path.GetFileNameWithoutExtension(fi.Name), img);
+                            imgIcons.Images.Add(key, img);
+                            loaded++;
                         }
                     }
-                    Log.InfoFormat($"Loaded {imgIcons.Images.Count} icons from theme directory.  dir={themeFolder}");
+                    Log.InfoFormat($"Loaded {loaded} icons from theme directory.  dir={themeFolder}");
                 }
-                else
+                catch (Exception ex)
                 {
-                    Log.WarnFormat($"theme directory not found, no images loaded. dir={theme}");
+                    Log.Error("Error while loading icons from " + themeFolder, ex);
                 }
-            }
-            catch (Exception ex)
-            {
-                Log.Error("Error while loading icons.", ex);
             }
 
 
             return imgIcons;
+        }
+
+        /// <summary>
+        /// The folders to load theme icons from, in priority order: the settings folder (for custom icons,
+        /// possibly shared by a team), the folder SuperPuTTY runs from, the current directory (upstream's
+        /// only location, which is wrong whenever SuperPuTTY is started from elsewhere), and the standard
+        /// SuperXPuTTY and SuperPuTTY install folders under Program Files.
+        /// </summary>
+        /// <param name="theme">The theme name, e.g. "default"</param>
+        /// <returns>The existing folders named themes\&lt;theme&gt;\icons under those locations, without duplicates</returns>
+        public static List<string> GetThemeIconFolders(string theme)
+        {
+            List<string> roots = new List<string>
+            {
+                Settings.SettingsFolder,
+                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
+                Directory.GetCurrentDirectory()
+            };
+            foreach (Environment.SpecialFolder programFiles in new[] { Environment.SpecialFolder.ProgramFilesX86, Environment.SpecialFolder.ProgramFiles })
+            {
+                string programFilesPath = Environment.GetFolderPath(programFiles);
+                if (!string.IsNullOrEmpty(programFilesPath))
+                {
+                    roots.Add(Path.Combine(programFilesPath, "SuperXPuTTY"));
+                    roots.Add(Path.Combine(programFilesPath, "SuperPuTTY"));
+                }
+            }
+
+            List<string> folders = new List<string>();
+            foreach (string root in roots.Where(r => !string.IsNullOrEmpty(r)))
+            {
+                try
+                {
+                    string folder = Path.GetFullPath(Path.Combine(root, "themes", theme, "icons"));
+                    if (Directory.Exists(folder) && !folders.Contains(folder, StringComparer.OrdinalIgnoreCase))
+                    {
+                        folders.Add(folder);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // a malformed settings folder path shouldn't stop icons loading from the other locations
+                    Log.Warn("Could not check for theme icons under " + root, ex);
+                }
+            }
+            return folders;
         }
 
         /// <summary>Get the Icon defined for the specified session</summary>
