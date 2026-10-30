@@ -37,6 +37,7 @@ using System.Configuration;
 using SuperPutty.Gui;
 using log4net.Core;
 using DarkModeForms;
+using SuperPuTTY.Scripting;
 
 
 namespace SuperPutty
@@ -325,6 +326,14 @@ namespace SuperPutty
         /// <param name="command">The text, keys and delay to send</param>
         public void SendCommand(CommandData command)
         {
+            if (command.WaitFor != null)
+            {
+                this.WaitForOutput(command.WaitFor, command.WaitTimeout);
+                return;
+            }
+
+            // a following WAITFOR looks at what the session prints after this
+            this.MarkLogPosition();
             ICommandReceiver receiver = this.AppPanel.EmbeddedApplication as ICommandReceiver;
             if (receiver != null)
             {
@@ -334,6 +343,267 @@ namespace SuperPutty
             {
                 command.SendToTerminal(this.AppPanel.AppWindowHandle.ToInt32());
             }
+        }
+
+        /// <summary>The file PuTTY logs this session's output to (see SessionLog); null for RDP, VNC, cmd and other non-PuTTY tabs</summary>
+        public string SessionLogPath
+        {
+            get { return this.m_puttyStartInfo.SessionLogPath; }
+        }
+
+        /// <summary>How long WAITFOR waits between looks at the log</summary>
+        private const int WaitForPollMs = 100;
+
+        /// <summary>Byte position in the session log where the next WAITFOR starts looking</summary>
+        private long logReadPosition;
+
+        /// <summary>How far back to look for the start of the current line</summary>
+        private const int CurrentLineLookBack = 4096;
+
+        /// <summary>
+        /// Make the next WAITFOR look at the current (last) line of output and anything after it, e.g. a prompt that is
+        /// on screen now, but not at earlier lines
+        /// </summary>
+        private void MarkLogPositionAtCurrentLine()
+        {
+            if (this.SessionLogPath == null)
+                return;
+            try
+            {
+                long length = SessionLog.LengthOf(this.SessionLogPath);
+                long start = Math.Max(0, length - CurrentLineLookBack);
+                string tail = SessionLog.ReadFrom(this.SessionLogPath, start);
+                int lineStart = tail.LastIndexOf('\n') + 1;
+                this.logReadPosition = start + System.Text.Encoding.UTF8.GetByteCount(tail.Substring(0, lineStart));
+            }
+            catch (System.IO.IOException ex)
+            {
+                Log.Debug("Could not read the session log", ex);
+                this.logReadPosition = SessionLog.LengthOf(this.SessionLogPath);
+            }
+        }
+
+        /// <summary>Make the next WAITFOR look only at output that comes after this point</summary>
+        private void MarkLogPosition()
+        {
+            if (this.SessionLogPath != null)
+            {
+                this.logReadPosition = SessionLog.LengthOf(this.SessionLogPath);
+            }
+        }
+
+        /// <summary>
+        /// Wait until <paramref name="text"/> appears in the session's output after the last command sent (or since
+        /// the session started), by reading the session log. Must not be called on the UI thread.
+        /// </summary>
+        /// <param name="text">The text to wait for, matched exactly (case-sensitive)</param>
+        /// <param name="timeout">How long to wait</param>
+        /// <returns>true if the text appeared; false on timeout, or when this tab has no session log (non-PuTTY tabs)</returns>
+        public bool WaitForOutput(string text, TimeSpan timeout)
+        {
+            return this.WaitForOutput(text, timeout, CancellationToken.None);
+        }
+
+        /// <summary>As <see cref="WaitForOutput(string, TimeSpan)"/>, but returns false as soon as <paramref name="cancel"/> is cancelled</summary>
+        /// <param name="text">The text to wait for, matched exactly (case-sensitive)</param>
+        /// <param name="timeout">How long to wait</param>
+        /// <param name="cancel">Stops the wait, e.g. when the user stops the script</param>
+        /// <returns>true if the text appeared</returns>
+        public bool WaitForOutput(string text, TimeSpan timeout, CancellationToken cancel)
+        {
+            if (this.SessionLogPath == null)
+            {
+                Log.WarnFormat("WAITFOR needs a session log, which only PuTTY sessions have; {0} has none", this.Session.SessionId);
+                return false;
+            }
+
+            DateTime giveUp = DateTime.Now + timeout;
+            while (DateTime.Now < giveUp && !this.IsDisposed && !cancel.IsCancellationRequested)
+            {
+                try
+                {
+                    string output = SessionLog.ReadFrom(this.SessionLogPath, this.logReadPosition);
+                    int found = output.IndexOf(text, StringComparison.Ordinal);
+                    if (found >= 0)
+                    {
+                        // the next WAITFOR starts after this match
+                        this.logReadPosition += System.Text.Encoding.UTF8.GetByteCount(output.Substring(0, found + text.Length));
+                        return true;
+                    }
+                }
+                catch (System.IO.IOException ex)
+                {
+                    Log.Debug("Could not read the session log yet", ex);
+                }
+                // returns early if the script is stopped
+                cancel.WaitHandle.WaitOne(WaitForPollMs);
+            }
+            if (cancel.IsCancellationRequested)
+                return false;
+            Log.WarnFormat("WAITFOR \"{0}\" timed out after {1} s in {2}", text, timeout.TotalSeconds, this.Session.SessionId);
+            return false;
+        }
+
+        /// <summary>
+        /// Run an SPSL script in this tab on a background thread, one line at a time. A WAITFOR that times out, or a
+        /// line that fails, stops the script, so nothing is typed into the wrong prompt. Used for the session's own
+        /// script when it opens and for button bar scripts.
+        /// </summary>
+        /// <param name="script">The script; lines starting with # (including #!/bin/spsl) are comments</param>
+        /// <param name="fromSessionStart">
+        /// true for the session's own script: the first WAITFOR looks at everything since the session started.
+        /// false (a button): it looks at the current line and anything after it, so a prompt already on screen
+        /// matches but older output (e.g. the login prompt of an already logged-in session) doesn't.
+        /// </param>
+        /// <param name="name">What the script is, shown in the status-bar indicator, e.g. the button's label</param>
+        /// <param name="source">What started it, e.g. the button bar's CommandButton, which then shows a spinner</param>
+        public void RunScript(string script, bool fromSessionStart = false, string name = "Script", object source = null)
+        {
+            if (fromSessionStart)
+            {
+                this.logReadPosition = 0;
+            }
+            else
+            {
+                this.MarkLogPositionAtCurrentLine();
+            }
+            // only command lines count towards progress; blank lines and # comments (including #!/bin/spsl) don't
+            string[] lines = (script ?? string.Empty).Split('\n')
+                .Select(l => l.TrimEnd('\r'))
+                .Where(l => !string.IsNullOrWhiteSpace(l) && !l.TrimStart().StartsWith("#"))
+                .ToArray();
+            ScriptRun run = new ScriptRun(name, this, this.Session.SessionName, lines.Length, source);
+            run.Begin();
+            new Thread(delegate ()
+            {
+                try
+                {
+                    this.RunScriptLines(run, lines);
+                }
+                finally
+                {
+                    run.End();
+                }
+            }) { IsBackground = true, Name = "SPSL " + this.Session.SessionId }.Start();
+        }
+
+        /// <summary>SLEEP lines, run here rather than by SPSL so a Stop can interrupt them</summary>
+        private static readonly System.Text.RegularExpressions.Regex SleepLine = new System.Text.RegularExpressions.Regex(@"^\s*SLEEP\s+(\d+)\s*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        /// <summary>
+        /// Run a script's command lines in order on the calling (background) thread, recording progress in
+        /// <paramref name="run"/>. Stops when the user stops it, when a WAITFOR times out, or when a line fails, and
+        /// reports why in the status bar.
+        /// </summary>
+        /// <param name="run">The script's progress record, with its stop token</param>
+        /// <param name="lines">The command lines (no blank or comment lines)</param>
+        private void RunScriptLines(ScriptRun run, string[] lines)
+        {
+            string where = $"\"{run.Name}\" in {this.Session.SessionName}";
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (run.IsCancelled)
+                    break;
+
+                string line = lines[i];
+                run.LineNumber = i + 1;
+                // show the command word, and the text for WAITFOR, but never what's typed (it may be a secret)
+                string keyword = line.TrimStart().Split(' ')[0].ToUpperInvariant();
+                run.CurrentStep = keyword == "WAITFOR" ? line.Trim() : keyword;
+                try
+                {
+                    System.Text.RegularExpressions.Match sleep = SleepLine.Match(line);
+                    if (sleep.Success)
+                    {
+                        run.Token.WaitHandle.WaitOne(int.Parse(sleep.Groups[1].Value));
+                        continue;
+                    }
+
+                    CommandData step;
+                    SPSL.TryParseScriptLine(line, out step);
+                    if (step == null)
+                        continue;
+                    if (step.WaitFor != null)
+                    {
+                        if (!this.WaitForOutput(step.WaitFor, step.WaitTimeout, run.Token))
+                        {
+                            if (run.IsCancelled)
+                                break;
+                            SuperPuTTY.ReportStatus($"Script {where} stopped: \"{step.WaitFor}\" didn't appear within {step.WaitTimeout.TotalSeconds:0} s");
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        this.SendCommand(step);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Script " + where + " stopped at line " + (i + 1) + " (" + keyword + ")", ex);
+                    SuperPuTTY.ReportStatus($"Script {where} stopped at line {i + 1}: {ex.Message}");
+                    return;
+                }
+            }
+
+            if (run.IsCancelled)
+            {
+                Log.InfoFormat("Script {0} stopped by the user at line {1}", where, run.LineNumber);
+                SuperPuTTY.ReportStatus($"Script {where} stopped by you at line {run.LineNumber} of {run.LineCount}");
+            }
+            else
+            {
+                SuperPuTTY.ReportStatus($"Script {where} finished");
+            }
+        }
+
+        /// <summary>The tab's icon before a script started, restored when it ends</summary>
+        private System.Drawing.Icon iconBeforeScript;
+
+        /// <summary>Whether the tab's icon is currently the script spinner</summary>
+        private bool showingScriptSpinner;
+
+        /// <summary>
+        /// While a script runs in this tab, show a spinner as the tab's icon, advancing one frame per call; restore the
+        /// normal icon when it ends. Called by frmSuperPutty's script timer. Tab icons only show with
+        /// Options -> GUI -> Show tab icons on.
+        /// </summary>
+        /// <param name="running">Whether a script is running in this tab</param>
+        public void ShowScriptRunning(bool running)
+        {
+            if (running)
+            {
+                if (!this.showingScriptSpinner)
+                {
+                    this.iconBeforeScript = this.Icon;
+                    this.showingScriptSpinner = true;
+                }
+                this.Icon = Spinner.CurrentIcon();
+            }
+            else if (this.showingScriptSpinner)
+            {
+                this.Icon = this.iconBeforeScript;
+                this.showingScriptSpinner = false;
+            }
+            else
+            {
+                return;
+            }
+            // the tab strip draws the icon, so repaint it
+            if (this.Pane != null)
+            {
+                this.Pane.Invalidate(true);
+            }
+        }
+
+        /// <summary>Delete this session's temporary log once the tab has closed (kept logs stay)</summary>
+        /// <param name="e">Not used</param>
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            base.OnFormClosed(e);
+            // scripts can't type into a closed tab
+            ScriptRun.CancelAll(this);
+            SessionLog.DeleteLaterIfTemporary(this.SessionLogPath);
         }
 
         internal void SetFocusToChildApplication(string caller)

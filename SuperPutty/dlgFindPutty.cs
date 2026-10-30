@@ -200,6 +200,8 @@ namespace SuperPutty
             this.checkPuttyEnableNewSessionMenu.Checked = SuperPuTTY.Settings.PuttyPanelShowNewSessionMenu;
             this.checkRdpEmbeddedClient.Checked = SuperPuTTY.Settings.RdpUseEmbeddedClient;
             this.LoadRdpOptions();
+            this.checkSessionLog.Checked = SuperPuTTY.Settings.SessionLogEnabled;
+            this.textBoxSessionLogFolder.Text = SuperPuTTY.Settings.SessionLogFolder;
             this.checkBoxCheckForUpdates.Checked = SuperPuTTY.Settings.AutoUpdateCheck;
             this.textBoxHomeDirPrefix.Text = SuperPuTTY.Settings.PscpHomePrefix;
             this.textBoxRootDirPrefix.Text = SuperPuTTY.Settings.PscpRootHomePrefix;
@@ -424,6 +426,8 @@ namespace SuperPutty
                 SuperPuTTY.Settings.PuttyPanelShowNewSessionMenu = this.checkPuttyEnableNewSessionMenu.Checked;
                 SuperPuTTY.Settings.RdpUseEmbeddedClient = this.checkRdpEmbeddedClient.Checked;
                 this.SaveRdpOptions();
+                SuperPuTTY.Settings.SessionLogEnabled = this.checkSessionLog.Checked;
+                SuperPuTTY.Settings.SessionLogFolder = this.textBoxSessionLogFolder.Text.Trim();
                 SuperPuTTY.Settings.AutoUpdateCheck = this.checkBoxCheckForUpdates.Checked;
                 SuperPuTTY.Settings.PscpHomePrefix = this.textBoxHomeDirPrefix.Text;
                 SuperPuTTY.Settings.PscpRootHomePrefix = this.textBoxRootDirPrefix.Text;
@@ -486,6 +490,24 @@ namespace SuperPutty
                 if (Messenger.MessageBox(sb.ToString(), "Errors", MessageBoxButtons.RetryCancel, MessageBoxIcon.Question) == DialogResult.Cancel)
                 {
                     DialogResult = DialogResult.Cancel;
+                }
+            }
+        }
+
+        /// <summary>Pick the folder kept session logs go to</summary>
+        /// <param name="sender">The Browse button</param>
+        /// <param name="e">Not used</param>
+        private void buttonBrowseSessionLogFolder_Click(object sender, EventArgs e)
+        {
+            using (FolderBrowserDialog dialog = new FolderBrowserDialog
+            {
+                Description = "Folder for session logs",
+                SelectedPath = string.IsNullOrWhiteSpace(this.textBoxSessionLogFolder.Text) ? SessionLog.KeptLogFolder : this.textBoxSessionLogFolder.Text
+            })
+            {
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    this.textBoxSessionLogFolder.Text = dialog.SelectedPath;
                 }
             }
         }

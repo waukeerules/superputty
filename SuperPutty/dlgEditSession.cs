@@ -56,7 +56,7 @@ namespace SuperPutty
         {
             Session = session;
             InitializeComponent();
-            placeholderValues = SessionVariables.Load();
+            placeholderValues = SessionVariables.Load(true);
 
             // get putty saved settings from the registry to populate
             // the dropdown
@@ -169,7 +169,7 @@ namespace SuperPutty
             {
                 envForm.ShowDialog(this);
             }
-            placeholderValues = SessionVariables.Load();
+            placeholderValues = SessionVariables.Load(true);
             UpdatePlaceholderPreview();
         }
 

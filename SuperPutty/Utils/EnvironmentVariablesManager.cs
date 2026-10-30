@@ -70,6 +70,13 @@ namespace SuperPutty.Utils
             {
                 string json = File.ReadAllText(_filePath);
                 var variables = JsonConvert.DeserializeObject<EnvironmentVariables>(json) ?? new EnvironmentVariables();
+                foreach (EnvironmentVariable variable in variables.Variables)
+                {
+                    if (variable.Secret)
+                    {
+                        variable.Value = Unprotect(variable.Key, variable.ProtectedValue);
+                    }
+                }
                 Log.InfoFormat("Loaded {0} environment variables from {1}", variables.Variables.Count, _filePath);
                 return variables;
             }
@@ -84,6 +91,10 @@ namespace SuperPutty.Utils
         {
             try
             {
+                foreach (EnvironmentVariable variable in variables.Variables)
+                {
+                    variable.ProtectedValue = variable.Secret ? Protect(variable.Value) : null;
+                }
                 string json = JsonConvert.SerializeObject(variables, Formatting.Indented);
                 int retries = 3;
                 while (retries > 0)
@@ -107,6 +118,42 @@ namespace SuperPutty.Utils
             {
                 Log.ErrorFormat("Failed to save environment variables to {0}: {1}", _filePath, ex.Message);
                 throw new IOException($"Failed to save environment variables to {_filePath}: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>Extra input to DPAPI so other programs using DPAPI for this user can't decrypt these values by accident</summary>
+        private static readonly byte[] Entropy = System.Text.Encoding.UTF8.GetBytes("SuperPuTTY.EnvironmentVariables");
+
+        /// <summary>Encrypt a secret value with Windows DPAPI, so only the current Windows user on this computer can read it</summary>
+        /// <param name="value">The plain value; may be empty</param>
+        /// <returns>The encrypted value as base64</returns>
+        private static string Protect(string value)
+        {
+            byte[] plain = System.Text.Encoding.UTF8.GetBytes(value ?? string.Empty);
+            byte[] encrypted = System.Security.Cryptography.ProtectedData.Protect(plain, Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser);
+            return Convert.ToBase64String(encrypted);
+        }
+
+        /// <summary>
+        /// Decrypt a secret value. It can't be decrypted if the file came from another Windows user or computer;
+        /// the value is then empty, and the user has to enter it again.
+        /// </summary>
+        /// <param name="key">The variable's key, for the log</param>
+        /// <param name="protectedValue">The encrypted value as base64</param>
+        /// <returns>The plain value, or an empty string if it can't be decrypted</returns>
+        private static string Unprotect(string key, string protectedValue)
+        {
+            if (string.IsNullOrEmpty(protectedValue))
+                return string.Empty;
+            try
+            {
+                byte[] plain = System.Security.Cryptography.ProtectedData.Unprotect(Convert.FromBase64String(protectedValue), Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser);
+                return System.Text.Encoding.UTF8.GetString(plain);
+            }
+            catch (Exception ex)
+            {
+                Log.WarnFormat("Could not decrypt the secret '{0}' (saved by another Windows user or computer?); it needs to be entered again: {1}", key, ex.Message);
+                return string.Empty;
             }
         }
     }

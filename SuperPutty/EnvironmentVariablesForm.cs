@@ -38,6 +38,7 @@ namespace SuperPutty
                 dgvEnvironment.AutoGenerateColumns = false;
                 dgvEnvironment.Columns["colKey"].DataPropertyName = "Key";
                 dgvEnvironment.Columns["colValue"].DataPropertyName = "Value";
+                dgvEnvironment.Columns["colSecret"].DataPropertyName = "Secret";
                 dgvEnvironment.DataSource = _variables.Variables;
                 Log.InfoFormat("Loaded {0} environment variables into DataGridView", _variables.Variables.Count);
             }
@@ -95,6 +96,59 @@ namespace SuperPutty
         {
             // BindingList automatically handles new row additions, no need to add explicitly
             Log.Info("User added new row via DataGridView");
+        }
+
+        /// <summary>Text shown instead of a secret's value</summary>
+        private const string MaskedValue = "••••••••";
+
+        /// <summary>Whether the variable in a grid row is marked secret</summary>
+        /// <param name="rowIndex">The grid row</param>
+        /// <returns>true for a secret; false for an ordinary variable or the new-row line</returns>
+        private bool IsSecretRow(int rowIndex)
+        {
+            return rowIndex >= 0 && rowIndex < _variables.Variables.Count && _variables.Variables[rowIndex].Secret;
+        }
+
+        /// <summary>Show dots instead of a secret's value</summary>
+        /// <param name="sender">The grid</param>
+        /// <param name="e">The cell being drawn</param>
+        private void dgvEnvironment_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.ColumnIndex == colValue.Index && IsSecretRow(e.RowIndex))
+            {
+                e.Value = MaskedValue;
+                e.FormattingApplied = true;
+            }
+        }
+
+        /// <summary>Edit a secret's value in a password box; the grid reuses one text box, so reset it for other cells</summary>
+        /// <param name="sender">The grid</param>
+        /// <param name="e">The editing text box</param>
+        private void dgvEnvironment_EditingControlShowing(object sender, DataGridViewEditingControlShowingEventArgs e)
+        {
+            TextBox textBox = e.Control as TextBox;
+            if (textBox != null)
+            {
+                bool secret = dgvEnvironment.CurrentCell.ColumnIndex == colValue.Index && IsSecretRow(dgvEnvironment.CurrentCell.RowIndex);
+                textBox.UseSystemPasswordChar = secret;
+                if (secret)
+                {
+                    // the box starts with the masked text from CellFormatting; give it the real value so leaving it unchanged keeps it
+                    textBox.Text = _variables.Variables[dgvEnvironment.CurrentCell.RowIndex].Value;
+                }
+            }
+        }
+
+        /// <summary>Apply a Secret tick straight away, so the value is masked or shown without leaving the cell</summary>
+        /// <param name="sender">The grid</param>
+        /// <param name="e">Not used</param>
+        private void dgvEnvironment_CurrentCellDirtyStateChanged(object sender, EventArgs e)
+        {
+            if (dgvEnvironment.CurrentCell != null && dgvEnvironment.CurrentCell.ColumnIndex == colSecret.Index && dgvEnvironment.IsCurrentCellDirty)
+            {
+                dgvEnvironment.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                dgvEnvironment.InvalidateRow(dgvEnvironment.CurrentCell.RowIndex);
+            }
         }
 
         private void dgvEnvironment_CellValidating(object sender, DataGridViewCellValidatingEventArgs e)

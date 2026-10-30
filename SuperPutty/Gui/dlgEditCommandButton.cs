@@ -19,7 +19,7 @@ namespace SuperPutty.Gui
         private const string SpslHeader = "#!/bin/spsl";
 
         /// <summary>Help shown under the text box for SPSL scripts</summary>
-        private const string SpslHelpText = "One command per line: SENDLINE text, SENDKEY ENTER, SENDCHAR c, SLEEP ms. Lines starting with # are comments.";
+        private const string SpslHelpText = "SENDLINE text · SENDKEY ENTER · SLEEP ms · WAITFOR text (30 s, or /t:10 text) · # comment.";
 
         /// <summary>Preset circle colors offered in the Icon list, as name and HTML color</summary>
         private static readonly string[][] PresetColors =

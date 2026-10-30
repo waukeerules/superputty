@@ -96,8 +96,12 @@ namespace SuperPutty.Utils
             }
             else
             {
-                this.Args = MakeArgs(session, true);
-                argsToLog = MakeArgs(session, false);
+                // every PuTTY session writes its output to a log, kept or temporary (see SessionLog); it's how
+                // SuperPuTTY sees the output, e.g. for SPSL's WAITFOR. The name is unique, so PuTTY never asks to overwrite.
+                this.SessionLogPath = SessionLog.NewLogPath(session);
+                string logArgs = "-sessionlog \"" + this.SessionLogPath + "\" -logoverwrite ";
+                this.Args = logArgs + MakeArgs(session, true);
+                argsToLog = logArgs + MakeArgs(session, false);
             }
 
             // Windows 11 hands console programs to the default terminal (usually Windows Terminal), whose window
@@ -224,6 +228,9 @@ namespace SuperPutty.Utils
         public Func<System.Drawing.Size, string> ArgsForSize { get; private set; }
         public string WorkingDir { get; private set; }
         public string Executable { get; private set; }
+
+        /// <summary>The file PuTTY logs the session's output to (-sessionlog); null for protocols PuTTY doesn't run</summary>
+        public string SessionLogPath { get; private set; }
 
     }
 }

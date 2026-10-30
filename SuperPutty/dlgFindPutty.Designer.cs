@@ -175,6 +175,11 @@
             this.groupBox5 = new System.Windows.Forms.GroupBox();
             this.comboBoxActivatorType = new System.Windows.Forms.ComboBox();
             this.groupBox4 = new System.Windows.Forms.GroupBox();
+            this.groupBoxSessionLog = new System.Windows.Forms.GroupBox();
+            this.checkSessionLog = new System.Windows.Forms.CheckBox();
+            this.labelSessionLogFolder = new System.Windows.Forms.Label();
+            this.textBoxSessionLogFolder = new System.Windows.Forms.TextBox();
+            this.buttonBrowseSessionLogFolder = new System.Windows.Forms.Button();
             this.panelBottom = new System.Windows.Forms.Panel();
             this.fontDialog = new System.Windows.Forms.FontDialog();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDown1)).BeginInit();
@@ -203,6 +208,7 @@
             this.groupBox9.SuspendLayout();
             this.groupBox5.SuspendLayout();
             this.groupBox4.SuspendLayout();
+            this.groupBoxSessionLog.SuspendLayout();
             this.panelBottom.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -1547,6 +1553,7 @@
             this.tabPageAdvanced.Controls.Add(this.groupBox9);
             this.tabPageAdvanced.Controls.Add(this.groupBox5);
             this.tabPageAdvanced.Controls.Add(this.groupBox4);
+            this.tabPageAdvanced.Controls.Add(this.groupBoxSessionLog);
             this.tabPageAdvanced.Location = new System.Drawing.Point(4, 29);
             this.tabPageAdvanced.Margin = new System.Windows.Forms.Padding(4);
             this.tabPageAdvanced.Name = "tabPageAdvanced";
@@ -2004,6 +2011,68 @@
             this.tabPageRdp.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.numericRdpWidth)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericRdpHeight)).EndInit();
+            //
+            // groupBoxSessionLog
+            //
+            this.groupBoxSessionLog.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.groupBoxSessionLog.Controls.Add(this.checkSessionLog);
+            this.groupBoxSessionLog.Controls.Add(this.labelSessionLogFolder);
+            this.groupBoxSessionLog.Controls.Add(this.textBoxSessionLogFolder);
+            this.groupBoxSessionLog.Controls.Add(this.buttonBrowseSessionLogFolder);
+            this.groupBoxSessionLog.Location = new System.Drawing.Point(4, 302);
+            this.groupBoxSessionLog.Margin = new System.Windows.Forms.Padding(4);
+            this.groupBoxSessionLog.Name = "groupBoxSessionLog";
+            this.groupBoxSessionLog.Padding = new System.Windows.Forms.Padding(4);
+            this.groupBoxSessionLog.Size = new System.Drawing.Size(762, 104);
+            this.groupBoxSessionLog.TabIndex = 4;
+            this.groupBoxSessionLog.TabStop = false;
+            this.groupBoxSessionLog.Text = "Session logs";
+            //
+            // checkSessionLog
+            //
+            this.checkSessionLog.AutoSize = true;
+            this.checkSessionLog.Location = new System.Drawing.Point(16, 30);
+            this.checkSessionLog.Margin = new System.Windows.Forms.Padding(4);
+            this.checkSessionLog.Name = "checkSessionLog";
+            this.checkSessionLog.TabIndex = 0;
+            this.checkSessionLog.Text = "Keep a log of every PuTTY session (one file per session, named with its start time)";
+            this.toolTip.SetToolTip(this.checkSessionLog, "When off, each session still writes a temporary log (deleted after the tab closes), which SPSL's WAITFOR reads.");
+            this.checkSessionLog.UseVisualStyleBackColor = true;
+            //
+            // labelSessionLogFolder
+            //
+            this.labelSessionLogFolder.AutoSize = true;
+            this.labelSessionLogFolder.Location = new System.Drawing.Point(16, 68);
+            this.labelSessionLogFolder.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.labelSessionLogFolder.Name = "labelSessionLogFolder";
+            this.labelSessionLogFolder.TabIndex = 1;
+            this.labelSessionLogFolder.Text = "Folder:";
+            //
+            // textBoxSessionLogFolder
+            //
+            this.textBoxSessionLogFolder.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.textBoxSessionLogFolder.Location = new System.Drawing.Point(100, 64);
+            this.textBoxSessionLogFolder.Margin = new System.Windows.Forms.Padding(4);
+            this.textBoxSessionLogFolder.Name = "textBoxSessionLogFolder";
+            this.textBoxSessionLogFolder.Size = new System.Drawing.Size(540, 27);
+            this.textBoxSessionLogFolder.TabIndex = 2;
+            this.toolTip.SetToolTip(this.textBoxSessionLogFolder, "Leave empty for Documents\\SuperXPuTTY\\logs");
+            //
+            // buttonBrowseSessionLogFolder
+            //
+            this.buttonBrowseSessionLogFolder.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.buttonBrowseSessionLogFolder.Location = new System.Drawing.Point(648, 62);
+            this.buttonBrowseSessionLogFolder.Margin = new System.Windows.Forms.Padding(4);
+            this.buttonBrowseSessionLogFolder.Name = "buttonBrowseSessionLogFolder";
+            this.buttonBrowseSessionLogFolder.Size = new System.Drawing.Size(100, 30);
+            this.buttonBrowseSessionLogFolder.TabIndex = 3;
+            this.buttonBrowseSessionLogFolder.Text = "Browse...";
+            this.buttonBrowseSessionLogFolder.UseVisualStyleBackColor = true;
+            this.buttonBrowseSessionLogFolder.Click += new System.EventHandler(this.buttonBrowseSessionLogFolder_Click);
+            this.groupBoxSessionLog.ResumeLayout(false);
+            this.groupBoxSessionLog.PerformLayout();
             this.tabControl.ResumeLayout(false);
             this.tabPageGeneral.ResumeLayout(false);
             this.tabPageGeneral.PerformLayout();
@@ -2115,6 +2184,11 @@
         private System.Windows.Forms.Panel panelBottom;
         private System.Windows.Forms.FontDialog fontDialog;
         private System.Windows.Forms.GroupBox groupBox4;
+        private System.Windows.Forms.GroupBox groupBoxSessionLog;
+        private System.Windows.Forms.CheckBox checkSessionLog;
+        private System.Windows.Forms.Label labelSessionLogFolder;
+        private System.Windows.Forms.TextBox textBoxSessionLogFolder;
+        private System.Windows.Forms.Button buttonBrowseSessionLogFolder;
         private System.Windows.Forms.GroupBox groupBox5;
         private System.Windows.Forms.ComboBox comboBoxActivatorType;
         private System.Windows.Forms.Label label6;

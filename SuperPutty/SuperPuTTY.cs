@@ -41,6 +41,8 @@ namespace SuperPutty
         {
             Log.InfoFormat($"Initializing.  Version={Version}, UserSettings={Settings.SettingsFilePath}, SettingsFolder={Settings.SettingsFolder}");
 
+            SessionLog.PurgeTemporaryLogs();
+
             Images = LoadImageList("default", false);
             ImagesWithStop = LoadImageList("default", true);
 
@@ -513,8 +515,11 @@ namespace SuperPutty
 
                         if (!String.IsNullOrEmpty(script))
                         {
-                            ExecuteScriptEventArgs scriptArgs = new ExecuteScriptEventArgs() { Script = script, Handle = panel.AppPanel.AppWindowHandle };
-                            SPSL.BeginExecuteScript(scriptArgs);
+                            // run through the tab so WAITFOR can read the session log (and RDP tabs get keystrokes)
+                            if (new ExecuteScriptEventArgs() { Script = script }.IsSPSL)
+                            {
+                                panel.RunScript(script, fromSessionStart: true, name: "Login script");
+                            }
                         }
                     }
                 } catch (InvalidOperationException ex)

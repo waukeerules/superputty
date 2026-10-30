@@ -85,6 +85,9 @@ namespace SuperPutty
         /// <summary>The button bar above the status bar (View -> Toolbars -> Button Bar)</summary>
         private ButtonBarStrip buttonBar;
 
+        /// <summary>Refreshes the status-bar indicator of running scripts twice a second</summary>
+        private System.Windows.Forms.Timer scriptsTimer;
+
         /// <summary>The main SuperPuTTY application form</summary>
         public frmSuperPutty()
         {
@@ -152,6 +155,12 @@ namespace SuperPutty
 
             // Button bar, docked above the status bar. Docking goes in reverse child order, so keep the
             // status bar last (docked first, bottom-most) and the button bar just before it.
+            // running scripts (ScriptRun): a status-bar indicator with a menu to stop them, and spinners on their
+            // button and tab, animated at the spinner's frame rate
+            this.scriptsTimer = new System.Windows.Forms.Timer { Interval = Spinner.FrameMs };
+            this.scriptsTimer.Tick += (sender, e) => this.UpdateScriptsIndicator();
+            this.scriptsTimer.Start();
+
             this.buttonBar = new ButtonBarStrip(this.GetButtonBarTargets);
             this.toolStripContainer1.ContentPanel.Controls.Add(this.buttonBar);
             this.toolStripContainer1.ContentPanel.Controls.SetChildIndex(this.buttonBar, 1);
@@ -376,8 +385,16 @@ namespace SuperPutty
         /// <param name="sender"></param>
         /// <param name="e"></param>
         private void dockPanel1_ActiveDocumentChanged(object sender, EventArgs e)
-        {            
+        {
             FocusActiveDocument("ActiveDocumentChanged");
+
+            // switch the button bar to the one linked to this tab's icon; sessions without an icon use the default one
+            ctlPuttyPanel panel = this.DockPanel.ActiveDocument as ctlPuttyPanel;
+            if (this.buttonBar != null)
+            {
+                this.buttonBar.ShowBarForTabIcon(panel == null ? null
+                    : string.IsNullOrEmpty(panel.Session.ImageKey) ? SessionTreeview.ImageKeySession : panel.Session.ImageKey);
+            }
         }
 
         public void FocusActiveDocument(string caller)
@@ -1311,6 +1328,64 @@ namespace SuperPutty
                 }
             }
             return panels;
+        }
+
+        /// <summary>
+        /// Show the running scripts in the status bar: hidden when none run, the script's progress when one runs,
+        /// or a count when several do. Refreshes the open menu's entries too.
+        /// </summary>
+        private void UpdateScriptsIndicator()
+        {
+            IList<ScriptRun> runs = ScriptRun.Running;
+
+            // spinners on the buttons and tabs running scripts (each call restores the ones that have finished)
+            if (this.buttonBar != null)
+            {
+                this.buttonBar.UpdateRunningButtons();
+            }
+            foreach (ctlPuttyPanel panel in this.DockPanel.Documents.OfType<ctlPuttyPanel>())
+            {
+                panel.ShowScriptRunning(runs.Any(r => r.Owner == panel));
+            }
+
+            this.toolStripDropDownScripts.Visible = runs.Count > 0;
+            if (runs.Count == 0)
+                return;
+
+            // refreshed every frame for the spinners, so only touch the text when it changes
+            string text = runs.Count == 1 ? "▶ " + runs[0] : "▶ " + runs.Count + " scripts running";
+            if (this.toolStripDropDownScripts.Text != text)
+            {
+                this.toolStripDropDownScripts.Text = text;
+            }
+            foreach (ToolStripItem item in this.toolStripDropDownScripts.DropDownItems)
+            {
+                ScriptRun run = item.Tag as ScriptRun;
+                if (run != null)
+                {
+                    item.Text = runs.Contains(run) ? "Stop  " + run : run.Name + " (" + run.TabName + "): ended";
+                    item.Enabled = runs.Contains(run);
+                }
+            }
+        }
+
+        /// <summary>List the running scripts, each with a Stop entry, and Stop all</summary>
+        /// <param name="sender">The indicator</param>
+        /// <param name="e">Not used</param>
+        private void toolStripDropDownScripts_DropDownOpening(object sender, EventArgs e)
+        {
+            this.toolStripDropDownScripts.DropDownItems.Clear();
+            IList<ScriptRun> runs = ScriptRun.Running;
+            foreach (ScriptRun run in runs)
+            {
+                ScriptRun target = run;
+                this.toolStripDropDownScripts.DropDownItems.Add(new ToolStripMenuItem("Stop  " + run, null, (s, args) => target.Cancel()) { Tag = run });
+            }
+            if (runs.Count > 1)
+            {
+                this.toolStripDropDownScripts.DropDownItems.Add(new ToolStripSeparator());
+                this.toolStripDropDownScripts.DropDownItems.Add(new ToolStripMenuItem("Stop all", null, (s, args) => ScriptRun.CancelAll()));
+            }
         }
 
         /// <summary>The tabs a button bar click sends to (see <see cref="ButtonBarStrip"/>)</summary>

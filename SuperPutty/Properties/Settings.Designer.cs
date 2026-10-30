@@ -1179,5 +1179,31 @@ namespace SuperPutty.Properties {
                 this["RdpGatewayHost"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool SessionLogEnabled {
+            get {
+                return ((bool)(this["SessionLogEnabled"]));
+            }
+            set {
+                this["SessionLogEnabled"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string SessionLogFolder {
+            get {
+                return ((string)(this["SessionLogFolder"]));
+            }
+            set {
+                this["SessionLogFolder"] = value;
+            }
+        }
     }
 }

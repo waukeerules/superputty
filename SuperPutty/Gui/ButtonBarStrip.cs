@@ -39,6 +39,48 @@ namespace SuperPutty.Gui
         /// <summary>Circle bitmaps made for the current buttons, disposed when the buttons are rebuilt</summary>
         private readonly List<Image> circleImages = new List<Image>();
 
+        /// <summary>Buttons showing a spinner, with their normal image and display settings to restore</summary>
+        private readonly Dictionary<ToolStripButton, Tuple<Image, ToolStripItemDisplayStyle, ToolStripItemImageScaling>> spinningButtons =
+            new Dictionary<ToolStripButton, Tuple<Image, ToolStripItemDisplayStyle, ToolStripItemImageScaling>>();
+
+        /// <summary>
+        /// Show a spinner on each button whose script is running in any tab, advance it one frame, and restore buttons
+        /// whose scripts have ended. Called by frmSuperPutty's script timer every <see cref="Spinner.FrameMs"/> ms.
+        /// </summary>
+        public void UpdateRunningButtons()
+        {
+            List<CommandButton> running = ScriptRun.Running.Select(r => r.Source as CommandButton).Where(c => c != null).ToList();
+            if (running.Count == 0 && this.spinningButtons.Count == 0)
+                return;
+
+            foreach (ToolStripButton button in this.Items.OfType<ToolStripButton>())
+            {
+                CommandButton command = button.Tag as CommandButton;
+                if (command == null)
+                    continue;
+                // the bars are reloaded whenever the menu opens, so match by content rather than by object
+                bool isRunning = running.Any(c => c == command || (c.Label == command.Label && c.Text == command.Text));
+                Tuple<Image, ToolStripItemDisplayStyle, ToolStripItemImageScaling> normal;
+                if (isRunning)
+                {
+                    if (!this.spinningButtons.ContainsKey(button))
+                    {
+                        this.spinningButtons[button] = Tuple.Create(button.Image, button.DisplayStyle, button.ImageScaling);
+                        button.DisplayStyle = ToolStripItemDisplayStyle.ImageAndText;
+                        button.ImageScaling = ToolStripItemImageScaling.None;
+                    }
+                    button.Image = Spinner.CurrentImage(DpiUtils.ScaleWidth(CircleSize));
+                }
+                else if (this.spinningButtons.TryGetValue(button, out normal))
+                {
+                    button.Image = normal.Item1;
+                    button.DisplayStyle = normal.Item2;
+                    button.ImageScaling = normal.Item3;
+                    this.spinningButtons.Remove(button);
+                }
+            }
+        }
+
         /// <summary>Returns the tabs to send to: the active tab (false) or the tabs selected for Send Commands (true)</summary>
         private readonly Func<bool, IList<ctlPuttyPanel>> getTargets;
 
@@ -105,6 +147,8 @@ namespace SuperPutty.Gui
                 new ToolStripMenuItem("New Button Bar...", null, (s, e) => this.NewBar()),
                 this.menuRenameBar,
                 this.menuDeleteBar,
+                // after the menu closes, so the icon list can stay open while several icons are ticked
+                new ToolStripMenuItem("Show for Tab &Icons...", null, (s, e) => this.BeginInvoke(new MethodInvoker(this.ShowTabIconMenu))),
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("Reload", null, (s, e) => this.Reload())
             });
@@ -194,17 +238,95 @@ namespace SuperPutty.Gui
         {
             get
             {
-                return this.bars.Bars.FirstOrDefault(b => string.Equals(b.Name, SuperPuTTY.Settings.ActiveButtonBar, StringComparison.OrdinalIgnoreCase))
+                return this.bars.Bars.FirstOrDefault(b => string.Equals(b.Name, this.tabIconBarName, StringComparison.OrdinalIgnoreCase))
+                    ?? this.bars.Bars.FirstOrDefault(b => string.Equals(b.Name, SuperPuTTY.Settings.ActiveButtonBar, StringComparison.OrdinalIgnoreCase))
                     ?? this.bars.Bars[0];
             }
+        }
+
+        /// <summary>The active tab's icon, as last passed to <see cref="ShowBarForTabIcon"/></summary>
+        private string activeTabIcon;
+
+        /// <summary>The bar picked for <see cref="activeTabIcon"/>, or null when no bar lists it (the user's own pick shows then)</summary>
+        private string tabIconBarName;
+
+        /// <summary>
+        /// Show the bar linked to the active tab's icon (right-click -> Show for Tab Icons), or, if no bar lists that icon,
+        /// the bar the user last picked from the dropdown. Called by frmSuperPutty when the active tab changes.
+        /// </summary>
+        /// <param name="imageKey">The active tab's session icon, or null when the active tab isn't a session</param>
+        public void ShowBarForTabIcon(string imageKey)
+        {
+            string before = this.CurrentBar.Name;
+            this.activeTabIcon = imageKey;
+            this.PickBarForTabIcon();
+            if (!string.Equals(before, this.CurrentBar.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                this.RefreshBarList();
+                this.RefreshButtons();
+            }
+        }
+
+        /// <summary>Set <see cref="tabIconBarName"/> to the first bar listing <see cref="activeTabIcon"/>, or null</summary>
+        private void PickBarForTabIcon()
+        {
+            ButtonBar bar = string.IsNullOrEmpty(this.activeTabIcon) ? null : this.bars.Bars.FirstOrDefault(b =>
+                b.TabIcons != null && b.TabIcons.Any(icon => string.Equals(icon, this.activeTabIcon, StringComparison.OrdinalIgnoreCase)));
+            this.tabIconBarName = bar != null ? bar.Name : null;
         }
 
         /// <summary>Reload the bars from ButtonBars.xml, picking up changes made by others sharing the file, and redraw</summary>
         public void Reload()
         {
             this.bars = ButtonBarStore.Load();
+            this.PickBarForTabIcon();
             this.RefreshBarList();
             this.RefreshButtons();
+        }
+
+        /// <summary>
+        /// Show a checklist of every session icon at the mouse, ticked for the icons the current bar is shown for.
+        /// Ticking saves straight away; the list stays open until clicked away from.
+        /// </summary>
+        private void ShowTabIconMenu()
+        {
+            if (SuperPuTTY.Images == null)
+                return;
+
+            ButtonBar bar = this.CurrentBar;
+            ContextMenuStrip menu = new ContextMenuStrip { ShowCheckMargin = true, ShowImageMargin = true };
+            menu.Items.Add(new ToolStripLabel($"Show \"{bar.Name}\" for tabs with these icons:") { ForeColor = SystemColors.GrayText });
+            foreach (string key in SuperPuTTY.Images.Images.Keys)
+            {
+                string icon = key;
+                ToolStripMenuItem item = new ToolStripMenuItem(icon, SuperPuTTY.Images.Images[icon])
+                {
+                    Checked = bar.TabIcons.Any(i => string.Equals(i, icon, StringComparison.OrdinalIgnoreCase))
+                };
+                item.Click += delegate
+                {
+                    item.Checked = !item.Checked;
+                    bar.TabIcons.RemoveAll(i => string.Equals(i, icon, StringComparison.OrdinalIgnoreCase));
+                    if (item.Checked)
+                    {
+                        bar.TabIcons.Add(icon);
+                    }
+                    if (!ButtonBarStore.Save(this.bars))
+                    {
+                        Log.Warn("Could not save the tab icons of button bar " + bar.Name);
+                    }
+                };
+                menu.Items.Add(item);
+            }
+
+            // keep the list open while icons are ticked; apply the mapping once it closes
+            menu.Closing += (s, args) => args.Cancel = args.CloseReason == ToolStripDropDownCloseReason.ItemClicked;
+            menu.Closed += (s, args) => this.BeginInvoke(new MethodInvoker(() =>
+            {
+                menu.Dispose();
+                this.ShowBarForTabIcon(this.activeTabIcon);
+            }));
+            menu.Show(Cursor.Position);
         }
 
         /// <summary>Fill the dropdown with the bar names and select the current bar</summary>
@@ -241,6 +363,8 @@ namespace SuperPutty.Gui
                 image.Dispose();
             }
             this.circleImages.Clear();
+            // the buttons are new; UpdateRunningButtons puts spinners back on the next tick
+            this.spinningButtons.Clear();
 
             ButtonBar bar = this.CurrentBar;
             if (bar.Buttons.Count == 0)
@@ -278,8 +402,10 @@ namespace SuperPutty.Gui
             if (this.updatingCombo || this.comboBars.SelectedIndex < 0)
                 return;
 
+            // a bar picked by hand shows now and becomes the fallback for tabs whose icon has no bar
             SuperPuTTY.Settings.ActiveButtonBar = this.bars.Bars[this.comboBars.SelectedIndex].Name;
             SuperPuTTY.Settings.Save();
+            this.tabIconBarName = null;
             this.RefreshButtons();
         }
 
@@ -306,22 +432,10 @@ namespace SuperPutty.Gui
 
             if (command.Action == CommandButtonAction.SpslScript)
             {
-                string[] lines = text.Split('\n');
+                // through the tab, so WAITFOR can read the session log and RDP sessions get keystrokes
                 foreach (ctlPuttyPanel panel in targets)
                 {
-                    // like SPSL.BeginExecuteScript, but sending through the tab so RDP sessions work too
-                    new Thread(() =>
-                    {
-                        foreach (string line in lines)
-                        {
-                            CommandData step;
-                            SPSL.TryParseScriptLine(line.TrimEnd('\r'), out step);
-                            if (step != null)
-                            {
-                                panel.SendCommand(step);
-                            }
-                        }
-                    }) { IsBackground = true, Name = "ButtonBar" }.Start();
+                    panel.RunScript(text, name: command.Label, source: command);
                 }
             }
             else
@@ -518,6 +632,8 @@ namespace SuperPutty.Gui
                 Messenger.MessageBox($"Could not save the button bars to\n{ButtonBarStore.FilePath}\n\nThe folder may be read-only. See the log for details.",
                     "Button Bar", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+            // a renamed or deleted bar may have been the one picked for the active tab's icon
+            this.PickBarForTabIcon();
             this.RefreshBarList();
             this.RefreshButtons();
         }

@@ -39,6 +39,15 @@ namespace SuperPutty.Utils
 
         public TimeSpan Delay { get; private set; }
 
+        /// <summary>
+        /// For SPSL's WAITFOR: text to wait for in the session's output before the script goes on; null for commands
+        /// that send. Handled by ctlPuttyPanel, which reads the session log; <see cref="SendToTerminal"/> ignores it.
+        /// </summary>
+        public string WaitFor { get; set; }
+
+        /// <summary>For WAITFOR: how long to wait for <see cref="WaitFor"/> before giving up</summary>
+        public TimeSpan WaitTimeout { get; set; }
+
         /// <summary>Construct a new <seealso cref="CommandData"/> object, specifying a command to send</summary>
         /// <param name="command">A string containing the command to send</param>
         public CommandData(string command)
@@ -77,7 +86,9 @@ namespace SuperPutty.Utils
         /// <param name="handle">The Windows Handle to send to</param>
         public void SendToTerminal(int handle)
         {
-            Log.InfoFormat("SendToTerminal: Handle={0}, Command=[{1}]", handle, this);
+            // log only the length: commands can contain passwords, e.g. a button typing a secret {key}
+            Log.InfoFormat("SendToTerminal: Handle={0}, {1} characters{2}", handle, this.Command == null ? 0 : this.Command.Length,
+                this.KeyData != null ? " + " + this.KeyData.KeyData : "");
             if (!string.IsNullOrEmpty(this.Command))
             {
                 // send normal string command

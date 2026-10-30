@@ -82,6 +82,7 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Management" />
+    <Reference Include="System.Security" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="WindowsBase" />
@@ -227,6 +228,7 @@
     <Compile Include="dlgMouseFeedback.Designer.cs">
       <DependentUpon>dlgMouseFeedback.cs</DependentUpon>
     </Compile>
+    <Compile Include="Gui\Spinner.cs" />
     <Compile Include="Gui\RdpControl.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -337,6 +339,9 @@
     <Compile Include="Utils\SendStringParser.cs" />
     <Compile Include="Utils\IEmbeddedApplication.cs" />
     <Compile Include="Utils\ICommandReceiver.cs" />
+    <Compile Include="Utils\SessionLog.cs" />
+    <Compile Include="Utils\ScriptRun.cs" />
+    <Compile Include="Scripting\WaitForCommand.cs" />
     <EmbeddedResource Include="AboutBox.resx">
       <DependentUpon>AboutBox.cs</DependentUpon>
       <SubType>Designer</SubType>

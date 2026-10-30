@@ -212,6 +212,51 @@ They're per-user settings named `Rdp*` (e.g. `RdpDisplayMode`, `RdpGatewayHost`)
 
 **Checked outside the app:** `RdpControl` was hosted on a hidden form and connected to `127.0.0.1` port 1 (closed). The control was created; the server, port, username, desktop size (the control's 884x601), smart sizing and CredSSP were all accepted; `Connect()` started connecting. The disconnect event (reason 516) arrived through the hand-declared event interface, and Windows' error text was read. A real login, resizing while connected, and the tab itself are tested by hand.
 
+## Secret values in Environment Variables
+
+A variable can be marked **Secret** (new column in Tools → Environment Variables), e.g. a vault password used in a `{key}` placeholder.
+
+- **Storage:** a secret is written to `EnvironmentVariables.json` only as `ProtectedValue`, encrypted with Windows DPAPI for the current user (with extra entropy, `SuperPuTTY.EnvironmentVariables`). Only that Windows user on that computer can decrypt it. Ordinary variables are written as before. This is done with Json.NET `ShouldSerializeValue` / `ShouldSerializeProtectedValue` in `Models/EnvironmentVariable.cs`; `EnvironmentVariablesManager` encrypts on save and decrypts on load.
+- **On screen:** secret values show as dots in the dialog and are edited in a password box. The Edit Session preview shows them as dots (`SessionVariables.Load(maskSecrets: true)`).
+- **A value that can't be decrypted** (the file was copied from another user or computer) loads as empty, with a warning in the log, and has to be entered again.
+- **Logs:** `CommandData.SendToTerminal` (upstream) logged every command's full text; it now logs only the length, since a button or script can type a secret.
+- **Checked against the compiled assembly:** a secret serializes with no plain text in the JSON, decrypts back to the original, and a corrupted value comes back empty rather than throwing.
+
+## Button bars that follow the tab's icon
+
+Each button bar can be linked to tab icons: right-click the bar → **Show for Tab Icons...**, then tick one or more session icons (e.g. `windows`, `windows_xp`). The list stays open while you tick. When a tab becomes active, the bar switches to the first bar linked to that tab's icon. Sessions without an icon count as the default `computer` icon. When no bar is linked to the icon, it shows the bar you last picked from the dropdown; picking a bar by hand shows it straight away and makes it that fallback.
+
+- **Storage:** the links are stored with each bar in `ButtonBars.xml` (`<TabIcons><Icon>windows</Icon></TabIcons>`, written only when set), so a shared file shares them.
+- **Code:** `ButtonBar.TabIcons` in `Data/ButtonBarData.cs`. In `ButtonBarStrip`, `ShowBarForTabIcon` is called from `frmSuperPutty.dockPanel1_ActiveDocumentChanged`, `PickBarForTabIcon` chooses the bar, and `ShowTabIconMenu` is the icon checklist.
+
+## Session logs and SPSL WAITFOR
+
+**Session logs:** every PuTTY session (SSH, Telnet, Rlogin, Raw, Serial) is started with `-sessionlog "<file>" -logoverwrite`, which needs PuTTY 0.75 or later. The file name has the session name and start time, so PuTTY never asks to overwrite.
+- With **Tools → Options → Advanced → Session logs → Keep a log of every PuTTY session** on, logs are kept in the chosen folder (default `Documents\SuperXPuTTY\logs`, deliberately not the possibly shared settings folder).
+- Otherwise each session writes a temporary log in `%TEMP%\SuperPuTTY\logs`. It's deleted 5 s after its tab closes, and leftovers older than a day are purged at startup.
+- It's the only way SuperPuTTY can see a session's output, since PuTTY draws the terminal itself. The log contains what the terminal shows; typed passwords aren't echoed, so they aren't in it.
+- **Code:** `Utils/SessionLog.cs`; `PuttyStartInfo.SessionLogPath`; `ctlPuttyPanel.SessionLogPath`; settings `SessionLogEnabled` and `SessionLogFolder`.
+
+**`WAITFOR` (SPSL):** `WAITFOR Password:` waits until that text appears in the session's output, up to 30 s; `WAITFOR /t:10 Password:` sets the timeout in seconds. In a session's own login script, the first `WAITFOR` looks at everything since the session started. In a button-bar script it looks at the **current line** and anything after it: a prompt already on screen matches, but older output, such as the login prompt of a session that's already logged in, is ignored. After each command sent, it looks only at what comes next, and the next `WAITFOR` starts after the match. If the text doesn't appear in time, the script **stops**, so nothing is typed into the wrong prompt, and the status bar says why. Matching is exact and case-sensitive; trailing spaces in the text are dropped, as SPSL trims every line.
+
+```
+#!/bin/spsl
+WAITFOR login as:
+SENDLINE {user}
+WAITFOR password:
+SENDLINE {vault_pw}
+WAITFOR #
+SENDLINE terminal length 0
+```
+
+- **Progress and Stop:** while scripts run, the status bar shows an indicator, e.g. `▶ Login_Test (r1): line 2/3 · WAITFOR password: · 8 s`, or `▶ 3 scripts running`. Click it to see each script with a **Stop** entry, plus **Stop all** when several are running. A stop takes effect at once, even during a `WAITFOR` or a `SLEEP` (the runner does `SLEEP` itself so it can be interrupted), and nothing more is typed. The status bar then says "stopped by you at line N of M". Closing a tab stops its scripts. The indicator shows the command word, and `WAITFOR`'s text, but never what's being typed, which may be a secret. Code: `Utils/ScriptRun.cs` (progress and cancellation); `ctlPuttyPanel.RunScriptLines`; `frmSuperPutty.UpdateScriptsIndicator`, polled every 100 ms; `toolStripDropDownScripts` in the status bar.
+- **Spinners:** while a script runs, the button-bar button that started it shows a spinning arc in place of its icon, and so does the tab it runs in. They go back to normal when it ends, is stopped or fails. The tab spinner needs Options → GUI → **Show tab icons**. It's drawn as a white badge with the blue arc, because the selected tab is painted in the theme's accent blue, which hid a bare blue arc. `Gui/Spinner.cs` draws 12 frames once, as bitmaps for buttons and 16x16 icons for tabs, and reuses them, so animating creates no new bitmaps or handles. `ScriptRun.Source` records which button started a run. Buttons are matched by label and text, since the bars reload whenever their menu opens. `ButtonBarStrip.UpdateRunningButtons` and `ctlPuttyPanel.ShowScriptRunning` are advanced by the same 100 ms timer.
+- **Where it works:** `ctlPuttyPanel.RunScript` runs scripts line by line on a background thread, stopping on a timeout or an error. It's used for a session's own SPSL script when the session opens (in place of `SPSL.BeginExecuteScript`) and for button-bar scripts. Through Send Commands' script editor, `WAITFOR` waits but can't stop the script.
+- **Where it doesn't:** RDP, VNC, cmd and other non-PuTTY tabs have no session log, so `WAITFOR` there logs a warning and counts as a timeout.
+- **Code:** `Scripting/WaitForCommand.cs`; `CommandData.WaitFor` / `WaitTimeout`; `ctlPuttyPanel.WaitForOutput`, `SendCommand` and `RunScript`.
+- **Checked against the compiled assembly (button scripts):** on a log that looks like a logged-in session, `WAITFOR login as:` ignored the old prompt and `WAITFOR $` matched the prompt on the last line. On a fresh session at `login as: `, it matched.
+- **Checked against the compiled assembly:** the parsing (default, `/t:5`, missing text) and the PuTTY arguments, with the temp log path. On a real `ctlPuttyPanel`, with a test thread writing to its log as PuTTY would, the wait found text already there at once, found text written 1.5 s later at 1.53 s, and timed out on text already matched.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
@@ -240,6 +285,18 @@ Manual test:
 4. Remove `zone` again and launch: SuperPuTTY should stop and offer to open the Environment Variables dialog instead of connecting.
 5. Try the quick-connect toolbar, **Connect All** on a folder, Quick Selector and Restart.
 6. Close SuperPuTTY and open `Sessions.xml` (its location is shown in **Tools → Options**). The session should still say `{user}@{domain}`, not `jdoe@example.com`.
+
+Secrets, icon-linked bars, logs and WAITFOR:
+
+1. In Tools → Environment Variables, tick **Secret** on a variable: its value shows as dots. Close and reopen the dialog, open `EnvironmentVariables.json` and check that it has a `ProtectedValue` and no plain value. Check that a session using it still logs in.
+2. Right-click the button bar → **Show for Tab Icons...**, tick `windows` for a "Windows" bar, and switch between a Windows tab and an SSH tab: the bar should follow. Pick another bar by hand on the SSH tab, switch to the Windows tab and back: the hand-picked bar should return.
+3. Turn on **Session logs** (Options → Advanced), open an SSH session, and check that a log appears in `Documents\SuperXPuTTY\logs`. Turn it off: the next session's log goes to `%TEMP%\SuperPuTTY\logs` and disappears a few seconds after its tab closes.
+4. Make a button with an SPSL script such as `WAITFOR $` then `SENDLINE uname -a`, on a logged-in Linux tab sitting at its prompt: it should run. Change it to `WAITFOR /t:3 nothing-like-this` then `SENDLINE echo hi`: after 3 s the status bar should say the script stopped, and nothing should be typed.
+5. Login script as a button: define `user` and a secret `vault_pw`, and make a button with `WAITFOR login as:` / `SENDLINE {user}` / `WAITFOR password:` / `SENDLINE {vault_pw}`. Open a session with no login username, so PuTTY asks `login as:`, and click the button at that prompt: it should log in. Clicking it on an already logged-in tab should do nothing, and stop after 30 s.
+6. The same script as the session's own SPSL script file (Edit Session → SPSL script) should log in by itself when the session opens.
+7. Click the login button on an already logged-in tab: the status bar should show `▶ Login_Test (...): line 1/4 · WAITFOR login as: · N s`, and the button and the tab (with Show tab icons on) should show a spinner. Click the status-bar item → Stop: all three should go back to normal at once, with "stopped by you" in the status bar.
+
+The script runner was checked against the compiled assembly: a script blocked on `WAITFOR` showed `line 2/3 · WAITFOR password:` and stopped 12 ms after Stop, without typing the next line; a `SLEEP 20000` stopped after 15 ms; and nothing was left running.
 
 RDP options and sending:
 

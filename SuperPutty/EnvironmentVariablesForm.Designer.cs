@@ -18,6 +18,7 @@ namespace SuperPutty
             this.dgvEnvironment = new System.Windows.Forms.DataGridView();
             this.colKey = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colValue = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colSecret = new System.Windows.Forms.DataGridViewCheckBoxColumn();
             this.lblInstruction = new System.Windows.Forms.Label();
             this.flowLayoutPanel = new System.Windows.Forms.FlowLayoutPanel();
             this.btnAdd = new System.Windows.Forms.Button();
@@ -32,7 +33,8 @@ namespace SuperPutty
             this.dgvEnvironment.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dgvEnvironment.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
             this.colKey,
-            this.colValue});
+            this.colValue,
+            this.colSecret});
             this.dgvEnvironment.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dgvEnvironment.Location = new System.Drawing.Point(0, 20);
             this.dgvEnvironment.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
@@ -43,6 +45,9 @@ namespace SuperPutty
             this.dgvEnvironment.TabIndex = 0;
             this.dgvEnvironment.CellValidating += new System.Windows.Forms.DataGridViewCellValidatingEventHandler(this.dgvEnvironment_CellValidating);
             this.dgvEnvironment.UserAddedRow += new System.Windows.Forms.DataGridViewRowEventHandler(this.dgvEnvironment_UserAddedRow);
+            this.dgvEnvironment.CellFormatting += new System.Windows.Forms.DataGridViewCellFormattingEventHandler(this.dgvEnvironment_CellFormatting);
+            this.dgvEnvironment.EditingControlShowing += new System.Windows.Forms.DataGridViewEditingControlShowingEventHandler(this.dgvEnvironment_EditingControlShowing);
+            this.dgvEnvironment.CurrentCellDirtyStateChanged += new System.EventHandler(this.dgvEnvironment_CurrentCellDirtyStateChanged);
             // 
             // colKey
             // 
@@ -57,6 +62,14 @@ namespace SuperPutty
             this.colValue.MinimumWidth = 8;
             this.colValue.Name = "colValue";
             this.colValue.Width = 300;
+            //
+            // colSecret
+            //
+            this.colSecret.HeaderText = "Secret";
+            this.colSecret.MinimumWidth = 8;
+            this.colSecret.Name = "colSecret";
+            this.colSecret.ToolTipText = "Store the value encrypted for your Windows account and hide it on screen";
+            this.colSecret.Width = 70;
             // 
             // lblInstruction
             // 
@@ -140,6 +153,7 @@ namespace SuperPutty
         private System.Windows.Forms.DataGridView dgvEnvironment;
         private System.Windows.Forms.DataGridViewTextBoxColumn colKey;
         private System.Windows.Forms.DataGridViewTextBoxColumn colValue;
+        private System.Windows.Forms.DataGridViewCheckBoxColumn colSecret;
         private System.Windows.Forms.Label lblInstruction;
         private System.Windows.Forms.FlowLayoutPanel flowLayoutPanel;
         private System.Windows.Forms.Button btnOK;

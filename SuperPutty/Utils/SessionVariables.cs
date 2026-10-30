@@ -22,12 +22,20 @@ namespace SuperPutty.Utils
         /// <summary>Load the current user's variables, with case-insensitive keys</summary>
         public static Dictionary<string, string> Load()
         {
+            return Load(false);
+        }
+
+        /// <summary>Load the current user's variables, with case-insensitive keys</summary>
+        /// <param name="maskSecrets">true to replace secret values with dots, for showing on screen (e.g. the Edit Session preview)</param>
+        /// <returns>Each key and its value</returns>
+        public static Dictionary<string, string> Load(bool maskSecrets)
+        {
             Dictionary<string, string> variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var variable in new EnvironmentVariablesManager().LoadVariables().Variables)
             {
                 if (!string.IsNullOrWhiteSpace(variable.Key))
                 {
-                    variables[variable.Key.Trim()] = variable.Value ?? string.Empty;
+                    variables[variable.Key.Trim()] = maskSecrets && variable.Secret ? "••••••" : variable.Value ?? string.Empty;
                 }
             }
             return variables;

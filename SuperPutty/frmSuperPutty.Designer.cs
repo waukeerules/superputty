@@ -91,6 +91,7 @@ namespace SuperPutty
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.toolStripStatusLabelMessage = new System.Windows.Forms.ToolStripStatusLabel();
             this.toolStripStatusLabelVersion = new System.Windows.Forms.ToolStripStatusLabel();
+            this.toolStripDropDownScripts = new System.Windows.Forms.ToolStripDropDownButton();
             this.toolStripStatusLabelLayout = new System.Windows.Forms.ToolStripStatusLabel();
             this.tsCommands = new System.Windows.Forms.ToolStrip();
             this.tbTextSendCommands = new System.Windows.Forms.ToolStripLabel();
@@ -615,6 +616,7 @@ namespace SuperPutty
             this.statusStrip1.ImageScalingSize = new System.Drawing.Size(20, 20);
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.toolStripStatusLabelMessage,
+            this.toolStripDropDownScripts,
             this.toolStripStatusLabelVersion,
             this.toolStripStatusLabelLayout});
             this.statusStrip1.Location = new System.Drawing.Point(0, 779);
@@ -632,6 +634,16 @@ namespace SuperPutty
             this.toolStripStatusLabelMessage.Text = "<Status Message>";
             this.toolStripStatusLabelMessage.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
+            // toolStripDropDownScripts
+            //
+            this.toolStripDropDownScripts.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
+            this.toolStripDropDownScripts.Name = "toolStripDropDownScripts";
+            this.toolStripDropDownScripts.Size = new System.Drawing.Size(120, 24);
+            this.toolStripDropDownScripts.Text = "Scripts";
+            this.toolStripDropDownScripts.ToolTipText = "Running scripts: click to see their progress or stop them";
+            this.toolStripDropDownScripts.Visible = false;
+            this.toolStripDropDownScripts.DropDownOpening += new System.EventHandler(this.toolStripDropDownScripts_DropDownOpening);
+            //
             // toolStripStatusLabelVersion
             // 
             this.toolStripStatusLabelVersion.ForeColor = System.Drawing.SystemColors.ControlDark;
@@ -948,6 +960,7 @@ namespace SuperPutty
         private System.Windows.Forms.ToolStripMenuItem saveLayoutAsToolStripMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripMenuItem5;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabelVersion;
+        private System.Windows.Forms.ToolStripDropDownButton toolStripDropDownScripts;
         private System.Windows.Forms.ToolStrip tsConnect;
         private System.Windows.Forms.ToolStripLabel toolStripLabel1;
         private System.Windows.Forms.ToolStripComboBox tbComboProtocol;

@@ -67,6 +67,20 @@ namespace SuperPutty.Data
         /// <summary>The buttons, in the order they are shown left to right</summary>
         [XmlArrayItem("Button")]
         public List<CommandButton> Buttons { get; set; } = new List<CommandButton>();
+
+        /// <summary>
+        /// Tab icons (SuperPuTTY.Images keys, e.g. "windows") this bar is shown for: when a tab with one of these icons
+        /// becomes active, the button bar switches to this bar
+        /// </summary>
+        [XmlArrayItem("Icon")]
+        public List<string> TabIcons { get; set; } = new List<string>();
+
+        /// <summary>XmlSerializer: only write the icon list when there is one</summary>
+        /// <returns>true to write <see cref="TabIcons"/></returns>
+        public bool ShouldSerializeTabIcons()
+        {
+            return this.TabIcons != null && this.TabIcons.Count > 0;
+        }
     }
 
     /// <summary>The root of ButtonBars.xml: every button bar, in the order shown in the dropdown</summary>
