@@ -40,6 +40,7 @@ namespace SuperPutty
             this.label5 = new System.Windows.Forms.Label();
             this.textBoxUsername = new System.Windows.Forms.TextBox();
             this.labelPlaceholderPreview = new System.Windows.Forms.Label();
+            this.labelProfileMissing = new System.Windows.Forms.Label();
             this.errorProvider = new System.Windows.Forms.ErrorProvider(this.components);
             this.buttonImageSelect = new System.Windows.Forms.Button();
             this.toolTip = new System.Windows.Forms.ToolTip(this.components);
@@ -193,6 +194,18 @@ namespace SuperPutty
             this.labelPlaceholderPreview.Size = new System.Drawing.Size(486, 19);
             this.labelPlaceholderPreview.TabIndex = 31;
             this.labelPlaceholderPreview.Click += new System.EventHandler(this.labelPlaceholderPreview_Click);
+            //
+            // labelProfileMissing
+            //
+            this.labelProfileMissing.AutoEllipsis = true;
+            this.labelProfileMissing.Font = new System.Drawing.Font("Segoe UI", 7.5F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.labelProfileMissing.ForeColor = System.Drawing.Color.IndianRed;
+            this.labelProfileMissing.Location = new System.Drawing.Point(445, 106);
+            this.labelProfileMissing.Margin = new System.Windows.Forms.Padding(5, 0, 5, 0);
+            this.labelProfileMissing.Name = "labelProfileMissing";
+            this.labelProfileMissing.Size = new System.Drawing.Size(193, 17);
+            this.labelProfileMissing.TabIndex = 32;
+            this.labelProfileMissing.Visible = false;
             //
             // errorProvider
             // 
@@ -445,6 +458,7 @@ namespace SuperPutty
             this.groupBox1.Controls.Add(this.buttonBrowse);
             this.groupBox1.Controls.Add(this.textBoxUsername);
             this.groupBox1.Controls.Add(this.labelPlaceholderPreview);
+            this.groupBox1.Controls.Add(this.labelProfileMissing);
             this.groupBox1.Controls.Add(this.label1);
             this.groupBox1.Controls.Add(this.label5);
             this.groupBox1.Controls.Add(this.textBoxSessionName);
@@ -507,6 +521,7 @@ namespace SuperPutty
         private System.Windows.Forms.TextBox textBoxUsername;
         private System.Windows.Forms.Label labelPlaceholderPreview;
         private System.Windows.Forms.ErrorProvider errorProvider;
+        private System.Windows.Forms.Label labelProfileMissing;
         private System.Windows.Forms.Label label6;
         private System.Windows.Forms.TextBox textBoxExtraArgs;
         private System.Windows.Forms.Button buttonRdpOptions;

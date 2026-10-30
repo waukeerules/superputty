@@ -61,6 +61,12 @@ namespace SuperPutty
             InitializeComponent();
             placeholderValues = SessionVariables.Load(true);
 
+            // draw the profile list ourselves so a profile that isn't saved in PuTTY/KiTTY shows in red; the dark
+            // theme draws a drop-down list's text in its own colour, ignoring ForeColor
+            comboBoxPuttyProfile.DrawMode = DrawMode.OwnerDrawFixed;
+            comboBoxPuttyProfile.ItemHeight = comboBoxPuttyProfile.Font.Height + 4;
+            comboBoxPuttyProfile.DrawItem += comboBoxPuttyProfile_DrawItem;
+
             // get putty saved settings from the registry to populate
             // the dropdown
             PopulatePuttySettings();
@@ -86,6 +92,12 @@ namespace SuperPutty
                 }
 
                 comboBoxPuttyProfile.DropDownStyle = ComboBoxStyle.DropDownList;
+                // a profile that isn't saved in PuTTY/KiTTY (yet) is still listed and selected, so Save keeps it
+                // instead of quietly replacing it with Default Settings
+                if (!string.IsNullOrEmpty(session.PuttySession) && !this.comboBoxPuttyProfile.Items.Contains(session.PuttySession))
+                {
+                    this.comboBoxPuttyProfile.Items.Add(session.PuttySession);
+                }
                 foreach(String settings in this.comboBoxPuttyProfile.Items){
                     if (settings == session.PuttySession)
                     {
@@ -185,6 +197,7 @@ namespace SuperPutty
             placeholderTextColor = textBoxUsername.ForeColor;
             placeholderPreviewColor = label5.ForeColor;
             UpdatePlaceholderPreview();
+            ShowProfileMissing();
 
             this.rdpOptions = Session.RdpOptions;
             UpdateRdpOptionsButton();
@@ -216,9 +229,21 @@ namespace SuperPutty
             }
         }
 
+        /// <summary>The profiles saved in PuTTY/KiTTY when the dialog opened, so drawing the list doesn't re-read them</summary>
+        private List<string> savedProfiles = new List<string>();
+
+        /// <summary>Whether a profile is saved in PuTTY/KiTTY, or needs no saving (empty, Default Settings)</summary>
+        /// <param name="profile">The profile name</param>
+        /// <returns>true unless it's missing</returns>
+        private bool IsProfileSaved(string profile)
+        {
+            return string.IsNullOrEmpty(profile) || profile == PuttyDataHelper.SessionDefaultSettings || savedProfiles.Contains(profile);
+        }
+
         private void PopulatePuttySettings()
         {
-            foreach (String sessionName in PuttyDataHelper.GetSessionNames())
+            savedProfiles = PuttyDataHelper.GetSessionNames();
+            foreach (String sessionName in savedProfiles)
             {
                 comboBoxPuttyProfile.Items.Add(sessionName);
             }
@@ -512,7 +537,50 @@ namespace SuperPutty
 
         private void comboBoxPuttyProfile_SelectedIndexChanged(object sender, EventArgs e)
         {
-            this.ValidateChildren(ValidationConstraints.ImmediateChildren);    
+            this.ValidateChildren(ValidationConstraints.ImmediateChildren);
+            this.ShowProfileMissing();
+        }
+
+        /// <summary>
+        /// Draw one profile in the list, or the chosen one in the closed field: in red if it isn't saved in PuTTY or
+        /// KiTTY (see <see cref="ShowProfileMissing"/>), otherwise in the normal colours
+        /// </summary>
+        /// <param name="sender">The profile list</param>
+        /// <param name="e">The item and where to draw it</param>
+        private void comboBoxPuttyProfile_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            e.DrawBackground();
+            if (e.Index < 0)
+                return;
+            string profile = (string)this.comboBoxPuttyProfile.Items[e.Index];
+            bool inField = (e.State & DrawItemState.ComboBoxEdit) != 0;
+            bool highlighted = (e.State & DrawItemState.Selected) != 0 && !inField;
+            // red on the blue highlight is hard to read, so a highlighted list item keeps the highlight text colour
+            Color color = !IsProfileSaved(profile) && !highlighted ? placeholderMissingColor : e.ForeColor;
+            TextRenderer.DrawText(e.Graphics, profile, e.Font, e.Bounds, color,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        }
+
+        /// <summary>
+        /// Under the profile list, say when the chosen profile isn't saved in PuTTY or KiTTY, e.g. a shared
+        /// Sessions.xml naming a profile this user hasn't created yet. It still opens, with the defaults, so this is a
+        /// note, not an error that blocks Save.
+        /// </summary>
+        private void ShowProfileMissing()
+        {
+            string profile = this.comboBoxPuttyProfile.SelectedItem as string;
+            bool missing = !IsProfileSaved(profile);
+            this.labelProfileMissing.Visible = missing;
+            if (missing)
+            {
+                // set each time: DarkModeCS recolours labels during Load
+                this.labelProfileMissing.ForeColor = placeholderMissingColor;
+                string app = SuperPuTTY.PuTTYAppName;
+                this.labelProfileMissing.Text = "Not saved in " + app + " yet";
+                this.toolTip.SetToolTip(this.labelProfileMissing, string.Format(
+                    "There's no {0} session named \"{1}\" (looked in {2}).\nUntil you save one with this name in {0}, the session opens with {0}'s Default Settings.",
+                    app, profile, PuttyDataHelper.SessionStoreDescription));
+            }
         }
 
         void SetError(Control control, string error)
