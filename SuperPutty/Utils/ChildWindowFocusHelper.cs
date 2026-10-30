@@ -2,6 +2,7 @@
 using System.Windows.Forms;
 using log4net;
 using System.Collections.Generic;
+using System.Linq;
 using WeifenLuo.WinFormsUI.Docking;
 
 namespace SuperPutty.Utils
@@ -13,7 +14,12 @@ namespace SuperPutty.Utils
         private int m_shellHookNotify;
         private bool m_externalWindow = false;
 
-        private IDictionary<IntPtr, ctlPuttyPanel> childWindows = new Dictionary<IntPtr, ctlPuttyPanel>();
+        /// <summary>
+        /// The terminal tabs. Their window handles are read when needed rather than stored: a tab is added
+        /// before its application starts (SuperPuTTY.OpenProtoSession starts it after Show), so the handle
+        /// is still zero here, and keying by it made every second new tab throw a duplicate-key exception.
+        /// </summary>
+        private readonly List<ctlPuttyPanel> childPanels = new List<ctlPuttyPanel>();
 
         public ChildWindowFocusHelper(frmSuperPutty form)
         {
@@ -25,7 +31,7 @@ namespace SuperPutty.Utils
                 ctlPuttyPanel pp = doc as ctlPuttyPanel;
                 if (pp != null)
                 {
-                    this.childWindows.Add(pp.AppPanel.AppWindowHandle, pp);
+                    this.childPanels.Add(pp);
                 }
             }
             this.MainForm.DockPanel.ContentAdded += DockPanel_ContentAdded;
@@ -35,9 +41,9 @@ namespace SuperPutty.Utils
         void DockPanel_ContentAdded(object sender, DockContentEventArgs e)
         {
             ctlPuttyPanel pp = e.Content as ctlPuttyPanel;
-            if (pp != null)
+            if (pp != null && !this.childPanels.Contains(pp))
             {
-                this.childWindows.Add(pp.AppPanel.AppWindowHandle, pp);
+                this.childPanels.Add(pp);
             }
         }
 
@@ -46,7 +52,7 @@ namespace SuperPutty.Utils
             ctlPuttyPanel pp = e.Content as ctlPuttyPanel;
             if (pp != null)
             {
-                this.childWindows.Remove(pp.AppPanel.AppWindowHandle);
+                this.childPanels.Remove(pp);
             }
         }
 
@@ -164,9 +170,12 @@ namespace SuperPutty.Utils
             return true;
         }
 
+        /// <summary>Whether a window is the embedded application of one of the terminal tabs</summary>
+        /// <param name="childHandle">The window to look for, e.g. the foreground window</param>
+        /// <returns>true if a tab's application window has this handle</returns>
         bool ContainsChild(IntPtr childHandle)
         {
-            return this.childWindows.ContainsKey(childHandle);
+            return childHandle != IntPtr.Zero && this.childPanels.Any(pp => pp.AppPanel.AppWindowHandle == childHandle);
         }
 
         /// <summary>
