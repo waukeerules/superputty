@@ -2407,13 +2407,20 @@ namespace SuperPutty
                 ConnectionProtocol proto = isScp
                     ? ConnectionProtocol.SSH
                     : connStr.Protocol.GetValueOrDefault((ConnectionProtocol)Enum.Parse(typeof(ConnectionProtocol), protoString));
+
+                int port = connStr.Port.GetValueOrDefault(dlgEditSession.GetDefaultPort(proto));
+                if (protoString == "VNC" && port < 100)
+                {
+                    port += 5900;
+                }
+
                 SessionData session = new SessionData
                 {
                     Host = connStr.Host,
                     SessionName = connStr.Host,
                     SessionId = SuperPuTTY.MakeUniqueSessionId(SessionData.CombineSessionIds("QuickConnect", connStr.Host)),
                     Proto = proto,
-                    Port = connStr.Port.GetValueOrDefault(dlgEditSession.GetDefaultPort(proto)),
+                    Port = port,
                     Username = SubstituteVariables(this.tbTxtBoxLogin.Text),
                     Password = SubstituteVariables(this.tbTxtBoxPassword.Text),
                     PuttySession = (string)this.tbComboSession.SelectedItem
