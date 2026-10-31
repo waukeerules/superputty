@@ -599,6 +599,16 @@ The Sessions tree now has four top-level groups, always in this order: **Favorit
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
 
+## Fix: sessions with port 0 connected with -P 0
+
+**Symptom:** a session saved without a port (port 0, e.g. imported, or a row a script wrote) started PuTTY with `-P 0`, which fails.
+
+**Cause:** `PuttyStartInfo` always passes `-P` with the session's port, whatever it is.
+
+**Fix:** port 0 now means the protocol's usual port when the command line is built: 22 for SSH, 23 Telnet, 513 Rlogin (`SessionData.DefaultPort`). The session keeps 0, so saving it changes nothing. RDP and VNC already treat 0 as their own default.
+
+**Checked against the compiled assembly:** a session with port 0 gave `-ssh -P 22 -load "Default Settings" 10.5.5.5`.
+
 ## Database sessions (PostgreSQL)
 
 Sessions can be shared through a Postgres table. They show under a third root, **Database sessions**, next to Saved and Private sessions. Search, Favorites, Recent, the open-tab dots, layouts, the Quick Selector and `OPENSESSION` treat them like any other session.

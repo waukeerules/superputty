@@ -113,6 +113,27 @@ namespace SuperPutty.Data
         [Browsable(false)]
         public string DatabaseVersion { get; set; }
 
+        /// <summary>
+        /// The port a protocol normally uses, for sessions with port 0 (e.g. rows a script wrote without one): PuTTY is
+        /// always given -P, and port 0 would fail. RDP and VNC keep 0, which means their own default.
+        /// </summary>
+        /// <param name="protocol">The protocol</param>
+        /// <returns>22 for SSH, 23 for Telnet, 513 for Rlogin, otherwise 0</returns>
+        public static int DefaultPort(ConnectionProtocol protocol)
+        {
+            switch (protocol)
+            {
+                case ConnectionProtocol.SSH:
+                    return 22;
+                case ConnectionProtocol.Telnet:
+                    return 23;
+                case ConnectionProtocol.Rlogin:
+                    return 513;
+                default:
+                    return 0;
+            }
+        }
+
         /// <summary>Whether this session comes from the Postgres sessions table</summary>
         [XmlIgnore]
         [Browsable(false)]

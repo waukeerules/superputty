@@ -166,7 +166,8 @@ namespace SuperPutty.Utils
             args += !String.IsNullOrEmpty(session.Password) && session.Password.Length > 0 && SuperPuTTY.Settings.AllowPlainTextPuttyPasswordArg 
                 ? "-pw " + (includePassword ? session.Password : "XXXXX") + " " 
                 : "";
-            args += "-P " + session.Port + " ";
+            // port 0 (not set) means the protocol's usual port; kept as 0 in the session, so saving it changes nothing
+            args += "-P " + (session.Port != 0 ? session.Port : SessionData.DefaultPort(session.Proto)) + " ";
             args += !String.IsNullOrEmpty(session.PuttySession) ? "-load \"" + session.PuttySession + "\" " : "";
 
             args += !String.IsNullOrEmpty(SuperPuTTY.Settings.PuttyDefaultParameters) ? SuperPuTTY.Settings.PuttyDefaultParameters + " " : "";
