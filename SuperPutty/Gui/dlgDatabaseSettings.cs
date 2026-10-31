@@ -66,8 +66,14 @@ namespace SuperPutty.Gui
         /// <summary>Whether the password box was typed in; otherwise the stored password is kept</summary>
         private bool passwordChanged;
 
-        /// <summary>The layout holding every field and button</summary>
+        /// <summary>The layout holding the fields and the Test and Create buttons</summary>
         private readonly TableLayoutPanel grid;
+
+        /// <summary>Holds <see cref="grid"/>, filling the window above OK and Cancel; scrolls if the window is too short</summary>
+        private readonly Panel fields;
+
+        /// <summary>OK and Cancel, docked to the bottom</summary>
+        private readonly FlowLayoutPanel closeButtons;
 
         /// <summary>SSL modes offered, as Npgsql names them</summary>
         private static readonly string[] SslModes = { "Disable", "Allow", "Prefer", "Require", "VerifyCA", "VerifyFull" };
@@ -109,11 +115,25 @@ namespace SuperPutty.Gui
             actions.Controls.AddRange(new Control[] { this.buttonTest, this.buttonSchema });
             AddRow(grid, null, actions);
             AddRow(grid, null, this.labelResult);
-            FlowLayoutPanel close = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Anchor = AnchorStyles.Right, Margin = new Padding(0, 12, 0, 0) };
+            // OK and Cancel docked to the bottom of the window, so they show even if the window comes out too short
+            // for the fields (which then scroll): sizing the window to its contents alone still cut them off on
+            // some displays
+            FlowLayoutPanel close = new FlowLayoutPanel
+            {
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.RightToLeft,
+                Dock = DockStyle.Bottom,
+                Padding = new Padding(0, 12, 0, 0)
+            };
             close.Controls.AddRange(new Control[] { this.buttonCancel, this.buttonOK });
-            AddRow(grid, null, close);
+            this.closeButtons = close;
+            this.fields = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+            grid.Location = new Point(0, 0);
+            this.fields.Controls.Add(grid);
             this.grid = grid;
-            this.Controls.Add(grid);
+            this.Controls.Add(this.fields);
+            this.Controls.Add(close);
 
             ToolTip tips = new ToolTip();
             tips.SetToolTip(this.textPassword, "Saved encrypted for your Windows user. Or type a {key} placeholder from Tools > Environment Variables.");
@@ -195,9 +215,10 @@ namespace SuperPutty.Gui
         {
             this.grid.PerformLayout();
             Size needed = this.grid.GetPreferredSize(Size.Empty);
-            this.grid.Location = new Point(this.Padding.Left, this.Padding.Top);
             this.grid.Size = needed;
-            this.ClientSize = new Size(needed.Width + this.Padding.Horizontal, needed.Height + this.Padding.Vertical);
+            Size buttons = this.closeButtons.GetPreferredSize(Size.Empty);
+            this.ClientSize = new Size(Math.Max(needed.Width, buttons.Width) + this.Padding.Horizontal,
+                needed.Height + buttons.Height + this.Padding.Vertical);
         }
 
         /// <summary>Add a label and a control as the next row</summary>

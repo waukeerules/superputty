@@ -734,7 +734,33 @@ The guard trigger stops SuperXPuTTY changing these three, and the tree's tooltip
   - **Discard** drops the selected changes.
 - **Each database has its own queue,** so changing the connection settings loses nothing. Online with nothing queued, a change is saved at once, as before.
 
-**Dialog layout:** the dialog sizes itself to its contents after it's laid out and themed, again when it's shown, and again when it moves to a monitor with another scaling. Before, the form's own AutoSize cut off the OK and Cancel row at some scalings.
+**10,000 sessions:** Database sessions is filled on demand.
+- **On demand:** the sessions are indexed by folder, only the top level is put in the tree, and each folder is filled the first time it's opened (`FillDatabaseRoot`, `FillDatabaseFolder`, `treeView1_BeforeExpand`).
+- **After a refresh,** folders that were open stay open.
+- **Whole-folder actions** (Connect all, Rename, Remove, moves and their lock checks) take sessions from the index (`GetAllSessions`), so they include folders not opened yet.
+- **Finding a session** (Show in tree, selecting a new session) fills the folders on the way (`FindSessionNode`).
+- **Expand all** pauses drawing until it's done (`ExpandFully`): filling folders while expanding redrew the tree once per folder.
+
+Measured against a generated table of 10,000 sessions in 900 folders, 5 levels deep (`superputty.lots_of_sessions`), on the UI thread unless noted:
+
+| | Before | After |
+|---|---|---|
+| Start-up: cached sessions into the tree | 3.4 s | 0.12 s |
+| Start-up to "Database sessions (10,000)", reading the table in the background | | 0.55 s |
+| Redraw after a refresh | 3.5 s | 0.01 s |
+| Clearing a search | 2.9 s | 0.13 s |
+| A search (first one / again) | 2.0 s | 2.1 s / 0.4 s |
+| Expand all (11,128 nodes) | 1.4 s | 2.6 s |
+| Show a session 5 folders deep | | 0.013 s |
+| Open a folder | | 0.009 s |
+
+- **Background:** reading the 10,000 rows takes about 1 s, in the background.
+- **Cache:** 4 MB, written in 0.06 s and read in 0.09 s.
+- **Memory:** about 90 MB.
+- **First search:** most of its time is drawing icons not drawn before.
+- **Expand all** creates every node, which is slower than before; it's still the one action that needs them all.
+
+**Dialog layout:** OK and Cancel are docked to the bottom of the window, and the fields above scroll if the window comes out too short. They stay visible whatever size it ends up. Sizing the window to its contents alone (below) still cut them off on one display. The dialog also sizes itself to its contents after it's laid out and themed, again when it's shown, and again when it moves to a monitor with another scaling. Before, the form's own AutoSize cut off the OK and Cancel row at some scalings.
 
 | File | Change |
 |---|---|
@@ -801,6 +827,8 @@ The guard trigger stops SuperXPuTTY changing these three, and the tree's tooltip
   - Moving edge-r1 into the new folder "Moved", then folder Lab/Core into it, left `Moved/edge-r1`, `Moved/Core/core-sw1` and `Moved/Core/core-sw2` in the table, and the tree showed the same.
   - The mouse drag itself wasn't automated.
 - **Edit Session** with `host,port,username` locked: those fields were read-only and greyed, and notes stayed editable.
+- **Dialog fit, docked buttons:** squeezed 120 px too short, OK and Cancel stayed fully visible and the fields scrolled.
+- **10,000 sessions:** see the table above. Lazy filling was checked by finding a session 5 levels deep (found, filling 58 nodes), Connect all's list for an unopened region (2,000 sessions), and the read finishing ("Database sessions (10,000)").
 - **Dialog fit:** shown, its OK button fit. Shrunk by 45 px, as a DPI change can do, it was clipped; refit, it fit again.
 - **Not checked:** the running app with your settings (the dialogs themselves weren't clicked through), a real move between monitors, SSL modes other than Prefer, and very large tables.
 
