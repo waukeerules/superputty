@@ -68,6 +68,7 @@
             this.checkBoxCheckForUpdates = new System.Windows.Forms.CheckBox();
             this.checkSessionTreeFoldersFirst = new System.Windows.Forms.CheckBox();
             this.checkSessionsShowRecent = new System.Windows.Forms.CheckBox();
+            this.checkReloadSessionsWhenChanged = new System.Windows.Forms.CheckBox();
             this.checkBoxPersistTsHistory = new System.Windows.Forms.CheckBox();
             this.numericUpDown1 = new System.Windows.Forms.NumericUpDown();
             this.checkFilterWhileTyping = new System.Windows.Forms.CheckBox();
@@ -635,6 +636,18 @@
             this.checkSessionsShowRecent.Text = "Show recent";
             this.toolTip.SetToolTip(this.checkSessionsShowRecent, "Show the last 10 sessions you opened in a Recent group at the top of the Sessions tree");
             this.checkSessionsShowRecent.UseVisualStyleBackColor = true;
+            //
+            // checkReloadSessionsWhenChanged
+            //
+            this.checkReloadSessionsWhenChanged.AutoSize = true;
+            this.checkReloadSessionsWhenChanged.Location = new System.Drawing.Point(260, 118);
+            this.checkReloadSessionsWhenChanged.Margin = new System.Windows.Forms.Padding(4);
+            this.checkReloadSessionsWhenChanged.Name = "checkReloadSessionsWhenChanged";
+            this.checkReloadSessionsWhenChanged.Size = new System.Drawing.Size(165, 24);
+            this.checkReloadSessionsWhenChanged.TabIndex = 46;
+            this.checkReloadSessionsWhenChanged.Text = "Reload when changed";
+            this.toolTip.SetToolTip(this.checkReloadSessionsWhenChanged, "Reload the sessions when Sessions.xml is changed outside SuperXPuTTY, e.g. by a teammate sharing the settings folder");
+            this.checkReloadSessionsWhenChanged.UseVisualStyleBackColor = true;
             // 
             // checkBoxPersistTsHistory
             // 
@@ -1432,6 +1445,7 @@
             this.groupBox1.Controls.Add(this.checkFilterWhileTyping);
             this.groupBox1.Controls.Add(this.checkSessionTreeFoldersFirst);
             this.groupBox1.Controls.Add(this.checkSessionsShowRecent);
+            this.groupBox1.Controls.Add(this.checkReloadSessionsWhenChanged);
             this.groupBox1.Controls.Add(this.checkSessionsShowSearch);
             this.groupBox1.Controls.Add(this.comboSearchMode);
             this.groupBox1.Controls.Add(this.buttonSearchFields);
@@ -2378,6 +2392,7 @@
         private System.Windows.Forms.Label label17;
         private System.Windows.Forms.CheckBox checkSessionTreeFoldersFirst;
         private System.Windows.Forms.CheckBox checkSessionsShowRecent;
+        private System.Windows.Forms.CheckBox checkReloadSessionsWhenChanged;
         private System.Windows.Forms.GroupBox groupBox8;
         private System.Windows.Forms.CheckBox checkBoxPersistTsHistory;
         private System.Windows.Forms.Label label20;

@@ -880,6 +880,19 @@ namespace SuperPutty.Properties {
                 this["DatabaseReadOnly"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ReloadSessionsWhenChanged {
+            get {
+                return ((bool)(this["ReloadSessionsWhenChanged"]));
+            }
+            set {
+                this["ReloadSessionsWhenChanged"] = value;
+            }
+        }
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]

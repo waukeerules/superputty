@@ -350,6 +350,8 @@ namespace SuperPutty
                 Log.Error($"Error while loading private sessions from {privateFileName}", ex);
             }
 
+            // reload when the file is changed outside SuperPuTTY (also starts watching a file that doesn't exist yet)
+            SessionsFileWatcher.Watch(fileName);
             if (sessions == null && privateSessions == null)
             {
                 return;
@@ -401,6 +403,8 @@ namespace SuperPutty
             // sessions from the Postgres table live there (and in its local cache), never in these files
             List<SessionData> all = GetAllSessions().Where(s => !s.IsDatabase).ToList();
             SessionData.SaveSessionsToFile(all.Where(s => !s.IsPrivate).ToList(), SessionsFileName);
+            // our own save: not a change to reload
+            SessionsFileWatcher.Saved();
             List<SessionData> privateSessions = all.Where(s => s.IsPrivate).ToList();
             if (privateSessions.Count > 0 || File.Exists(PrivateSessionsFileName))
             {

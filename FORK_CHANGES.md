@@ -965,6 +965,29 @@ Timed with a 10,000-session `Sessions.xml` mirroring the test table (2.5 MB), on
 - **A burst of 10,000 log lines** showed in the viewer in 0.35 s, with the longest pause of the UI thread 334 ms.
 - **Closing the viewer** caused no error afterwards.
 
+## Sessions.xml reloaded when changed outside SuperXPuTTY
+
+When `Sessions.xml` is changed by something other than this copy of SuperXPuTTY, the sessions are reloaded on their own. That might be a teammate saving to the same shared settings folder, a script, or a text editor.
+
+**How it decides** (`Utils/SessionsFileWatcher.cs`):
+- **Watching:** a `FileSystemWatcher` flags changes as they happen. Every 30 s the file's time and size are also compared, since watchers miss changes on some network shares.
+- **Deciding:** when something changed, the file's SHA-256 is compared with the one SuperXPuTTY recorded when it last read (`SuperPuTTY.LoadSessions`) or wrote (`SaveSessions`) the file. Only a different hash reloads.
+  - So SuperXPuTTY's own saves, and tools that rewrite or touch the file without changing it, don't cause reloads.
+  - **Not MD5:** where Windows' FIPS policy is enforced, .NET refuses MD5 (and its own SHA-256), so the Windows provider's SHA-256 is used.
+- **Dialogs:** no reload while a dialog is open (e.g. a session being edited); it happens once the dialog is closed.
+- **Turning it off:** Tools → Options → GUI → **Reload when changed** (`ReloadSessionsWhenChanged`, default on).
+- **The status bar** says "Sessions.xml was changed outside SuperXPuTTY; sessions reloaded". The tree keeps its open folders.
+- **Start-up:** the sessions are first read before `Program.Main` has finished setting up WinForms. So the once-a-second timer starts when the message loop first goes idle (`Application.Idle`), not when the file is first watched. A timer created that early made `SetCompatibleTextRenderingDefault` throw, and SuperXPuTTY quit at start-up.
+
+**Checked** in the real app (bin\Debug) on the 10,000-session file: it starts, and an outside edit was reloaded about 1 s later.
+
+**Checked**, in a message loop with a copy of the 10,000-session file:
+- **No reload** for SuperXPuTTY's own save, or for touching the file's time.
+- **An outside edit** (one session's host changed) was reloaded after about 1 s, with the new host.
+- **An outside edit while a dialog was open** wasn't reloaded during the 3.5 s the dialog stayed open, and was reloaded 1.7 s after it closed.
+- **With the setting off,** an outside edit wasn't reloaded.
+- **Not checked:** a network share (where only the 30 s poll may notice), and two running copies sharing a folder.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
@@ -1070,7 +1093,8 @@ Favorites, Recent and private sessions:
 9. Hints: the empty search box says "Search... (press Enter)", or "Type to search..." with "Filter while typing" on. Create new session shows grey examples in Session name, Host address and Login username; each goes when you type. The toolbar's Host and Login boxes show theirs too.
 10. Open a session: its icon in the Sessions tree gets a green dot (in Favorites and Recent too). Let it drop (e.g. 192.168.3.2 left at the login prompt): the dot turns red, and green again once it reconnects. Close the tab: the dot goes.
 11. A session whose PuTTY profile (or `-i`) uses a key: right-click → WinSCP (external) logs in with the key. Clear the session's username, with the user only in the PuTTY profile's Auto-login username: WinSCP still logs in as that user. A session with `{user}` as its username opens WinSCP as your user, not "{user}".
-12. Open View → Log Viewer, then point the settings folder at a large Sessions.xml: the window stays responsive. Close SuperXPuTTY: no error.
+12. With two copies of SuperXPuTTY on one settings folder (or a text editor), change a session in one: the other reloads within a few seconds ("Sessions.xml was changed outside SuperXPuTTY") and shows the change. Save in the first again: it doesn't reload itself. Untick Options → GUI → Reload when changed: changes are no longer picked up until File → Reload sessions.
+13. Open View → Log Viewer, then point the settings folder at a large Sessions.xml: the window stays responsive. Close SuperXPuTTY: no error.
 
 Database sessions:
 

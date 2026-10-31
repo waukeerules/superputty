@@ -121,6 +121,7 @@
     <Compile Include="Gui\DataGridViewProgressColumn.cs" />
     <Compile Include="Gui\DpiUtils.cs" />
     <Compile Include="Gui\HintText.cs" />
+    <Compile Include="Utils\SessionsFileWatcher.cs" />
     <Compile Include="Gui\dlgDatabaseSettings.cs">
       <SubType>Form</SubType>
     </Compile>

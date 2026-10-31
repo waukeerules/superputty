@@ -215,6 +215,7 @@ namespace SuperPutty
             this.textBoxRootDirPrefix.Text = SuperPuTTY.Settings.PscpRootHomePrefix;
             this.checkSessionTreeFoldersFirst.Checked = SuperPuTTY.Settings.SessiontreeShowFoldersFirst;
             this.checkSessionsShowRecent.Checked = SuperPuTTY.Settings.SessionsShowRecent;
+            this.checkReloadSessionsWhenChanged.Checked = SuperPuTTY.Settings.ReloadSessionsWhenChanged;
             this.checkBoxPersistTsHistory.Checked = SuperPuTTY.Settings.PersistCommandBarHistory;
             this.numericUpDown1.Value = SuperPuTTY.Settings.SaveCommandHistoryDays;
             this.checkBoxAllowPuttyPWArg.Checked = SuperPuTTY.Settings.AllowPlainTextPuttyPasswordArg;
@@ -448,6 +449,7 @@ namespace SuperPutty
                 SuperPuTTY.Settings.PscpRootHomePrefix = this.textBoxRootDirPrefix.Text;
                 SuperPuTTY.Settings.SessiontreeShowFoldersFirst = this.checkSessionTreeFoldersFirst.Checked;
                 SuperPuTTY.Settings.SessionsShowRecent = this.checkSessionsShowRecent.Checked;
+                SuperPuTTY.Settings.ReloadSessionsWhenChanged = this.checkReloadSessionsWhenChanged.Checked;
                 SuperPuTTY.Settings.PersistCommandBarHistory = this.checkBoxPersistTsHistory.Checked;
                 SuperPuTTY.Settings.SaveCommandHistoryDays = (int)this.numericUpDown1.Value;
                 SuperPuTTY.Settings.AllowPlainTextPuttyPasswordArg = this.checkBoxAllowPuttyPWArg.Checked;
