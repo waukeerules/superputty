@@ -2136,16 +2136,23 @@ namespace SuperPutty
             menuStrip1.Visible = SuperPuTTY.Settings.ShowMenuBar;
         }
 
+        /// <summary>
+        /// The GitHub repository, as "owner/name", whose latest release the update check compares with: upstream's
+        /// unless App.config names another (SuperPuTTY.UpdateRepository), so a fork's users are offered the fork's
+        /// releases rather than upstream's, which would lose the fork's changes
+        /// </summary>
+        private static readonly string UpdateRepository = (ConfigurationManager.AppSettings["SuperPuTTY.UpdateRepository"] ?? "SilverGreen93/superputty").Trim().Trim('/');
+
         /// <summary>Check for a newer version of SuperXPuTTY</summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
         private void checkForSuperXPuttyUpdates(object sender, EventArgs e)
         {
-            Log.Info("Checking for SuperXPuTTY update");
+            Log.Info("Checking for SuperXPuTTY update from " + UpdateRepository);
             try
             {
                 httpRequest httpUpdateRequest = new httpRequest();
-                httpUpdateRequest.MakeRequest("https://api.github.com/repos/SilverGreen93/superputty/releases/latest", delegate (bool success, string content)
+                httpUpdateRequest.MakeRequest("https://api.github.com/repos/" + UpdateRepository + "/releases/latest", delegate (bool success, string content)
                 {
                     if (success)
                     {

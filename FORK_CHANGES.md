@@ -1040,6 +1040,16 @@ When `Sessions.xml` is changed by something other than this copy of SuperXPuTTY,
 - **With the setting off,** an outside edit wasn't reloaded.
 - **Not checked:** a network share (where only the 30 s poll may notice), and two running copies sharing a folder.
 
+## The update check offers this fork's releases
+
+**Before:** Help → Check for updates (and the check at start-up) asked `SilverGreen93/superputty` for its latest release. Someone running this fork would be offered upstream's build, and installing it would lose the fork's changes.
+
+**Now:** the repository comes from `App.config`, `<add key="SuperPuTTY.UpdateRepository" value="waukeerules/superputty" />`.
+- **The code's own default** is still upstream's repository (`frmSuperPutty.UpdateRepository`), so the change could go upstream as it is, with only this fork's `App.config` naming the fork.
+- **Upstream's links** (About, Help → Documentation) are unchanged: the documentation still lives there.
+
+**Checked:** built; `SuperXPuTTY.exe.config` has the key. The fork's latest release, read from the GitHub API, is `v2.1.2.0`, which parses the way the check does it, and with this build at 2.1.2.0 no update is offered. The message box itself wasn't shown.
+
 ## Fix: clicking a text box sometimes sent the typing to the terminal
 
 **Symptom:** with a terminal tab open, clicking the toolbar's Host, Login or Password box, or the Sessions search box, sometimes showed the cursor there for a moment and then lost it: what was typed next went into PuTTY. Without a terminal tab it never happened.
