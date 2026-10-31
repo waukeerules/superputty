@@ -49,6 +49,8 @@ namespace SuperPuTTY.Scripting
         public static bool TryParseScriptLine(String line, out CommandData commandData)
         {
             commandData = null;
+            // indented lines were read as an unknown command and silently skipped
+            line = line == null ? null : line.TrimStart();
             if (string.IsNullOrEmpty(line)
                 || line.StartsWith("#")) // a comment line, ignore
             {

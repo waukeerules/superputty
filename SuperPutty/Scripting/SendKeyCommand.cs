@@ -114,6 +114,10 @@ namespace SuperPuTTY.Scripting
 
         private static int ParseKeys(String keys)
         {
+            int named = ParseKeyName(keys);
+            if (named > 0)
+                return named;
+
             int i = 0;
 
             int[] haveKeys = new int[] { 0, 0, 0 }; // shift, ctrl, alt
@@ -234,6 +238,46 @@ namespace SuperPuTTY.Scripting
         /// <summary>given a string, match the keyword to a key.</summary>
         /// <param name="keyword">The Keyword to search</param>
         /// <returns>An Integer corresponding to the matched keyword, or -1 if none exists</returns>
+        /// <summary>
+        /// Parse a bare key name, optionally after modifiers: "ENTER", "^HOME" (Ctrl+Home). Upstream only understood
+        /// names in braces ("{ENTER}"); a bare name typed just its first letter, so "SENDKEY ENTER" sent "E".
+        /// </summary>
+        /// <param name="keys">The SENDKEY argument</param>
+        /// <returns>The key with modifiers, or -1 if it isn't a bare key name</returns>
+        private static int ParseKeyName(string keys)
+        {
+            string text = (keys ?? string.Empty).Trim();
+            int modifiers = 0;
+            int i = 0;
+            for (; i < text.Length; i++)
+            {
+                if (text[i] == '+') modifiers |= (int)Keys.Shift;
+                else if (text[i] == '^') modifiers |= (int)Keys.Control;
+                else if (text[i] == '%') modifiers |= (int)Keys.Alt;
+                else break;
+            }
+            string name = text.Substring(i);
+            // one character is typed as itself by ParseKeys, and braces are its own syntax
+            if (name.Length < 2 || name.StartsWith("{"))
+                return -1;
+            int vk = MatchKeyword(name);
+            return vk > 0 ? vk | modifiers : -1;
+        }
+
+        /// <summary>The key names SENDKEY understands, e.g. "ENTER", "F5", for the SPSL reference and checker</summary>
+        internal static string[] SendKeyNames
+        {
+            get { return Array.ConvertAll(keywords, k => k.keyword); }
+        }
+
+        /// <summary>Whether SENDKEY understands a key name</summary>
+        /// <param name="name">The name, e.g. "PGDN"</param>
+        /// <returns>true if it's a key name</returns>
+        internal static bool IsKeyName(string name)
+        {
+            return MatchKeyword(name) > 0;
+        }
+
         private static int MatchKeyword(string keyword)
         {
             foreach (KeywordVk t in keywords)

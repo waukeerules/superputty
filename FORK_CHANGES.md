@@ -464,6 +464,24 @@ Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom netw
 - **Old logic:** over a mix of 3 folders and 5 sessions, 24 pairs gave contradictory answers when swapped, and 200 sorts from random starting orders gave 124 different results.
 - **New logic:** no pair disagreed, and all 200 sorts gave the same order: folders first, then sessions, each by name.
 
+## Fix: SPSL's SENDKEY ENTER typed "E", and indented lines were skipped
+
+**Symptoms:** two problems in SPSL scripts.
+- **SENDKEY with a key name:** `SENDKEY ENTER` typed the letter "E" instead of pressing Enter. The button bar's script hint even suggested `SENDKEY ENTER`.
+- **Indented lines:** a script line indented with spaces or a tab was silently skipped.
+
+**Causes:**
+- **SENDKEY:** upstream's `Commands.ParseKeys` only recognised key names in braces (`{ENTER}`); otherwise it typed the first character.
+- **Indented lines:** `SPSL.TryParseScriptLine` didn't trim leading whitespace, so the command word was read as empty or unknown.
+
+**Fix:**
+- **SENDKEY** also accepts bare key names, with optional modifiers: `ENTER`, `^HOME`, `%F4` (`Commands.ParseKeyName`). Braces, single characters and `{KEY n}` work as before.
+- **Leading whitespace** is trimmed before a line is parsed.
+
+**Checked against the compiled assembly:**
+- **SENDKEY:** `ENTER` and `{ENTER}` both give Return; `^C`, `%F4` and `^HOME` give Ctrl+C, Alt+F4 and Ctrl+Home; `x` gives X; `{TAB 3}` and `PGDN` give Tab and Page Down.
+- **Indentation:** `    SENDLINE indented` parses as SENDLINE.
+
 ## Fix: the installer didn't include Newtonsoft.Json.dll
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
