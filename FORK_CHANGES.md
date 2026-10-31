@@ -599,7 +599,7 @@ The Sessions tree now has four top-level groups, always in this order: **Favorit
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
 
-## Fix: installing a newer build didn't replace the installed program
+## Fix: installing a newer build didn't replace the installed program; version 2.1.2
 
 **Symptom:** running a freshly built MSI over an installed SuperXPuTTY seemed to work, but the old program kept running.
 
@@ -609,9 +609,10 @@ The Sessions tree now has four top-level groups, always in this order: **Favorit
 - **Two installs on the machine:** a 2.1.0.0 and a 2.1.1.0, both in `C:\Program Files (x86)\SuperXPuTTY`. Removing one didn't remove files the other still had.
 
 **Fix:**
+- **Version raised to 2.1.2.0** (`AssemblyVersion` and `AssemblyFileVersion`). The new exe is newer than the installed one, so it replaces it. Raise the version again for each build you install over an older one.
 - **`MajorUpgrade AllowSameVersionUpgrades="yes"`** in `SuperPuttyInstaller/Product.wxs`, so a rebuild of the same version also replaces the installed copy rather than installing beside it. WiX warns ICE61 about this, which is expected.
 
-**Checked:** the rebuilt Release MSI's Upgrade table removes any older version up to and including its own. This alone didn't replace the exe on a machine with two installs (see the version change that follows).
+**Checked:** the Release MSI was rebuilt. Its ProductVersion is 2.1.2.0, and so is the exe's file version. Its Upgrade table removes any older version up to and including its own. Installing it wasn't tried here.
 
 ## Open questions
 
