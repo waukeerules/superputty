@@ -89,12 +89,15 @@ UPDATE superputty.sessions SET deleted_at = NULL   WHERE managed_by = 'inventory
 
 ## Folder colours
 
-`<table>_folders` holds settings for whole folders, which the sessions under them inherit. So far that's the environment colour:
+`<table>_folders` holds settings for whole folders, which the sessions under them inherit: the environment colour, and defaults for sessions that have none of their own:
 
 | Column | Type | Meaning |
 |---|---|---|
 | `folder` | text | The folder's path, as in the sessions' `folder` column, e.g. `HQ/Prod`. One row per folder |
 | `color` | text | `#RRGGBB`; every session below it (at any depth) without its own `color`, and without a nearer folder's, shows it |
+| `username` | text | Login for sessions below with an empty `username`, e.g. `{user}` or `netops` |
+| `putty_profile` | text | PuTTY profile for sessions below with none or `Default Settings` |
+| `port` | integer | Port for sessions below with port `0` |
 | `updated_at`, `updated_by` | | Kept current by the touch trigger (`updated_by` is the user's nickname) |
 
 ```sql
@@ -103,7 +106,8 @@ INSERT INTO superputty.sessions_folders (folder, color) VALUES ('HQ/Prod', '#C62
 ON CONFLICT (folder) DO UPDATE SET color = EXCLUDED.color;
 ```
 
-- **Users set it too:** right-click a folder → Colour, which writes this table (it needs the database online).
+- **Users set it too:** right-click a folder → Colour or Folder settings..., which write this table (it needs the database online).
+- **Defaults apply at connect time** and never change the session's row: each field comes from the nearest folder above that sets it. A sync script can leave `username` and `putty_profile` empty on its rows and set them once per folder.
 - **Renaming or removing a folder** in SuperXPuTTY moves or removes its row and those of the folders under it.
 - **Each user can also have name rules** (Tools → Environment colours..., e.g. any folder named `Prod`), which apply when neither the session nor a folder above it has a colour.
 

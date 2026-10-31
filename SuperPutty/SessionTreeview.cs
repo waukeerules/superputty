@@ -133,6 +133,9 @@ namespace SuperPutty
         /// <summary>A folder's "Edit sessions...": change fields on all its sessions at once</summary>
         ToolStripMenuItem editSessionsToolStripMenuItem;
 
+        /// <summary>A folder's "Folder settings...": its colour and the defaults its sessions inherit</summary>
+        ToolStripMenuItem folderSettingsToolStripMenuItem;
+
         /// <summary>Items of <see cref="contextMenuStripShortcut"/> whose text or visibility depends on the entry</summary>
         ToolStripMenuItem shortcutFavoriteToolStripMenuItem, shortcutRemoveToolStripMenuItem;
 
@@ -1152,9 +1155,37 @@ namespace SuperPutty
         /// <param name="color">"#RRGGBB", or "" for none</param>
         void SetFolderColor(TreeNode node, string color)
         {
-            FolderSettings.Store store = StoreOf(node).Value;
-            FolderSetting setting = FolderSettings.Get(store, NodePath(node)) ?? new FolderSetting { Path = NodePath(node) };
+            FolderSetting setting = FolderSettings.Get(StoreOf(node).Value, NodePath(node)) ?? new FolderSetting { Path = NodePath(node) };
             setting.Color = color;
+            this.SaveFolderSetting(node, setting);
+        }
+
+        /// <summary>Open a folder's settings (colour and the defaults its sessions inherit) and save them</summary>
+        /// <param name="node">The folder</param>
+        void EditFolderSettings(TreeNode node)
+        {
+            FolderSettings.Store? store = StoreOf(node);
+            if (node == null || store == null || node.Parent == null)
+                return;
+            using (dlgFolderSettings dialog = new dlgFolderSettings(NodePath(node), FolderSettings.Get(store.Value, NodePath(node))))
+            {
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    this.SaveFolderSetting(node, dialog.Setting);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Save a folder's settings: in Folders.xml or PrivateFolders.xml, or in the table's folder settings (which needs
+        /// it online), then read back
+        /// </summary>
+        /// <param name="node">The folder</param>
+        /// <param name="setting">Its settings; empty ones remove them</param>
+        void SaveFolderSetting(TreeNode node, FolderSetting setting)
+        {
+            FolderSettings.Store store = StoreOf(node).Value;
+            setting.Path = NodePath(node);
             if (store != FolderSettings.Store.Database)
             {
                 FolderSettings.Set(store, setting);
@@ -1162,8 +1193,8 @@ namespace SuperPutty
             }
             if (DatabaseSessions.State != DatabaseSessions.SyncState.Online)
             {
-                Messenger.MessageBox("Folder colours in Database sessions are saved in the database, which can't be reached now.",
-                    "Colour", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Messenger.MessageBox("Folder settings in Database sessions are saved in the database, which can't be reached now.",
+                    "Folder settings", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             try
@@ -1173,7 +1204,7 @@ namespace SuperPutty
             }
             catch (InvalidOperationException ex)
             {
-                Messenger.MessageBox("Couldn't save the folder's colour: " + ex.Message, "Colour", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Messenger.MessageBox("Couldn't save the folder's settings: " + ex.Message, "Folder settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -1209,6 +1240,8 @@ namespace SuperPutty
             this.colorFolderToolStripMenuItem.Visible = isRootNode;
             this.colorFolderToolStripMenuItem.Enabled = !locked;
             this.editSessionsToolStripMenuItem.Enabled = !locked;
+            this.folderSettingsToolStripMenuItem.Visible = isRootNode;
+            this.folderSettingsToolStripMenuItem.Enabled = !locked;
         }
 
         /// <summary>Change fields on all the sessions in a folder (and its subfolders) at once</summary>
@@ -2037,6 +2070,8 @@ namespace SuperPutty
             this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.renameToolStripMenuItem) + 1, this.colorFolderToolStripMenuItem);
             this.editSessionsToolStripMenuItem = new ToolStripMenuItem("Edit sessions...", null, (s, e) => this.BulkEditFolder(this.treeView1.SelectedNode));
             this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.colorFolderToolStripMenuItem) + 1, this.editSessionsToolStripMenuItem);
+            this.folderSettingsToolStripMenuItem = new ToolStripMenuItem("Folder settings...", null, (s, e) => this.EditFolderSettings(this.treeView1.SelectedNode));
+            this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.colorFolderToolStripMenuItem), this.folderSettingsToolStripMenuItem);
             this.colorSessionToolStripMenuItem = new ToolStripMenuItem("Colour");
             this.colorSessionToolStripMenuItem.DropDownItems.Add("-");
             this.colorSessionToolStripMenuItem.DropDownOpening += (s, e) => this.FillSessionColorMenu(this.SelectedSession);

@@ -85,12 +85,15 @@ namespace SuperPutty.Data
 
         /// <summary>
         /// The folder settings table's columns (&lt;table&gt;_folders): one row per folder with settings its sessions
-        /// inherit, so far the environment colour (Data.FolderSettings)
+        /// inherit: the environment colour, and defaults for username, PuTTY profile and port (Data.FolderSettings)
         /// </summary>
         private static readonly string[][] FolderColumns =
         {
             new[] { "folder", "text PRIMARY KEY" },
             new[] { "color", "text" },
+            new[] { "username", "text" },
+            new[] { "putty_profile", "text" },
+            new[] { "port", "integer" },
             new[] { "updated_at", "timestamptz NOT NULL DEFAULT now()" },
             new[] { "updated_by", "text NOT NULL DEFAULT current_user" }
         };
@@ -396,7 +399,7 @@ namespace SuperPutty.Data
                     else if (!this.TriggerExists || !this.ChangeCounterExists)
                         text.Append(" Its triggers are missing or out of date; Create / upgrade schema adds them.");
                     else if (!this.FoldersTableExists)
-                        text.Append(" The folder settings table (for folder colours) is missing; Create / upgrade schema adds it.");
+                        text.Append(" The folder settings table (folder colours and defaults) is missing or out of date; Create / upgrade schema adds it.");
                 }
                 return text.ToString();
             }
@@ -455,7 +458,10 @@ namespace SuperPutty.Data
                     result.ChangeCounterExists = Scalar(connection, "SELECT to_regclass(@v) IS NOT NULL AND EXISTS (SELECT 1 FROM pg_proc p "
                         + "JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = @s AND p.proname = @f AND strpos(p.prosrc, @t) > 0)",
                         "v", c.QualifiedVersionTable, "s", c.Schema, "f", c.Table + "_notify", "t", c.Table + "_version") as bool? == true;
-                    result.FoldersTableExists = Scalar(connection, "SELECT to_regclass(@f) IS NOT NULL", "f", c.QualifiedFoldersTable) as bool? == true;
+                    // and has every column (a folders table made before folder defaults lacks some)
+                    result.FoldersTableExists = Convert.ToInt64(Scalar(connection,
+                        "SELECT count(*) FROM information_schema.columns WHERE table_schema = @s AND table_name = @t AND column_name = ANY(@n)",
+                        "s", c.Schema, "t", c.Table + "_folders", "n", FolderColumns.Select(col => col[0]).ToArray())) == FolderColumns.Length;
                     result.CanWrite = Scalar(connection, "SELECT has_table_privilege(@t, 'INSERT') AND has_table_privilege(@t, 'UPDATE')", "t", qualified) as bool? == true;
                     result.Rows = Convert.ToInt64(Scalar(connection, "SELECT count(*) FROM " + qualified));
                 }
@@ -581,6 +587,11 @@ namespace SuperPutty.Data
                     + string.Join(", ", FolderColumns.Select(col => Quote(col[0]) + " " + col[1]))
                     + ", CHECK (folder <> '' AND left(folder, 1) <> '/' AND right(folder, 1) <> '/'))");
                 Execute(connection, "COMMENT ON TABLE " + folders + " IS 'SuperPuTTY folder settings, inherited by the sessions under each folder of " + c.Table + "'");
+                foreach (string[] column in FolderColumns.Where(col => col[0] != "folder"))
+                {
+                    // added in later versions to a table made before them
+                    Execute(connection, "ALTER TABLE " + folders + " ADD COLUMN IF NOT EXISTS " + Quote(column[0]) + " " + column[1]);
+                }
                 Execute(connection, "DROP TRIGGER IF EXISTS " + Quote(c.Table + "_folders_touch") + " ON " + folders);
                 Execute(connection, "CREATE TRIGGER " + Quote(c.Table + "_folders_touch") + " BEFORE INSERT OR UPDATE ON " + folders
                     + " FOR EACH ROW EXECUTE FUNCTION " + function + "()");
@@ -830,11 +841,22 @@ namespace SuperPutty.Data
             List<FolderSetting> folders = new List<FolderSetting>();
             try
             {
-                using (NpgsqlCommand command = new NpgsqlCommand("SELECT folder, color FROM " + c.QualifiedFoldersTable, connection))
+                // as JSON, so a folders table made before some columns existed still reads
+                using (NpgsqlCommand command = new NpgsqlCommand("SELECT to_jsonb(f)::text FROM " + c.QualifiedFoldersTable + " f", connection))
                 using (NpgsqlDataReader reader = command.ExecuteReader())
                 {
                     while (reader.Read())
-                        folders.Add(new FolderSetting { Path = reader.GetString(0), Color = Text(reader, 1) });
+                    {
+                        Newtonsoft.Json.Linq.JObject row = Newtonsoft.Json.Linq.JObject.Parse(reader.GetString(0));
+                        folders.Add(new FolderSetting
+                        {
+                            Path = (string)row["folder"],
+                            Color = (string)row["color"],
+                            Username = (string)row["username"],
+                            PuttyProfile = (string)row["putty_profile"],
+                            Port = (int?)row["port"] ?? 0
+                        });
+                    }
                 }
             }
             catch (PostgresException ex) when (ex.SqlState == "42P01" || ex.SqlState == "42501")
@@ -860,12 +882,23 @@ namespace SuperPutty.Data
                     throw new InvalidOperationException("The database has no folder settings table yet. Run Create / upgrade schema in Tools > Database sessions.");
                 string sql = setting.IsEmpty
                     ? "DELETE FROM " + c.QualifiedFoldersTable + " WHERE folder = @folder"
-                    : "INSERT INTO " + c.QualifiedFoldersTable + " (folder, color) VALUES (@folder, @color) ON CONFLICT (folder) DO UPDATE SET color = EXCLUDED.color";
+                    : "INSERT INTO " + c.QualifiedFoldersTable + " (folder, color, username, putty_profile, port) VALUES (@folder, @color, @username, @putty_profile, @port) "
+                        + "ON CONFLICT (folder) DO UPDATE SET color = EXCLUDED.color, username = EXCLUDED.username, putty_profile = EXCLUDED.putty_profile, port = EXCLUDED.port";
                 using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
                 {
                     command.Parameters.AddWithValue("folder", path);
                     command.Parameters.AddWithValue("color", (object)NullIfEmpty(setting.Color) ?? DBNull.Value);
-                    return command.ExecuteNonQuery();
+                    command.Parameters.AddWithValue("username", (object)NullIfEmpty(setting.Username) ?? DBNull.Value);
+                    command.Parameters.AddWithValue("putty_profile", (object)NullIfEmpty(setting.PuttyProfile) ?? DBNull.Value);
+                    command.Parameters.AddWithValue("port", setting.Port > 0 ? (object)setting.Port : DBNull.Value);
+                    try
+                    {
+                        return command.ExecuteNonQuery();
+                    }
+                    catch (PostgresException ex) when (ex.SqlState == "42703")
+                    {
+                        throw new InvalidOperationException("The database's folder settings table is from an older version. Run Create / upgrade schema in Tools > Database sessions.", ex);
+                    }
                 }
             });
         }

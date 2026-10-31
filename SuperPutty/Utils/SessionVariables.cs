@@ -69,6 +69,8 @@ namespace SuperPutty.Utils
         /// </summary>
         public static List<string> FindMissing(SessionData session, IDictionary<string, string> variables)
         {
+            // a folder's default username (e.g. "{user}") counts as the session's own
+            session = FolderSettings.WithDefaults(session);
             return FindMissing(session.Host, variables)
                 .Concat(FindMissing(session.Username, variables))
                 .Concat(FindMissing(session.ExtraArgs, variables))
@@ -77,17 +79,18 @@ namespace SuperPutty.Utils
         }
 
         /// <summary>
-        /// Return a copy of the session with its placeholders replaced. The original keeps its
-        /// placeholders, so the current user's values are never saved back to Sessions.xml.
+        /// Return a copy of the session with its folders' defaults filled in (username, PuTTY profile, port:
+        /// FolderSettings.WithDefaults) and its placeholders replaced. The original keeps its placeholders, so the
+        /// current user's values are never saved back to Sessions.xml.
         /// </summary>
         public static SessionData Resolve(SessionData session)
         {
             Dictionary<string, string> variables = Load();
-            SessionData resolved = (SessionData)session.Clone();
-            resolved.Host = Substitute(session.Host, variables);
-            resolved.Username = Substitute(session.Username, variables);
-            resolved.Password = Substitute(session.Password, variables);
-            resolved.ExtraArgs = Substitute(session.ExtraArgs, variables);
+            SessionData resolved = FolderSettings.WithDefaults(session);
+            resolved.Host = Substitute(resolved.Host, variables);
+            resolved.Username = Substitute(resolved.Username, variables);
+            resolved.Password = Substitute(resolved.Password, variables);
+            resolved.ExtraArgs = Substitute(resolved.ExtraArgs, variables);
             return resolved;
         }
 

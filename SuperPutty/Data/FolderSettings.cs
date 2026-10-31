@@ -18,11 +18,30 @@ namespace SuperPutty.Data
         [XmlAttribute]
         public string Color { get; set; }
 
+        /// <summary>Login name for sessions below that have none, e.g. "{user}" or "netops"</summary>
+        [XmlAttribute]
+        public string Username { get; set; }
+
+        /// <summary>PuTTY profile for sessions below that have none or "Default Settings"</summary>
+        [XmlAttribute]
+        public string PuttyProfile { get; set; }
+
+        /// <summary>Port for sessions below with port 0; 0 for none</summary>
+        [XmlAttribute]
+        public int Port { get; set; }
+
+        /// <summary>XmlSerializer: write Port only when it's set</summary>
+        /// <returns>true to write <see cref="Port"/></returns>
+        public bool ShouldSerializePort()
+        {
+            return this.Port > 0;
+        }
+
         /// <summary>Whether it holds nothing, and can be dropped</summary>
         [XmlIgnore]
         public bool IsEmpty
         {
-            get { return string.IsNullOrEmpty(this.Color); }
+            get { return string.IsNullOrEmpty(this.Color) && string.IsNullOrEmpty(this.Username) && string.IsNullOrEmpty(this.PuttyProfile) && this.Port <= 0; }
         }
 
         /// <summary>A copy, so callers can change one without touching the stored one</summary>
@@ -34,7 +53,8 @@ namespace SuperPutty.Data
     }
 
     /// <summary>
-    /// Settings kept per folder rather than per session (so far the environment colour), for each root of the Sessions
+    /// Settings kept per folder rather than per session (the environment colour, and defaults for the username, PuTTY
+    /// profile and port of sessions that have none: <see cref="WithDefaults"/>), for each root of the Sessions
     /// tree. Saved sessions' folders are in Folders.xml beside Sessions.xml, so a team sharing the settings folder
     /// shares them; Private sessions' in PrivateFolders.xml beside PrivateSessions.xml; Database sessions' in the
     /// table's &lt;table&gt;_folders, given here by DatabaseSessions after each read. Sessions.xml itself is left as
@@ -196,9 +216,15 @@ namespace SuperPutty.Data
                 throw new InvalidOperationException("Database folders are set through DatabaseSessions.SetFolder");
             string path = Clean(setting.Path);
             if (setting.IsEmpty)
+            {
                 stores[store].Remove(path);
+            }
             else
-                stores[store][path] = new FolderSetting { Path = path, Color = setting.Color };
+            {
+                FolderSetting copy = setting.Clone();
+                copy.Path = path;
+                stores[store][path] = copy;
+            }
             Save(store);
             Changed?.Invoke(null, EventArgs.Empty);
         }
@@ -223,8 +249,9 @@ namespace SuperPutty.Data
             foreach (FolderSetting setting in moving)
             {
                 stores[from].Remove(setting.Path);
-                string newPath = toPath + setting.Path.Substring(fromPath.Length);
-                stores[to][newPath] = new FolderSetting { Path = newPath, Color = setting.Color };
+                FolderSetting moved = setting.Clone();
+                moved.Path = toPath + setting.Path.Substring(fromPath.Length);
+                stores[to][moved.Path] = moved;
             }
             Save(from);
             if (to != from)
@@ -256,6 +283,53 @@ namespace SuperPutty.Data
         {
             return string.Equals(path, folder, StringComparison.OrdinalIgnoreCase)
                 || (folder.Length > 0 && path.StartsWith(folder + "/", StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>Whether a PuTTY profile counts as unset, so a folder's profile is used: empty, or "Default Settings"</summary>
+        /// <param name="profile">The session's profile</param>
+        /// <returns>true if it's unset</returns>
+        public static bool IsDefaultProfile(string profile)
+        {
+            return string.IsNullOrEmpty(profile) || profile == PuttyDataHelper.SessionDefaultSettings;
+        }
+
+        /// <summary>
+        /// A copy of a session with its folders' defaults filled in where it has none of its own: username, PuTTY
+        /// profile, port. The nearest folder with a value wins. Utils.SessionVariables.Resolve uses it, so every launch
+        /// (PuTTY, SCP, WinSCP, RDP) gets them; the stored session is never changed.
+        /// </summary>
+        /// <param name="session">The session</param>
+        /// <returns>A copy with the defaults filled in</returns>
+        public static SessionData WithDefaults(SessionData session)
+        {
+            SessionData copy = (SessionData)session.Clone();
+            string folder = session.IsDatabase ? DatabaseSessions.FolderOf(session.SessionId) : SessionData.GetSessionParentId(session.SessionId) ?? string.Empty;
+            foreach (FolderSetting setting in Along(StoreOf(session), folder))
+            {
+                if (string.IsNullOrEmpty(copy.Username) && !string.IsNullOrEmpty(setting.Username))
+                    copy.Username = setting.Username;
+                if (IsDefaultProfile(copy.PuttySession) && !string.IsNullOrEmpty(setting.PuttyProfile))
+                    copy.PuttySession = setting.PuttyProfile;
+                if (copy.Port <= 0 && setting.Port > 0)
+                    copy.Port = setting.Port;
+            }
+            return copy;
+        }
+
+        /// <summary>The default a session would get for a field from its folders, for showing in Edit Session</summary>
+        /// <param name="session">The session (its ID gives the folder)</param>
+        /// <param name="field">"Username", "PuttyProfile" or "Port"</param>
+        /// <returns>The value and the folder it's from, e.g. "netops (from HQ/Core)"; null if no folder sets it</returns>
+        public static string Describe(SessionData session, string field)
+        {
+            string folder = session.IsDatabase ? DatabaseSessions.FolderOf(session.SessionId) : SessionData.GetSessionParentId(session.SessionId) ?? string.Empty;
+            foreach (FolderSetting setting in Along(StoreOf(session), folder))
+            {
+                string value = field == "Username" ? setting.Username : field == "PuttyProfile" ? setting.PuttyProfile : setting.Port > 0 ? setting.Port.ToString() : null;
+                if (!string.IsNullOrEmpty(value))
+                    return value + " (from " + setting.Path + ")";
+            }
+            return null;
         }
 
         /// <summary>Use the Database folders' settings as last read from the table (or its cache)</summary>

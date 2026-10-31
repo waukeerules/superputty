@@ -1040,6 +1040,35 @@ When `Sessions.xml` is changed by something other than this copy of SuperXPuTTY,
 - **With the setting off,** an outside edit wasn't reloaded.
 - **Not checked:** a network share (where only the 30 s poll may notice), and two running copies sharing a folder.
 
+## Folder defaults: username, PuTTY profile and port
+
+Right-click a folder → **Folder settings...** (`Gui/dlgFolderSettings.cs`) sets its colour and the values its sessions use when they have none of their own, so a site's credentials change in one place instead of in 40 sessions.
+- **Username:** for sessions with an empty username. `{user}`-style placeholders work.
+- **PuTTY profile:** for sessions with no profile or **Default Settings**. A session that should use Default Settings inside a folder with a profile can't say so; give it another profile or leave the folder's empty.
+- **Port:** for sessions with port 0; with neither, the protocol's usual port is used, as before.
+- **Inheritance:** each field comes from the nearest folder above the session that sets it, so Site can set the profile and port while Site/Access sets a different username.
+- **At launch only:** `FolderSettings.WithDefaults` fills them into the copy `SessionVariables.Resolve` makes, so every launch (PuTTY, SCP, WinSCP and the other external tools, RDP) gets them, placeholders in them are resolved and checked like the session's own, and the stored session is never changed.
+- **Edit Session** shows the inherited username as the Username box's hint, e.g. "netops (from HQ/Core)".
+- **Storage:** with the folder's colour (see "Environment colours"): `Folders.xml`, `PrivateFolders.xml`, or `<table>_folders`, which gains `username`, `putty_profile` and `port` columns. A folders table from before still reads, Test connection offers the upgrade, and saving a default to it asks for it.
+
+| File | Change |
+|---|---|
+| `Data/FolderSettings.cs` | `Username`, `PuttyProfile`, `Port`; `WithDefaults`, `Describe`, `IsDefaultProfile`; moves keep every setting |
+| `Gui/dlgFolderSettings.cs` | New. Folder settings... |
+| `Utils/SessionVariables.cs` | `Resolve` and `FindMissing` work on the session with its folders' defaults |
+| `Data/DatabaseSessions.cs` | The folders table's new columns: added by the upgrade, read as JSON (so older tables read), written by `SetFolder` |
+| `SessionTreeview.cs` | Folder settings... on the folder menu; saving shared with the Colour menu (`SaveFolderSetting`) |
+| `dlgEditSession.cs` | The inherited username as the hint |
+
+**Checked** (a test program running the app's code; 18 checks, all passed):
+- An empty session two folders down got Site's username, profile and port, and the stored session wasn't changed. A session's own values won. A deeper folder's username beat Site's, while Site's profile and port still applied. Sessions elsewhere got nothing.
+- **PuTTY's command line** for the empty session was `... -ssh -P 2200 -load "Router" -l netops 10.0.0.1`.
+- `{nosuchkey}` as a folder's username was reported as missing, like a session's own.
+- Folders.xml held the defaults (no `Port` for unset ports); a rename kept them all; they read back after a reload.
+- **Database:** a folders table from the colours-only version still read and was offered the upgrade; saving a default to it asked for the upgrade; after it, the defaults were written and read back, and a Database session under the folder inherited them.
+- **The dialog** (screenshot): colour, username, profile and port, laid out at 150%.
+- **Not checked:** Folder settings... clicked through, and a real connection using an inherited profile.
+
 ## Snippets that ask for values: {prompt:Interface}
 
 A button bar button (or a command typed in Send Commands) can ask for values when it's used, so one "shut / no shut" button works for any port (`Utils/SnippetPrompts.cs`):
@@ -1109,7 +1138,7 @@ A session can have a colour (e.g. red for production), so you notice before typi
 3. **A name rule:** Tools → **Environment colours...** (`Gui/dlgEnvironmentColors.cs`): a folder or session name, with `*` and `?` wildcards and any case, and its colour. Rules are tried on the session's folders from the deepest up, then on its own name; the first match wins. New installs start with `Prod`, `Production` red and `Staging`, `UAT` orange (`Settings.EnvironmentColorRules`), so a folder named Prod is red with no setup.
 - **The Colour menu** offers red (production), orange (staging), yellow, green (lab), blue and purple, **Other colour...**, and **None**.
 
-**Folder settings** (`Data/FolderSettings.cs`) are kept apart from Sessions.xml, which stays as upstream reads it. Folder defaults (username, profile, port, jump host) will be kept there too.
+**Folder settings** (`Data/FolderSettings.cs`) are kept apart from Sessions.xml, which stays as upstream reads it. Folder defaults are kept there too (see "Folder defaults").
 - **Saved sessions:** `Folders.xml` beside Sessions.xml, so a team sharing the settings folder shares the colours.
 - **Private sessions:** `PrivateFolders.xml` beside PrivateSessions.xml.
 - **Database sessions:** a new table, `<table>_folders` (`folder`, `color`, `updated_at`, `updated_by`), added by Create / upgrade schema, so everyone using the table sees the same colours and a script can set them.
@@ -1323,6 +1352,7 @@ Favorites, Recent and private sessions:
 16. Make a folder named Prod with a session in it and open it: its tab has a red stripe and the terminal a red frame, and Prod is red in the tree. Right-click another folder → Colour → Green: its sessions' tabs turn green. Right-click a session in it → Colour → Blue: that one turns blue. Rename and drag the green folder: it stays green. Tools → Environment colours..., add `Lab*` purple: folders named Lab... turn purple. Do the same under Database sessions (after Create / upgrade schema): a second copy of SuperXPuTTY shows the folder's colour within 30 seconds.
 17. Right-click a folder → Edit sessions...: untick one session, tick Username and type `{user}`, tick Port and set 2222, Change: every ticked session has the new username and port, the unticked one doesn't. Under Database sessions, lock `username` on one row (`locked_fields = '{username}'`) and repeat: it's listed as left alone.
 18. Add a button with `interface {prompt:Interface}\rshow this\r`, open a session on a switch and click it: it asks for Interface, then types both lines. Click it again: the last interface is offered. Cancel: nothing is typed. Type `show interface {prompt:Port}` in Send Commands and press Enter: it asks, sends, and the history keeps `{prompt:Port}`.
+19. Right-click a folder → Folder settings...: Username `netops`, Port 2222. A session in a subfolder with no username and port 0 connects as netops on 2222; Edit Session shows "netops (from ...)" in the empty Username box. A session with its own username keeps it.
 
 Database sessions:
 
