@@ -192,6 +192,9 @@
     <Compile Include="Scripting\SendLineCommand.cs" />
     <Compile Include="Scripting\SleepCommand.cs" />
     <Compile Include="Scripting\Spsl.cs" />
+    <Compile Include="Scripting\SpslReference.cs" />
+    <Compile Include="Scripting\SpslChecker.cs" />
+    <Compile Include="Scripting\ScriptLibrary.cs" />
     <Compile Include="SessionDetail.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -237,6 +240,12 @@
     <Compile Include="Gui\SvgPath.cs" />
     <Compile Include="Gui\IconLibrary.cs" />
     <Compile Include="Gui\CustomIcons.cs" />
+    <Compile Include="Gui\ScriptLibraryPanel.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Gui\SpslHelpPanel.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Gui\TabIcons.cs" />
     <Compile Include="Gui\dlgSearchOutput.cs">
       <SubType>Form</SubType>

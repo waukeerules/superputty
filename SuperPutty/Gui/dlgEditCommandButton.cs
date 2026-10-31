@@ -15,9 +15,6 @@ namespace SuperPutty.Gui
     /// </summary>
     public partial class dlgEditCommandButton : Form
     {
-        /// <summary>Line that SPSL scripts must start with to be run by <see cref="SuperPuTTY.Scripting.SPSL"/></summary>
-        private const string SpslHeader = "#!/bin/spsl";
-
         /// <summary>Help shown under the text box for SPSL scripts</summary>
         private const string SpslHelpText = "SENDLINE text · SENDKEY ENTER · SLEEP ms · WAITFOR text (30 s, or /t:10 text) · # comment.";
 
@@ -91,11 +88,9 @@ namespace SuperPutty.Gui
         {
             bool isScript = this.comboBoxAction.SelectedIndex == (int)CommandButtonAction.SpslScript;
             this.labelText.Text = isScript ? "&Script:" : "&Send:";
+            // scripts get the same commands, saved scripts and check as the Script Editor, beside the script box
+            this.ShowScriptHelp(isScript);
             this.labelHelp.Text = (isScript ? SpslHelpText : SendStringParser.HelpText) + "  {key} placeholders are replaced too.";
-            if (isScript && string.IsNullOrWhiteSpace(this.textBoxText.Text))
-            {
-                this.textBoxText.Text = SpslHeader + Environment.NewLine;
-            }
         }
 
         /// <summary>
@@ -248,6 +243,26 @@ namespace SuperPutty.Gui
             }
         }
 
+        /// <summary>
+        /// Show or hide the SPSL panel (SpslHelpPanel: commands, saved scripts, check), widening the dialog to make room
+        /// for it to the right of the script box; shown whenever the action is "Run SPSL script"
+        /// </summary>
+        /// <param name="show">true to show it</param>
+        private void ShowScriptHelp(bool show)
+        {
+            if (show == this.helpPanel.Visible)
+                return;
+            this.helpPanel.Editor = this.textBoxText;
+            this.helpPanel.ShowSavedScripts = true;
+            this.helpPanel.Height = this.btnOK.Bottom - this.helpPanel.Top;
+            this.helpPanel.Visible = show;
+            int margin = this.textBoxLabel.Top;
+            // taller too, so the panel's lists have room; the script box grows with it
+            int extra = this.Font.Height * 12;
+            this.ClientSize = new Size(show ? this.helpPanel.Right + margin : this.helpPanel.Left,
+                this.ClientSize.Height + (show ? extra : -extra));
+        }
+
         /// <summary>Validate the input, copy it into <see cref="EditedButton"/> and close with OK</summary>
         /// <param name="sender">The OK button</param>
         /// <param name="e">Not used</param>
@@ -258,6 +273,21 @@ namespace SuperPutty.Gui
                 Messenger.MessageBox("Please enter a label for the button.", "Edit Button", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 this.textBoxLabel.Focus();
                 return;
+            }
+
+            if (this.comboBoxAction.SelectedIndex == (int)CommandButtonAction.SpslScript)
+            {
+                // check the script, showing any problems beside it
+                this.helpPanel.Editor = this.textBoxText;
+                int errors = this.helpPanel.Check().Count(i => i.IsError);
+                if (errors > 0)
+                {
+                    if (Messenger.MessageBox(string.Format("The script has {0} error{1}, listed beside it. Save the button anyway?",
+                            errors, errors == 1 ? "" : "s"), "Edit Button", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                    {
+                        return;
+                    }
+                }
             }
 
             this.EditedButton.Label = this.textBoxLabel.Text.Trim();

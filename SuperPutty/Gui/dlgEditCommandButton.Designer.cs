@@ -35,6 +35,7 @@ namespace SuperPutty.Gui
             this.labelText = new System.Windows.Forms.Label();
             this.textBoxText = new System.Windows.Forms.TextBox();
             this.labelHelp = new System.Windows.Forms.Label();
+            this.helpPanel = new SuperPutty.Gui.SpslHelpPanel();
             this.btnOK = new System.Windows.Forms.Button();
             this.btnCancel = new System.Windows.Forms.Button();
             this.SuspendLayout();
@@ -129,6 +130,7 @@ namespace SuperPutty.Gui
             //
             this.textBoxText.AcceptsReturn = true;
             this.textBoxText.Font = new System.Drawing.Font("Consolas", 9F);
+            this.textBoxText.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) | System.Windows.Forms.AnchorStyles.Left)));
             this.textBoxText.Location = new System.Drawing.Point(80, 120);
             this.textBoxText.Multiline = true;
             this.textBoxText.Name = "textBoxText";
@@ -136,8 +138,18 @@ namespace SuperPutty.Gui
             this.textBoxText.Size = new System.Drawing.Size(388, 131);
             this.textBoxText.TabIndex = 9;
             //
+            // helpPanel
+            //
+            this.helpPanel.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) | System.Windows.Forms.AnchorStyles.Left)));
+            this.helpPanel.Location = new System.Drawing.Point(480, 12);
+            this.helpPanel.Name = "helpPanel";
+            this.helpPanel.Size = new System.Drawing.Size(290, 306);
+            this.helpPanel.TabIndex = 21;
+            this.helpPanel.Visible = false;
+            //
             // labelHelp
             //
+            this.labelHelp.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.labelHelp.Location = new System.Drawing.Point(77, 256);
             this.labelHelp.Name = "labelHelp";
             this.labelHelp.Size = new System.Drawing.Size(391, 32);
@@ -145,6 +157,7 @@ namespace SuperPutty.Gui
             //
             // btnOK
             //
+            this.btnOK.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.btnOK.Location = new System.Drawing.Point(312, 295);
             this.btnOK.Name = "btnOK";
             this.btnOK.Size = new System.Drawing.Size(75, 23);
@@ -156,6 +169,7 @@ namespace SuperPutty.Gui
             // btnCancel
             //
             this.btnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
+            this.btnCancel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.btnCancel.Location = new System.Drawing.Point(393, 295);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 23);
@@ -180,6 +194,7 @@ namespace SuperPutty.Gui
             this.Controls.Add(this.labelText);
             this.Controls.Add(this.textBoxText);
             this.Controls.Add(this.labelHelp);
+            this.Controls.Add(this.helpPanel);
             this.Controls.Add(this.btnOK);
             this.Controls.Add(this.btnCancel);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
@@ -208,6 +223,7 @@ namespace SuperPutty.Gui
         private System.Windows.Forms.Label labelText;
         private System.Windows.Forms.TextBox textBoxText;
         private System.Windows.Forms.Label labelHelp;
+        private SuperPutty.Gui.SpslHelpPanel helpPanel;
         private System.Windows.Forms.Button btnOK;
         private System.Windows.Forms.Button btnCancel;
     }

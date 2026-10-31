@@ -298,7 +298,7 @@ namespace SuperPutty
                 { this.toolStripButtonClearFields, "clear" },
                 { this.tbTextSendCommands, "terminal" },
                 { this.tbBtnSendCommand, "check" },
-                { this.tbBtnMaskText, "mask" },
+                { this.tbBtnMaskText, "unmasked" },
                 { this.toolStripButtonRunScript, "script" },
                 { this.tbBtnSelectDocs, "selecttabs" }
             };
@@ -306,6 +306,25 @@ namespace SuperPutty
             {
                 icon.Key.Image = IconLibrary.RenderDrawn(icon.Value, size);
                 icon.Key.ImageScaling = ToolStripItemImageScaling.None;
+            }
+            this.ShowMaskState();
+        }
+
+        /// <summary>
+        /// Show whether the Send Commands box masks what's typed: an amber asterisk while masked, a grey eye while the
+        /// text shows, with a tooltip saying which
+        /// </summary>
+        private void ShowMaskState()
+        {
+            bool masked = this.tbBtnMaskText.Checked;
+            Image old = this.tbBtnMaskText.Image;
+            this.tbBtnMaskText.Image = IconLibrary.RenderDrawn(masked ? "masked" : "unmasked", this.tsCommands.ImageScalingSize.Width);
+            this.tbBtnMaskText.ToolTipText = masked
+                ? "Typing is masked (click to show it)"
+                : "Typing shows (click to mask it, e.g. for a password)";
+            if (old != null)
+            {
+                old.Dispose();
             }
         }
 
@@ -1362,6 +1381,7 @@ namespace SuperPutty
                 NativeMethods.SendMessage(handle, NativeMethods.EM_SETPASSWORDCHAR, 0, 0);
             }
             this.tsSendCommandCombo.ComboBox.Refresh();
+            this.ShowMaskState();
         }
 
         /// <summary>Send command from send command toolbar to open sessions</summary>
@@ -2284,18 +2304,18 @@ namespace SuperPutty
                 if (scriptlines.Length > 0 
                     && e.IsSPSL)
                 {
-                    new Thread(delegate()
+                    // run like a button-bar script, in each selected session: WAITFOR works, placeholders are
+                    // replaced, and progress and Stop show in the status bar
+                    string script = SessionVariables.Substitute(e.Script, SessionVariables.Load());
+                    List<ctlPuttyPanel> targets = this.GetSelectedPuttyPanels();
+                    foreach (ctlPuttyPanel panel in targets)
                     {
-                        foreach (string line in scriptlines)
-                        {
-                            CommandData command;                                                                                    
-                            SPSL.TryParseScriptLine(line, out command);
-                            if (command != null)
-                            {
-                                TrySendCommandsFromToolbar(command, false);
-                            }
-                        }
-                    }).Start();
+                        panel.RunScript(script, name: "Script Editor");
+                    }
+                    if (targets.Count == 0)
+                    {
+                        SuperPuTTY.ReportStatus("No sessions to send the script to: select tabs that accept commands");
+                    }
                 }
                 else // Not a spsl script
                 {

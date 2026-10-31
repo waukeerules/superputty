@@ -82,6 +82,8 @@ namespace SuperPutty.Gui
             AddGlyph("check", Color.FromArgb(0x2E, 0x9E, 0x44), PaintCheck);
             AddGlyph("clear", Color.FromArgb(0x78, 0x86, 0x8F), PaintClear);
             AddGlyph("mask", Color.FromArgb(0x78, 0x86, 0x8F), PaintMask);
+            AddGlyph("masked", Color.FromArgb(0xE6, 0x8A, 0x00), PaintMask);
+            AddGlyph("unmasked", Color.FromArgb(0x78, 0x86, 0x8F), PaintEye);
             AddGlyph("stop", Color.FromArgb(0xD3, 0x2F, 0x2F), PaintStop);
             AddGlyph("script", Color.FromArgb(0x1E, 0x63, 0xB4), PaintScript);
             AddGlyph("selecttabs", Color.FromArgb(0x1E, 0x63, 0xB4), PaintSelectTabs);
@@ -1012,6 +1014,21 @@ namespace SuperPutty.Gui
                     float dx = (float)Math.Cos(a) * 0.22f, dy = (float)Math.Sin(a) * 0.22f;
                     g.DrawLine(spoke, 0.5f - dx, 0.5f - dy, 0.5f + dx, 0.5f + dy);
                 }
+            }
+        }
+
+        /// <summary>Text shows (not masked): a white eye on a disc</summary>
+        private static void PaintEye(Graphics g, Color body)
+        {
+            Disc(g, body);
+            using (GraphicsPath eye = new GraphicsPath())
+            using (Brush white = new SolidBrush(Glyph))
+            using (Brush pupil = new SolidBrush(body))
+            {
+                eye.AddBezier(0.2f, 0.5f, 0.32f, 0.3f, 0.68f, 0.3f, 0.8f, 0.5f);
+                eye.AddBezier(0.8f, 0.5f, 0.68f, 0.7f, 0.32f, 0.7f, 0.2f, 0.5f);
+                g.FillPath(white, eye);
+                g.FillEllipse(pupil, 0.42f, 0.42f, 0.16f, 0.16f);
             }
         }
 

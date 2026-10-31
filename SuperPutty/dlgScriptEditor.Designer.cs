@@ -29,103 +29,149 @@
         private void InitializeComponent()
         {
             this.buttonSendScript = new System.Windows.Forms.Button();
-            this.panel1 = new System.Windows.Forms.Panel();
             this.textBoxScript = new System.Windows.Forms.TextBox();
             this.buttonLoadScript = new System.Windows.Forms.Button();
             this.buttonSaveScript = new System.Windows.Forms.Button();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
-            this.panel1.SuspendLayout();
+            this.libraryPanel = new SuperPutty.Gui.ScriptLibraryPanel();
+            this.helpPanel = new SuperPutty.Gui.SpslHelpPanel();
+            this.labelRunAs = new System.Windows.Forms.Label();
+            this.comboRunAs = new System.Windows.Forms.ComboBox();
             this.SuspendLayout();
-            // 
+            //
             // buttonSendScript
-            // 
-            this.buttonSendScript.Location = new System.Drawing.Point(229, 226);
+            //
+            this.buttonSendScript.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.buttonSendScript.Location = new System.Drawing.Point(791, 386);
             this.buttonSendScript.Name = "buttonSendScript";
-            this.buttonSendScript.Size = new System.Drawing.Size(43, 23);
-            this.buttonSendScript.TabIndex = 0;
+            this.buttonSendScript.Size = new System.Drawing.Size(75, 23);
+            this.buttonSendScript.TabIndex = 7;
             this.buttonSendScript.Text = "Send";
             this.buttonSendScript.UseVisualStyleBackColor = true;
             this.buttonSendScript.Click += new System.EventHandler(this.buttonRunScript_Click);
-            // 
-            // panel1
-            // 
-            this.panel1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(192)))));
-            this.panel1.Controls.Add(this.textBoxScript);
-            this.panel1.Location = new System.Drawing.Point(13, 13);
-            this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(259, 207);
-            this.panel1.TabIndex = 1;
-            // 
+            //
             // textBoxScript
-            // 
-            this.textBoxScript.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(255)))), ((int)(((byte)(192)))));
-            this.textBoxScript.Location = new System.Drawing.Point(3, 3);
+            //
+            this.textBoxScript.AcceptsTab = true;
+            this.textBoxScript.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.textBoxScript.Font = new System.Drawing.Font("Consolas", 9.75F);
+            this.textBoxScript.Location = new System.Drawing.Point(194, 12);
             this.textBoxScript.Multiline = true;
             this.textBoxScript.Name = "textBoxScript";
-            this.textBoxScript.Size = new System.Drawing.Size(253, 201);
-            this.textBoxScript.TabIndex = 0;
-            // 
+            this.textBoxScript.ScrollBars = System.Windows.Forms.ScrollBars.Both;
+            this.textBoxScript.Size = new System.Drawing.Size(376, 364);
+            this.textBoxScript.TabIndex = 1;
+            this.textBoxScript.WordWrap = false;
+            //
             // buttonLoadScript
-            // 
-            this.buttonLoadScript.Location = new System.Drawing.Point(12, 226);
+            //
+            this.buttonLoadScript.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.buttonLoadScript.Location = new System.Drawing.Point(194, 386);
             this.buttonLoadScript.Name = "buttonLoadScript";
-            this.buttonLoadScript.Size = new System.Drawing.Size(43, 23);
-            this.buttonLoadScript.TabIndex = 2;
-            this.buttonLoadScript.Text = "Load";
+            this.buttonLoadScript.Size = new System.Drawing.Size(80, 23);
+            this.buttonLoadScript.TabIndex = 3;
+            this.buttonLoadScript.Text = "Open file...";
             this.buttonLoadScript.UseVisualStyleBackColor = true;
             this.buttonLoadScript.Click += new System.EventHandler(this.buttonLoadScript_Click);
-            // 
+            //
             // buttonSaveScript
-            // 
-            this.buttonSaveScript.Location = new System.Drawing.Point(61, 226);
+            //
+            this.buttonSaveScript.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.buttonSaveScript.Location = new System.Drawing.Point(280, 386);
             this.buttonSaveScript.Name = "buttonSaveScript";
-            this.buttonSaveScript.Size = new System.Drawing.Size(43, 23);
-            this.buttonSaveScript.TabIndex = 3;
-            this.buttonSaveScript.Text = "Save";
+            this.buttonSaveScript.Size = new System.Drawing.Size(90, 23);
+            this.buttonSaveScript.TabIndex = 4;
+            this.buttonSaveScript.Text = "Save to file...";
             this.buttonSaveScript.UseVisualStyleBackColor = true;
             this.buttonSaveScript.Click += new System.EventHandler(this.buttonSaveScript_Click);
-            // 
+            //
             // openFileDialog1
-            // 
+            //
             this.openFileDialog1.DefaultExt = "scr";
             this.openFileDialog1.Filter = "script files (*.spsl)|*.spsl|txt files (*.txt)|*.txt|All files (*.*)|*.*";
-            // 
+            //
             // saveFileDialog1
-            // 
+            //
             this.saveFileDialog1.DefaultExt = "spsl";
             this.saveFileDialog1.Filter = "script files (*.spsl)|*.spsl|txt files (*.txt)|*.txt|All files (*.*)|*.*";
-            // 
+            //
+            // libraryPanel
+            //
+            this.libraryPanel.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)));
+            this.libraryPanel.Location = new System.Drawing.Point(12, 12);
+            this.libraryPanel.Name = "libraryPanel";
+            this.libraryPanel.Size = new System.Drawing.Size(170, 397);
+            this.libraryPanel.TabIndex = 0;
+            //
+            // helpPanel
+            //
+            this.helpPanel.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.helpPanel.Location = new System.Drawing.Point(582, 12);
+            this.helpPanel.Name = "helpPanel";
+            this.helpPanel.Size = new System.Drawing.Size(284, 364);
+            this.helpPanel.TabIndex = 2;
+            //
+            // labelRunAs
+            //
+            this.labelRunAs.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.labelRunAs.AutoSize = true;
+            this.labelRunAs.Location = new System.Drawing.Point(582, 391);
+            this.labelRunAs.Name = "labelRunAs";
+            this.labelRunAs.TabIndex = 5;
+            this.labelRunAs.Text = "Run as:";
+            //
+            // comboRunAs
+            //
+            this.comboRunAs.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.comboRunAs.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboRunAs.Location = new System.Drawing.Point(630, 387);
+            this.comboRunAs.Name = "comboRunAs";
+            this.comboRunAs.Size = new System.Drawing.Size(150, 21);
+            this.comboRunAs.TabIndex = 6;
+            this.comboRunAs.SelectedIndexChanged += new System.EventHandler(this.comboRunAs_SelectedIndexChanged);
+            //
             // dlgScriptEditor
-            // 
+            //
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Control;
-            this.ClientSize = new System.Drawing.Size(284, 261);
-            this.Controls.Add(this.buttonSaveScript);
+            this.ClientSize = new System.Drawing.Size(878, 421);
+            this.Controls.Add(this.libraryPanel);
+            this.Controls.Add(this.textBoxScript);
+            this.Controls.Add(this.helpPanel);
             this.Controls.Add(this.buttonLoadScript);
-            this.Controls.Add(this.panel1);
+            this.Controls.Add(this.buttonSaveScript);
+            this.Controls.Add(this.labelRunAs);
+            this.Controls.Add(this.comboRunAs);
             this.Controls.Add(this.buttonSendScript);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.SizableToolWindow;
+            this.MinimumSize = new System.Drawing.Size(720, 300);
             this.Name = "dlgScriptEditor";
             this.ShowIcon = false;
             this.ShowInTaskbar = false;
             this.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
             this.Text = "Script Editor";
-            this.panel1.ResumeLayout(false);
-            this.panel1.PerformLayout();
             this.ResumeLayout(false);
+            this.PerformLayout();
 
         }
 
         #endregion
 
         private System.Windows.Forms.Button buttonSendScript;
-        private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.TextBox textBoxScript;
         private System.Windows.Forms.Button buttonLoadScript;
         private System.Windows.Forms.Button buttonSaveScript;
         private System.Windows.Forms.OpenFileDialog openFileDialog1;
         private System.Windows.Forms.SaveFileDialog saveFileDialog1;
+        private SuperPutty.Gui.ScriptLibraryPanel libraryPanel;
+        private SuperPutty.Gui.SpslHelpPanel helpPanel;
+        private System.Windows.Forms.Label labelRunAs;
+        private System.Windows.Forms.ComboBox comboRunAs;
     }
 }

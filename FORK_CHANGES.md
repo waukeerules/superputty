@@ -482,6 +482,43 @@ Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom netw
 - **SENDKEY:** `ENTER` and `{ENTER}` both give Return; `^C`, `%F4` and `^HOME` give Ctrl+C, Alt+F4 and Ctrl+Home; `x` gives X; `{TAB 3}` and `PGDN` give Tab and Page Down.
 - **Indentation:** `    SENDLINE indented` parses as SENDLINE.
 
+## Script editing: Run as, saved scripts, command reference, script check, and the mask button
+
+- **Run as** (Script Editor): a drop-down beside Send chooses how the text is sent, like the Action list in Edit Button.
+  - **Send lines** types each line as it is, then Enter.
+  - **SPSL script** runs SPSL commands.
+  - **No marker line:** before, a Script Editor script ran as SPSL only if its first line was `#!/bin/spsl`, and that line was added and saved automatically.
+  - **Still recognised:** session script files (Edit Session → SPSL script) are still recognised by that line, as before. An opened `.spsl` file, or an older script that starts with the line, switches Run as to SPSL; the line itself is just a comment.
+- **Saved scripts** (`Scripting/ScriptLibrary.cs`, `Gui/ScriptLibraryPanel.cs`): a script library, so scripts are reused without file dialogs.
+  - **Where it shows:** on the **left** of the Script Editor, and as a **Saved scripts** tab in Edit Button's SPSL panel, which lists SPSL scripts only.
+  - **Inserting:** double-click a script (or **Insert**) to add it. An empty script box is replaced, and the Script Editor's Run as switches to the script's kind; otherwise it goes after the cursor's line. An old `#!/bin/spsl` first line is left out.
+  - **Save as...** stores the current script under a name, as the kind being edited, asking before replacing one. **Delete** removes one.
+  - **Kind:** each script remembers its kind by its extension: `.spsl` for SPSL scripts and `.txt` for lines to send. The list labels each as "SPSL" or "lines".
+  - **Where they're kept:** in `<SettingsFolder>\scripts`, next to Sessions.xml, so a team sharing the settings folder shares its scripts. They're plain text files.
+- **SPSL panel** (`Gui/SpslHelpPanel.cs`): the same component in the Script Editor (on the right, in SPSL mode) and in Edit Button (beside the script whenever the action is "Run SPSL script"; the dialog widens and grows taller to fit it). There's no Help button and no header line to add.
+  - **Commands tab:** every SPSL command, with its syntax, what it does and an example (`Scripting/SpslReference.cs`), plus comments and `{key}` placeholders. `CLOSESESSION` is marked "not available": SPSL lists it but never implemented it.
+  - **Insert example** (or double-click a command): adds the example after the cursor's line.
+  - **Check script** (`Scripting/SpslChecker.cs`) lists the problems, one per line; clicking one selects its line and shows the full message.
+    - **Errors:** unknown commands, with a suggestion for a near miss (e.g. SENDLNE → SENDLINE) or, for text such as a pasted shell command, how to type it (`ls -la` → "write SENDLINE ls -la"); missing or malformed arguments (SLEEP, WAITFOR and its `/t:`, SENDCHAR, SENDKEY, OPENSESSION); unknown SENDKEY keys and braces; `CLOSESESSION`.
+    - **Warnings:** a saved session that doesn't exist, a `{key}` placeholder with no value, a SLEEP over a minute.
+  - **Checked automatically:** before the Script Editor sends an SPSL script and before Edit Button saves a script. If there are errors, they're listed in the panel and you're asked whether to go ahead.
+- **Script Editor:**
+  - **Layout:** larger and resizable: saved scripts, then a monospaced script box that keeps long lines on one line, then the SPSL panel. In Send lines mode the script box takes the panel's space.
+  - **Files:** its file buttons are **Open file...** and **Save to file...**, for importing and exporting.
+  - **SPSL scripts** now run like button-bar scripts (`ctlPuttyPanel.RunScript`) in each selected session. Before, they went through upstream's line-by-line sender. Now `{key}` placeholders are replaced, and progress and Stop show in the status bar.
+- **Edit Button:** switching the action to "Run SPSL script" no longer puts `#!/bin/spsl` in the script box; the action says what it is.
+- **Mask button** (Send Commands toolbar): the icon shows the state. A grey eye means typing shows; an amber asterisk means it's masked. The tooltip says which.
+- **Pasted AutoHotkey isn't SPSL:** a script like the AutoHotkey one that started this (hotkeys, `Send {Down 9}`, `WinWait`) is reported line by line as not SPSL.
+- **Adding a command:** add it to `SpslReference.Entries` as well as `SPSL.keywords`, so the panel and the check know it.
+
+**Checked against the compiled assembly**, with a scratch settings folder:
+- **Saved scripts:** an SPSL script, an old-style one starting with `#!/bin/spsl`, and a lines script were saved as `.spsl`, `.spsl` and `.txt` and listed as SPSL, SPSL and lines. Re-saving a name as the other kind replaced the file rather than leaving two.
+- **Inserting:** the lines script, inserted into the empty editor, switched Run as to Send lines. The old-style one came in without its header and switched Run as to SPSL. Inserting another appended it.
+- **Edit Button:** it started with an empty script box (no header) and listed only the SPSL scripts.
+- **Checker:** a correct script gave no problems without a header line. A script of typos and bad arguments gave each expected error or warning, and the pasted AutoHotkey script was flagged on every line.
+- **Dialogs:** the Script Editor in both Run as modes, and Edit Button in SPSL mode, were rendered in the dark theme at 150% scaling.
+- **Not checked:** sending from the Script Editor to live sessions, and the Save as... and Delete dialogs in the running app.
+
 ## Fix: the installer didn't include Newtonsoft.Json.dll
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
@@ -567,6 +604,15 @@ Show folders first:
 
 1. Tools → Options → GUI: tick "Show folders first", OK. The Sessions tree should list folders before sessions at every level.
 2. Open Options and click OK several times without changing anything: the tree order shouldn't change. Untick it: folders and sessions should mix, by name.
+
+Script editing:
+
+1. Open the Script Editor (Send Commands toolbar → script button). Run as should read **SPSL script**, with the commands and check on the right. Switch to **Send lines**: the right panel goes and the script box widens.
+2. In SPSL mode, select a command → **Insert example**: it's added with no `#!/bin/spsl` line. Type `SENDLNE hi` and `SENDKEY ENTR`, then **Check script**: two errors, with "did you mean SENDLINE?". Click one: its line is selected.
+3. With a tab selected, send `SENDLINE echo {user}` / `SENDKEY ENTER` as SPSL: the tab should get `echo <your user>` and one Enter (not an "E"), with the script shown in the status bar while it runs. Send `show version` in Send lines mode: it's typed as is.
+4. **Save as...** on the left saves the script as the current kind (it's listed as SPSL or lines). Clear the editor, double-click it: it comes back, and Run as switches to match.
+5. Edit a button-bar button → Action: Run SPSL script: the panel appears beside the script by itself, with a Saved scripts tab listing your SPSL scripts, and the script box doesn't get a `#!/bin/spsl` line. Click OK with an error in the script: you're asked whether to save anyway.
+6. Click the mask button on the Send Commands toolbar: the icon switches between a grey eye and an amber asterisk, and typing is masked accordingly.
 
 Dropped sessions:
 
