@@ -224,7 +224,7 @@ namespace SuperPutty
             {
                 ExpandFully(nodeRoot);
                 ExpandFully(nodePrivate);
-                this.treeView1.SelectedNode = nodeRoot;
+                this.treeView1.SelectedNode = this.DefaultRoot;
             }
             else
             {
@@ -335,13 +335,26 @@ namespace SuperPutty
         /// <summary>
         /// Load the sessions from the registry and populate the treeview control
         /// </summary>
+        /// <summary>
+        /// Where new sessions go when no folder is chosen (and from Favorites or Recent): Saved sessions, or Private
+        /// sessions when Saved sessions are turned off in Options
+        /// </summary>
+        TreeNode DefaultRoot
+        {
+            get { return SuperPuTTY.Settings.UseSessionsXml ? this.nodeRoot : this.nodePrivate; }
+        }
+
         void LoadSessions()
         {
             treeView1.Nodes.Clear();
             this.nodeFavorites = null;
             this.nodeRecent = null;
 
-            this.nodeRoot = treeView1.Nodes.Add("root", "Saved sessions", ImageKeyFolder, ImageKeyFolder);
+            // with Saved sessions turned off in Options the root exists but isn't shown, so code that refers to it
+            // still works and it simply stays empty
+            this.nodeRoot = SuperPuTTY.Settings.UseSessionsXml
+                ? treeView1.Nodes.Add("root", "Saved sessions", ImageKeyFolder, ImageKeyFolder)
+                : new TreeNode("Saved sessions", 0, 0) { Name = "root", ImageKey = ImageKeyFolder, SelectedImageKey = ImageKeyFolder };
             this.nodeRoot.Tag = RootKind.Shared;
             this.nodeRoot.ContextMenuStrip = this.contextMenuStripFolder;
 
@@ -604,13 +617,14 @@ namespace SuperPutty
         { 
             SessionData session = existingSession;
             TreeNode node = null;
-            TreeNode nodeRef = nodeRoot;
+            TreeNode nodeRef = this.DefaultRoot;
             string title = null;
 
-            // Favorites and Recent hold shortcuts, not sessions: new sessions from there go in Saved sessions
+            // Favorites and Recent hold shortcuts, not sessions: new sessions from there go in Saved sessions (or
+            // Private sessions, when Saved sessions are turned off)
             if (treeView1.SelectedNode == null || IsQuickNode(treeView1.SelectedNode))
             {
-                treeView1.SelectedNode = nodeRoot;
+                treeView1.SelectedNode = this.DefaultRoot;
             }
             if (mode == 2 && DatabaseLocked(treeView1.SelectedNode))
             {
@@ -660,8 +674,8 @@ namespace SuperPutty
 
             if (node == null && DatabaseLocked(nodeRef))
             {
-                // the table can't be written: new sessions, and copies of database sessions, go in Saved sessions
-                nodeRef = nodeRoot;
+                // the table can't be written: new sessions, and copies of database sessions, go in Saved (or Private) sessions
+                nodeRef = this.DefaultRoot;
                 if (session.IsDatabase)
                 {
                     session.SessionId = SuperPuTTY.MakeUniqueSessionId(session.SessionName);
@@ -1342,7 +1356,7 @@ namespace SuperPutty
             RootKind from = KindOf(node);
             foreach (RootKind kind in new[] { RootKind.Shared, RootKind.Private, RootKind.Database })
             {
-                if (kind == from || (kind == RootKind.Database && this.nodeDatabase == null))
+                if (kind == from || (kind == RootKind.Database && this.nodeDatabase == null) || (kind == RootKind.Shared && !SuperPuTTY.Settings.UseSessionsXml))
                     continue;
                 RootKind target = kind;
                 bool enabled = (target != RootKind.Database || DatabaseSessions.Writable) && !(move && from == RootKind.Database && DatabaseLocked(node));
@@ -2230,7 +2244,7 @@ namespace SuperPutty
         {
             TreeNode node = this.treeView1.SelectedNode;
             if (node == null || IsQuickNode(node) || DatabaseLocked(node))
-                return this.nodeRoot;
+                return this.DefaultRoot;
             return IsSessionNode(node) ? node.Parent : node;
         }
 

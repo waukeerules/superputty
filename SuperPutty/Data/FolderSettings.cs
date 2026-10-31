@@ -125,6 +125,11 @@ namespace SuperPutty.Data
             foreach (Store store in new[] { Store.Shared, Store.Private })
             {
                 stores[store].Clear();
+                if (store == Store.Shared && !SuperPuTTY.Settings.UseSessionsXml)
+                {
+                    // Saved sessions are turned off, so Folders.xml (theirs) isn't read either
+                    continue;
+                }
                 foreach (FolderSetting setting in ReadFile(FileFor(store)))
                 {
                     if (!string.IsNullOrEmpty(setting.Path) && !setting.IsEmpty)

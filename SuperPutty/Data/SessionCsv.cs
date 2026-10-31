@@ -408,7 +408,8 @@ namespace SuperPutty.Data
                     Skip(planned, sessionName.Length == 0 ? "no name" : "the name \"" + sessionName + "\" has a /");
                     continue;
                 }
-                planned.IsPrivate = kind.Equals(SourcePrivate, StringComparison.OrdinalIgnoreCase);
+                // with Saved sessions turned off in Options, Saved rows go to Private sessions
+                planned.IsPrivate = kind.Equals(SourcePrivate, StringComparison.OrdinalIgnoreCase) || !SuperPuTTY.Settings.UseSessionsXml;
                 planned.SessionId = path.Length == 0 ? sessionName : path + "/" + sessionName;
                 if (!seen.Add(planned.SessionId))
                 {

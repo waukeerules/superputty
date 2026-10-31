@@ -216,6 +216,7 @@ namespace SuperPutty
             this.checkSessionTreeFoldersFirst.Checked = SuperPuTTY.Settings.SessiontreeShowFoldersFirst;
             this.checkSessionsShowRecent.Checked = SuperPuTTY.Settings.SessionsShowRecent;
             this.checkReloadSessionsWhenChanged.Checked = SuperPuTTY.Settings.ReloadSessionsWhenChanged;
+            this.checkUseSessionsXml.Checked = SuperPuTTY.Settings.UseSessionsXml;
             this.checkBoxPersistTsHistory.Checked = SuperPuTTY.Settings.PersistCommandBarHistory;
             this.numericUpDown1.Value = SuperPuTTY.Settings.SaveCommandHistoryDays;
             this.checkBoxAllowPuttyPWArg.Checked = SuperPuTTY.Settings.AllowPlainTextPuttyPasswordArg;
@@ -450,6 +451,15 @@ namespace SuperPutty
                 SuperPuTTY.Settings.SessiontreeShowFoldersFirst = this.checkSessionTreeFoldersFirst.Checked;
                 SuperPuTTY.Settings.SessionsShowRecent = this.checkSessionsShowRecent.Checked;
                 SuperPuTTY.Settings.ReloadSessionsWhenChanged = this.checkReloadSessionsWhenChanged.Checked;
+                if (SuperPuTTY.Settings.UseSessionsXml != this.checkUseSessionsXml.Checked)
+                {
+                    // the Sessions tree and the session list are built at start-up with or without Saved sessions
+                    SuperPuTTY.Settings.UseSessionsXml = this.checkUseSessionsXml.Checked;
+                    Messenger.MessageBox(this.checkUseSessionsXml.Checked
+                            ? "Saved sessions (Sessions.xml) come back when SuperXPuTTY is restarted."
+                            : "Saved sessions (Sessions.xml) go when SuperXPuTTY is restarted. The file is left as it is; tick Use Sessions.xml to see them again.",
+                        "Options", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
                 SuperPuTTY.Settings.PersistCommandBarHistory = this.checkBoxPersistTsHistory.Checked;
                 SuperPuTTY.Settings.SaveCommandHistoryDays = (int)this.numericUpDown1.Value;
                 SuperPuTTY.Settings.AllowPlainTextPuttyPasswordArg = this.checkBoxAllowPuttyPWArg.Checked;

@@ -325,7 +325,13 @@ namespace SuperPutty
             List<SessionData> privateSessions = null;
             try
             {
-                if (File.Exists(fileName))
+                if (!Settings.UseSessionsXml)
+                {
+                    // turned off in Options (e.g. for Database sessions only): the file is neither read nor written
+                    Log.Info("Saved sessions (Sessions.xml) are turned off; not reading it");
+                    sessions = new List<SessionData>();
+                }
+                else if (File.Exists(fileName))
                 {
                     sessions = SessionData.LoadSessionsFromFile(fileName);
                 }
@@ -351,7 +357,14 @@ namespace SuperPutty
             }
 
             // reload when the file is changed outside SuperPuTTY (also starts watching a file that doesn't exist yet)
-            SessionsFileWatcher.Watch(fileName);
+            if (Settings.UseSessionsXml)
+            {
+                SessionsFileWatcher.Watch(fileName);
+            }
+            else
+            {
+                SessionsFileWatcher.Stop();
+            }
             // folder colours, beside Sessions.xml and PrivateSessions.xml
             FolderSettings.Load();
             if (sessions == null && privateSessions == null)
@@ -404,9 +417,13 @@ namespace SuperPutty
             Log.InfoFormat("Saving all sessions");
             // sessions from the Postgres table live there (and in its local cache), never in these files
             List<SessionData> all = GetAllSessions().Where(s => !s.IsDatabase).ToList();
-            SessionData.SaveSessionsToFile(all.Where(s => !s.IsPrivate).ToList(), SessionsFileName);
-            // our own save: not a change to reload
-            SessionsFileWatcher.Saved();
+            // turned off in Options: Sessions.xml is left as it is (another copy, or upstream, may still use it)
+            if (Settings.UseSessionsXml)
+            {
+                SessionData.SaveSessionsToFile(all.Where(s => !s.IsPrivate).ToList(), SessionsFileName);
+                // our own save: not a change to reload
+                SessionsFileWatcher.Saved();
+            }
             List<SessionData> privateSessions = all.Where(s => s.IsPrivate).ToList();
             if (privateSessions.Count > 0 || File.Exists(PrivateSessionsFileName))
             {
@@ -826,6 +843,8 @@ namespace SuperPutty
                 // pre-pend session id with the provided folder to put them
                 session.SessionId = MakeUniqueSessionId(SessionData.CombineSessionIds(folder, session.SessionId));
                 session.SessionName = SessionData.GetSessionNameFromId(session.SessionId);
+                // with Saved sessions turned off they'd be lost; Private sessions keep them
+                session.IsPrivate = session.IsPrivate || !Settings.UseSessionsXml;
                 AddSession(session);
             }
             Log.InfoFormat($"Imported {sessions.Count} sessions into {folder}");

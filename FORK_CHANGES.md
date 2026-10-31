@@ -1040,6 +1040,31 @@ When `Sessions.xml` is changed by something other than this copy of SuperXPuTTY,
 - **With the setting off,** an outside edit wasn't reloaded.
 - **Not checked:** a network share (where only the 30 s poll may notice), and two running copies sharing a folder.
 
+## Turning off Sessions.xml
+
+Tools → Options → GUI → **Use Sessions.xml** (`UseSessionsXml`, on by default). Untick it for a team that keeps its sessions only in a Postgres table (Database sessions), and maybe Private sessions. It applies after a restart, which Options says when it changes. With it off:
+- **No Saved sessions:** the root isn't shown (it still exists, empty and out of the tree, so code that refers to it keeps working).
+- **Sessions.xml isn't read or written,** and isn't watched for changes. It's left exactly as it was, so ticking the box again brings those sessions back, and another copy (or upstream) can keep using it. Folders.xml isn't read either.
+- **New sessions** with no folder chosen (or from Favorites and Recent) go to Private sessions (`SessionTreeview.DefaultRoot`).
+- **Imports** (File → Import sessions, and CSV rows marked Saved) go to Private sessions, so they aren't lost.
+- **Move to / Copy to** don't offer Saved sessions.
+
+| File | Change |
+|---|---|
+| `SuperPuTTY.cs` | `LoadSessions` and `SaveSessions` skip Sessions.xml, and the watcher stops; `ImportSessions` makes imports private |
+| `SessionTreeview.cs` | The Saved sessions root left out of the tree; `DefaultRoot`; Move to / Copy to |
+| `Data/FolderSettings.cs` | Folders.xml not read |
+| `Data/SessionCsv.cs` | Saved rows imported as private |
+| `dlgFindPutty.cs` / `.Designer.cs` | The checkbox, its tooltip, and the restart note |
+| `Properties/Settings.*`, `App.config` | `UseSessionsXml` |
+
+**Checked** (a test program running the app's code, with a real Sessions tree; 9 checks with the colour menu below, all passed):
+- with it off, a Sessions.xml holding a session wasn't read, PrivateSessions.xml was, and Folders.xml wasn't;
+- an import went to Private sessions and was saved there, and so did a CSV row marked Saved;
+- after saving, Sessions.xml was byte for byte unchanged, down to its time;
+- the tree had no Saved sessions root; new sessions with no folder went to Private sessions; Copy to didn't offer Saved sessions.
+- **Not checked:** the Options checkbox clicked and SuperXPuTTY restarted.
+
 ## Copying and moving sessions into and out of Database sessions
 
 Sessions can now cross between Saved or Private sessions and Database sessions, e.g. to fill the table from an existing Sessions.xml without writing SQL (`SessionTreeview.Transfer`).
@@ -1412,6 +1437,7 @@ Favorites, Recent and private sessions:
 19. Right-click a folder → Folder settings...: Username `netops`, Port 2222. A session in a subfolder with no username and port 0 connects as netops on 2222; Edit Session shows "netops (from ...)" in the empty Username box. A session with its own username keeps it.
 20. With Pageant holding a key the bastion accepts, make a session `Bastions/bastion1` for it, then set a device's Jump host to `Bastions/bastion1` (or a folder's, in Folder settings...): the device connects through it. Set the jump host to `nosuch`: it connects directly and the status bar says why.
 21. Right-click a Saved folder → Copy to → Database sessions: its sessions appear under Database sessions in the same folders (check the table), and the Saved ones stay. Drag a Database session onto a Saved folder: it's copied there. Right-click a Database folder → Move to → Saved sessions: it asks, then the rows are deleted from the table and the sessions are in Saved sessions.
+22. Tools → Options → GUI: untick Use Sessions.xml, OK, restart: no Saved sessions, Sessions.xml unchanged; New session with nothing selected goes to Private sessions. Tick it again and restart: they're back.
 
 Database sessions:
 
