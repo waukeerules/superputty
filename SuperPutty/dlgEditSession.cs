@@ -308,7 +308,13 @@ namespace SuperPutty
                 this.color = chosen;
                 this.ShowColor();
             });
-            holder.DropDown.Show(this.buttonColor, new Point(0, this.buttonColor.Height));
+            // shown as its own menu: the holder's drop-down belongs to an item on no menu, and WinForms then placed it
+            // at the top-left of the screen instead of under the button
+            ContextMenuStrip menu = new ContextMenuStrip();
+            menu.Items.AddRange(holder.DropDownItems.Cast<ToolStripItem>().ToArray());
+            menu.Closed += (s, args) => this.BeginInvoke((MethodInvoker)menu.Dispose);
+            MenuCheckMarks.Apply(menu);
+            menu.Show(this.buttonColor, new Point(0, this.buttonColor.Height));
         }
 
         /// <summary>

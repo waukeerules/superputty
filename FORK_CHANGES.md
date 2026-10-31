@@ -1216,7 +1216,7 @@ A session can have a colour (e.g. red for production), so you notice before typi
 | `Data/SessionCsv.cs` | `Colour` column |
 | `Gui/TabIcons.cs` | The tab stripe |
 | `ctlPuttyPanel.cs` | `ApplyEnvironmentColor`: the frame |
-| `dlgEditSession.cs` / `.Designer.cs` | The Colour button (the session name box narrowed to make room), saved with the session and lockable as `color` |
+| `dlgEditSession.cs` / `.Designer.cs` | The Colour button (the session name box narrowed to make room), saved with the session and lockable as `color`. Its menu is shown as its own context menu under the button: shown from a menu item that belongs to no menu, it opened at the top-left of the screen (checked since: it opens at the button's bottom-left) |
 | `SessionTreeview.cs` | Colour menus for sessions and folders; node colours (`ColorNode`); folder settings follow renames, moves and removals |
 | `frmSuperPutty.cs` / `.Designer.cs` | Tools → Environment colours...; tabs redrawn when a colour changes |
 | `SuperPuTTY.cs` | `LoadSessions` reads the folder settings |
