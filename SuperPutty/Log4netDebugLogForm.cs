@@ -6,6 +6,7 @@ using log4net.Repository.Hierarchy;
 using log4net.Core;
 using log4net.Layout;
 using System.IO;
+using System.Text;
 
 namespace SuperPutty
 {
@@ -83,25 +84,59 @@ namespace SuperPutty
             this.DisposeLogger();
         }
 
+        /// <summary>How much text the viewer keeps; older lines are dropped beyond this</summary>
+        private const int MaxLogLength = 1000000;
+
+        /// <summary>
+        /// Show the log lines written since the last tick. They're added in one go, with one scroll: adding and
+        /// scrolling per line could take minutes for a burst such as 10,000 sessions loading, freezing the window.
+        /// The text is kept under <see cref="MaxLogLength"/>. Stops once the viewer is gone, as the timer can still
+        /// tick while the application closes.
+        /// </summary>
+        /// <param name="sender">The timer</param>
+        /// <param name="e">Not used</param>
         private void timerLogPull_Tick(object sender, EventArgs e)
         {
             this.timerLogPull.Stop();
+            if (this.IsDisposed || this.richTextBoxLogMessages.IsDisposed)
+            {
+                return;
+            }
             try
             {
                 LoggingEvent[] events = this.memoryAppender.GetEvents();
                 this.memoryAppender.Clear();
+                if (events.Length == 0)
+                {
+                    return;
+                }
+                StringBuilder text = this.msgWriter.GetStringBuilder();
+                text.Clear();
                 foreach (LoggingEvent logEvent in events)
                 {
                     this.memoryAppender.Layout.Format(this.msgWriter, logEvent);
-                    this.richTextBoxLogMessages.AppendText(this.msgWriter.GetStringBuilder().ToString());
-                    this.richTextBoxLogMessages.ScrollToCaret();
-                    this.msgWriter.GetStringBuilder().Remove(0, this.msgWriter.GetStringBuilder().Length);
-                    //this.richTextBoxLogMessages.AppendText(Environment.NewLine);
                 }
+                if (text.Length > MaxLogLength)
+                {
+                    text.Remove(0, text.Length - MaxLogLength);
+                }
+                if (this.richTextBoxLogMessages.TextLength + text.Length > MaxLogLength)
+                {
+                    // drop the oldest lines, keeping the newest half
+                    string kept = this.richTextBoxLogMessages.Text;
+                    kept = kept.Substring(Math.Max(0, kept.Length - (MaxLogLength / 2 - Math.Min(text.Length, MaxLogLength / 2))));
+                    this.richTextBoxLogMessages.Text = kept;
+                }
+                this.richTextBoxLogMessages.AppendText(text.ToString());
+                this.richTextBoxLogMessages.ScrollToCaret();
+                text.Clear();
             }
             finally
             {
-                this.timerLogPull.Start();
+                if (!this.IsDisposed)
+                {
+                    this.timerLogPull.Start();
+                }
             }
         }
 

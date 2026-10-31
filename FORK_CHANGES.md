@@ -898,6 +898,24 @@ The hint stays visible while the box has focus, so the session name box shows it
 
 **Checked:** the Release MSI was rebuilt. Its ProductVersion is 2.1.2.0, and so is the exe's file version. Its Upgrade table removes any older version up to and including its own. Installing it wasn't tried here.
 
+## Fix: the Log Viewer froze the window during a burst of log lines, and crashed on exit
+
+**Symptom:** with View → Log Viewer open, pointing the settings folder at a 10,000-session Sessions.xml left the window unresponsive for over a minute. Closing the application then failed with "Cannot access a disposed object. Object name: 'RichTextBox'" (`Log4netLogViewer.timerLogPull_Tick`).
+
+**Cause:**
+- **The freeze:** loading logged one "Added Session" line per session. The viewer's timer added each new line to its text box separately and scrolled after each one, and for 10,000 lines that took far longer than the timer's interval.
+- **The crash:** the timer kept ticking after the viewer was closed, and touched the disposed text box.
+
+**Fix:**
+- **One append per tick:** the viewer formats all new lines into one string, appends it once and scrolls once. It keeps at most about 1,000,000 characters, dropping the oldest half when full.
+- **The timer** stops for good once the viewer is disposed.
+- **Loading** no longer logs each session it adds. `SuperPuTTY.LoadSessions` logs one line ("Loaded 10000 sessions from ... and 0 private sessions"). Adding single sessions is still logged.
+
+**Checked**, with the app's log4net configuration and the viewer open:
+- **Loading** the 10,000-session file took 0.99 s; in the app, with per-session logging, it had taken 6 s.
+- **A burst of 10,000 log lines** showed in the viewer in 0.35 s, with the longest pause of the UI thread 334 ms.
+- **Closing the viewer** caused no error afterwards.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
@@ -1003,6 +1021,7 @@ Favorites, Recent and private sessions:
 9. Hints: the empty search box says "Search... (press Enter)", or "Type to search..." with "Filter while typing" on. Create new session shows grey examples in Session name, Host address and Login username; each goes when you type. The toolbar's Host and Login boxes show theirs too.
 10. Open a session: its icon in the Sessions tree gets a green dot (in Favorites and Recent too). Let it drop (e.g. 192.168.3.2 left at the login prompt): the dot turns red, and green again once it reconnects. Close the tab: the dot goes.
 11. A session whose PuTTY profile (or `-i`) uses a key: right-click → WinSCP (external) logs in with the key. Clear the session's username, with the user only in the PuTTY profile's Auto-login username: WinSCP still logs in as that user. A session with `{user}` as its username opens WinSCP as your user, not "{user}".
+12. Open View → Log Viewer, then point the settings folder at a large Sessions.xml: the window stays responsive. Close SuperXPuTTY: no error.
 
 Database sessions:
 

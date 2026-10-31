@@ -359,23 +359,31 @@ namespace SuperPutty
             List<SessionData> databaseSessions = sessionsList.Where(s => s.IsDatabase).ToList();
             sessionsMap.Clear();
             sessionsList.Clear();
-
-            foreach (SessionData session in sessions ?? new List<SessionData>())
+            loadingSessions = true;
+            try
             {
-                AddSession(session);
-            }
-            foreach (SessionData session in privateSessions ?? new List<SessionData>())
-            {
-                session.IsPrivate = true;
-                if (GetSessionById(session.SessionId) != null)
+                foreach (SessionData session in sessions ?? new List<SessionData>())
                 {
-                    string newId = MakeUniqueSessionId(session.SessionId);
-                    Log.WarnFormat($"Private session {session.SessionId} has the same ID as a shared one; renamed to {newId}");
-                    session.SessionId = newId;
-                    session.SessionName = SessionData.GetSessionNameFromId(newId);
+                    AddSession(session);
                 }
-                AddSession(session);
+                foreach (SessionData session in privateSessions ?? new List<SessionData>())
+                {
+                    session.IsPrivate = true;
+                    if (GetSessionById(session.SessionId) != null)
+                    {
+                        string newId = MakeUniqueSessionId(session.SessionId);
+                        Log.WarnFormat($"Private session {session.SessionId} has the same ID as a shared one; renamed to {newId}");
+                        session.SessionId = newId;
+                        session.SessionName = SessionData.GetSessionNameFromId(newId);
+                    }
+                    AddSession(session);
+                }
             }
+            finally
+            {
+                loadingSessions = false;
+            }
+            Log.InfoFormat($"Loaded {(sessions ?? new List<SessionData>()).Count} sessions from {fileName} and {(privateSessions ?? new List<SessionData>()).Count} private sessions");
             // the database sessions go back in silently; the tree redraws its root for them once
             if (databaseSessions.Count > 0)
             {
@@ -457,7 +465,11 @@ namespace SuperPutty
             bool success = false;
             if (GetSessionById(session.SessionId) == null)
             {
-                Log.InfoFormat($"Added Session, id={session.SessionId}");
+                // not one line per session while loading thousands of them (LoadSessions logs a summary instead)
+                if (!loadingSessions)
+                {
+                    Log.InfoFormat($"Added Session, id={session.SessionId}");
+                }
                 sessionsMap.Add(session.SessionId, session);
                 sessionsList.Add(session);
                 success = true;
@@ -468,6 +480,9 @@ namespace SuperPutty
             }
             return success;
         }
+
+        /// <summary>True while <see cref="LoadSessions"/> adds the sessions it read, so they aren't logged one by one</summary>
+        private static bool loadingSessions;
 
         /// <summary>Raised after <see cref="ReplaceDatabaseSessions"/>, so the Sessions tree can redraw "Database sessions"</summary>
         public static event EventHandler DatabaseSessionsReplaced;
