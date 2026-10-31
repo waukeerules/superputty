@@ -355,7 +355,8 @@ namespace SuperPutty
                 return;
             }
 
-            // remove old
+            // remove old, keeping the sessions read from the Postgres table, which aren't in these files
+            List<SessionData> databaseSessions = sessionsList.Where(s => s.IsDatabase).ToList();
             sessionsMap.Clear();
             sessionsList.Clear();
 
@@ -375,6 +376,11 @@ namespace SuperPutty
                 }
                 AddSession(session);
             }
+            // the database sessions go back in silently; the tree redraws its root for them once
+            if (databaseSessions.Count > 0)
+            {
+                ReplaceDatabaseSessions(databaseSessions);
+            }
         }
 
         /// <summary>
@@ -384,7 +390,8 @@ namespace SuperPutty
         public static void SaveSessions()
         {
             Log.InfoFormat("Saving all sessions");
-            List<SessionData> all = GetAllSessions();
+            // sessions from the Postgres table live there (and in its local cache), never in these files
+            List<SessionData> all = GetAllSessions().Where(s => !s.IsDatabase).ToList();
             SessionData.SaveSessionsToFile(all.Where(s => !s.IsPrivate).ToList(), SessionsFileName);
             List<SessionData> privateSessions = all.Where(s => s.IsPrivate).ToList();
             if (privateSessions.Count > 0 || File.Exists(PrivateSessionsFileName))
@@ -460,6 +467,41 @@ namespace SuperPutty
                 Log.InfoFormat($"Failed to Add Session, id={session.SessionId}.  Session already exists");
             }
             return success;
+        }
+
+        /// <summary>Raised after <see cref="ReplaceDatabaseSessions"/>, so the Sessions tree can redraw "Database sessions"</summary>
+        public static event EventHandler DatabaseSessionsReplaced;
+
+        /// <summary>
+        /// Swap the sessions read from the Postgres table (DatabaseSessions) for a new set, in one go: the session
+        /// list doesn't announce each one, since thousands of rows would redraw the tree thousands of times; the tree
+        /// redraws its Database sessions root on <see cref="DatabaseSessionsReplaced"/> instead.
+        /// </summary>
+        /// <param name="sessions">The new database sessions; empty to remove them all</param>
+        public static void ReplaceDatabaseSessions(IList<SessionData> sessions)
+        {
+            sessionsList.RaiseListChangedEvents = false;
+            try
+            {
+                foreach (SessionData old in sessionsList.Where(s => s.IsDatabase).ToList())
+                {
+                    sessionsMap.Remove(old.SessionId);
+                    sessionsList.Remove(old);
+                }
+                foreach (SessionData session in sessions)
+                {
+                    if (session.SessionId != null && !sessionsMap.ContainsKey(session.SessionId))
+                    {
+                        sessionsMap.Add(session.SessionId, session);
+                        sessionsList.Add(session);
+                    }
+                }
+            }
+            finally
+            {
+                sessionsList.RaiseListChangedEvents = true;
+            }
+            DatabaseSessionsReplaced?.Invoke(null, EventArgs.Empty);
         }
 
         /// <summary>Get a list of all sessions from the in-application database</summary>

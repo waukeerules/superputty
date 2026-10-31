@@ -74,6 +74,7 @@ MSBuild.exe SuperPutty.sln /restore /p:Configuration=Debug /v:minimal
 - log4net 3.1.0
 - Microsoft.VisualBasic 10.3.0
 - Newtonsoft.Json 13.0.3 (fork only, used for the placeholder values)
+- Npgsql 8.0.5 (fork only, for Database sessions). It brings 15 support libraries (System.Memory, System.Text.Json, ...), each listed in `SuperPuttyInstaller/Product.wxs`, and `AutoGenerateBindingRedirects` writes their redirects into `SuperXPuTTY.exe.config`. When the package changes, update the installer's list from `bin\Release`
 
 PuTTY, or [PuTTY Plus](https://github.com/SilverGreen93/putty), is an external runtime requirement.
 
@@ -108,6 +109,7 @@ SCP sessions go through `SuperPuTTY.OpenScpSession` → `PscpBrowserPanel` inste
 | `IconLibrary`, `IconTemplates`, `BrandLogos`, `CustomIcons`, `dlgIconPicker` | `Gui/` | Fork feature: session icons are drawn at the size shown (Options → Icon size). A key is a name plus an optional colour (`switch#1E63B4`, `custom:juniper#C62828`). Templates and logos are vector drawings, custom icons are one-colour PNGs in `<SettingsFolder>\icons`, and old PNG keys map onto them; theme icon folders aren't read. Look up keys with `IconLibrary.Ensure(SuperPuTTY.Images, key)` rather than `Images.ContainsKey`, so coloured keys are drawn on first use. Set document tab icons with `TabIcons.Set`, not the `Icon` property: DockPanelSuite would draw them at a fixed 16 px |
 | `SpslReference`, `SpslChecker`, `ScriptLibrary`, `SpslHelpPanel`, `ScriptLibraryPanel` | `Scripting/`, `Gui/` | Fork feature: the SPSL command reference, script check, saved-script library (`<SettingsFolder>\scripts`, `.spsl` and `.txt`) and the panels shared by the Script Editor and Edit Button. Whether a script is SPSL is chosen in the editor (Run as / Action), not marked with `#!/bin/spsl`. When you add an SPSL command to `SPSL.keywords`, add it to `SpslReference.Entries` too, and teach `SpslChecker` its arguments |
 | `SessionShortcuts`, `SessionData.IsPrivate` | `Data/` | Fork feature: the Sessions tree's Favorites and Recent groups (`SessionShortcuts.json`, per user) and Private sessions (`PrivateSessions.xml`, per user). The tree's top-level nodes have a `RootKind` Tag, and Favorites and Recent entries a `SessionShortcut` Tag, not a `SessionData`, so folder and session code leaves them alone. `SuperPuTTY.SaveSessions` writes shared and private sessions to their own files; IDs must be unique across both |
+| `DatabaseSessions`, `dlgDatabaseSettings` | `Data/`, `Gui/` | Fork feature: sessions shared through a Postgres table, under "Database sessions" in the tree. Read in pages in the background, cached in `DatabaseSessions.cache.xml`, retried while offline. Their `SessionData.DatabaseId` is set and their IDs start with `@db/`, so they never clash with Sessions.xml and are never saved to it; `SuperPuTTY.ReplaceDatabaseSessions` swaps them in one go. Schema changes only run from the dialog's Create / upgrade schema button, never when read-only. Sessions there are written through `DatabaseSessions.Insert`/`Update`/`Delete` (never `SuperPuTTY.AddSession`/`SaveSessions`) and then read back; the tree only allows it while `DatabaseSessions.Writable`. Never log the connection string or password |
 | `PuttyWindow`, `ctlPuttyPanel.CheckConnection` | `Utils/`, top level | Fork feature: dropped sessions keep their tab, get a badge and reconnect, by finding PuTTY's "Fatal Error" box and sending its Restart Session command. A PuTTY process exiting still closes the tab |
 | `ButtonBarStrip`, `ButtonBarStore`, `SendStringParser` | `Gui/`, `Utils/` | Fork feature: the button bar above the status bar. Buttons are stored in `ButtonBars.xml` in SettingsFolder; sending uses `CommandData.SendToTerminal`, like the Send Commands toolbar and SPSL |
 | `SessionTreeview`, `LayoutsList`, `SessionDetail`, log viewers | top level | Tool windows (`ToolWindow`), shown and hidden through `SingletonToolWindowHelper<T>` |
@@ -130,7 +132,7 @@ SCP sessions go through `SuperPuTTY.OpenScpSession` → `PscpBrowserPanel` inste
 
 - **`SuperXPuTTY.settings`** holds per-user settings, through `PortableSettingsProvider`. It's stored in `Documents\SuperXPuTTY\`, or next to the exe in a portable install. Access it in code through `SuperPuTTY.Settings`.
 - **`SettingsFolder`** is configurable, and may be a shared drive. It holds `Sessions.xml` and `layouts\`.
-- **`EnvironmentVariables.json`**, **`SessionShortcuts.json`** (Favorites and Recent) and **`PrivateSessions.xml`** are per-user, next to `SuperXPuTTY.settings` (`SuperPuTTY.UserSettingsFolder`).
+- **`EnvironmentVariables.json`**, **`SessionShortcuts.json`** (Favorites and Recent), **`PrivateSessions.xml`** and **`DatabaseSessions.cache.xml`** are per-user, next to `SuperXPuTTY.settings` (`SuperPuTTY.UserSettingsFolder`).
 
 ### UI conventions
 

@@ -96,6 +96,31 @@ namespace SuperPutty.Data
         [Browsable(false)]
         public bool IsPrivate { get; set; }
 
+        /// <summary>
+        /// The row's id when this session comes from the Postgres sessions table (DatabaseSessions); null for sessions
+        /// in Sessions.xml or PrivateSessions.xml. Database sessions are never written to those files; the attribute is
+        /// only written to the local cache of the table, and is left out when null.
+        /// </summary>
+        [XmlAttribute]
+        [Browsable(false)]
+        public string DatabaseId { get; set; }
+
+        /// <summary>
+        /// The row's updated_at when it was read (as ticks), for database sessions: an edit only saves if the row
+        /// hasn't changed since, so one user's change isn't silently overwritten by another's
+        /// </summary>
+        [XmlAttribute]
+        [Browsable(false)]
+        public string DatabaseVersion { get; set; }
+
+        /// <summary>Whether this session comes from the Postgres sessions table</summary>
+        [XmlIgnore]
+        [Browsable(false)]
+        public bool IsDatabase
+        {
+            get { return !string.IsNullOrEmpty(this.DatabaseId); }
+        }
+
         private string _OldName;
         [XmlIgnore]
         [Browsable(false)]

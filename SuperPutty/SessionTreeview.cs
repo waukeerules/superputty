@@ -57,7 +57,7 @@ namespace SuperPutty
         public const string ImageKeyFavorites = "star", ImageKeyRecent = "clock", ImageKeyPrivate = "lock";
 
         /// <summary>The tree's top-level nodes, in the order they're shown; each one's Tag</summary>
-        enum RootKind { Favorites, Recent, Shared, Private }
+        enum RootKind { Favorites, Recent, Shared, Private, Database }
 
         /// <summary>
         /// The Tag of an entry in Favorites or Recent: a shortcut to a session, which stays in its own folder. Not a
@@ -83,6 +83,15 @@ namespace SuperPutty
 
         /// <summary>The Favorites and Recent groups (null while empty or hidden), and the Private sessions root</summary>
         TreeNode nodeFavorites, nodeRecent, nodePrivate;
+
+        /// <summary>The "Database sessions" root, for sessions from the Postgres table; null while that's turned off</summary>
+        TreeNode nodeDatabase;
+
+        /// <summary>The Database sessions root's menu: new session and folder, Refresh and Database settings</summary>
+        ContextMenuStrip contextMenuStripDatabaseRoot;
+
+        /// <summary>A database session to select once the table has been read again after adding or changing it</summary>
+        string pendingSelectId;
 
         /// <summary>Menus built in code: for Favorites and Recent entries, and for the Recent group</summary>
         ContextMenuStrip contextMenuStripShortcut, contextMenuStripRecentGroup;
@@ -161,6 +170,8 @@ namespace SuperPutty
                 m_DockPanel.ContentRemoved += DockPanel_ContentChanged;
             }
             ctlPuttyPanel.ConnectionChanged += PuttyPanel_ConnectionChanged;
+            SuperPuTTY.DatabaseSessionsReplaced += DatabaseSessions_Replaced;
+            DatabaseSessions.StatusChanged += DatabaseSessions_StatusChanged;
             // tabs may already be open, e.g. when the Sessions panel is closed and shown again
             this.RefreshOpenStates();
         }
@@ -190,6 +201,7 @@ namespace SuperPutty
             }
             this.nodeFavorites?.Expand();
             this.nodeRecent?.Expand();
+            this.nodeDatabase?.Expand();
         }
 
         protected override void OnLoad(EventArgs e)
@@ -207,7 +219,7 @@ namespace SuperPutty
                 {
                     MyColors = DarkModeCS.GetSystemColors(null, 0)
                 };
-                foreach (ToolStrip menu in new ToolStrip[] { this.contextMenuStripShortcut, this.contextMenuStripRecentGroup, this.toolStripTree })
+                foreach (ToolStrip menu in new ToolStrip[] { this.contextMenuStripShortcut, this.contextMenuStripRecentGroup, this.contextMenuStripDatabaseRoot, this.toolStripTree })
                 {
                     menu.Renderer = new MyRenderer(new CustomColorTable(new OSThemeColors()), false)
                     {
@@ -272,6 +284,8 @@ namespace SuperPutty
                 m_DockPanel.ContentRemoved -= DockPanel_ContentChanged;
             }
             ctlPuttyPanel.ConnectionChanged -= PuttyPanel_ConnectionChanged;
+            SuperPuTTY.DatabaseSessionsReplaced -= DatabaseSessions_Replaced;
+            DatabaseSessions.StatusChanged -= DatabaseSessions_StatusChanged;
             base.OnClosed(e);
         }
 
@@ -294,6 +308,9 @@ namespace SuperPutty
             this.nodePrivate.ContextMenuStrip = this.contextMenuStripFolder;
             this.nodePrivate.ToolTipText = "Only you see these: they're kept beside your settings, not in the shared Sessions.xml";
 
+            this.nodeDatabase = null;
+            this.EnsureDatabaseRoot();
+
             foreach (SessionData session in SuperPuTTY.GetAllSessions())
             {
                 TryAddSessionNode(session);
@@ -304,13 +321,18 @@ namespace SuperPutty
 
         private void TryAddSessionNode(SessionData session)
         {
-            TreeNode nodeParent = session.IsPrivate ? this.nodePrivate : this.nodeRoot;
+            TreeNode nodeParent = session.IsDatabase ? this.nodeDatabase : session.IsPrivate ? this.nodePrivate : this.nodeRoot;
+            if (nodeParent == null)
+            {
+                // a database session while Database sessions is turned off
+                return;
+            }
             if (this.filter == null || this.filter(session))
             {
                 if (session.SessionId != null && session.SessionId != session.SessionName)
                 {
                     // take session id and create folder nodes
-                    nodeParent = FindOrCreateParentNode(nodeParent, session.SessionId);
+                    nodeParent = FindOrCreateParentNode(nodeParent, TreeId(session.SessionId));
                 }
                 AddSessionNode(nodeParent, session, true);
             }
@@ -507,6 +529,11 @@ namespace SuperPutty
             {
                 treeView1.SelectedNode = nodeRoot;
             }
+            if (mode == 2 && DatabaseLocked(treeView1.SelectedNode))
+            {
+                // the table is read-only for this connection or login, or can't be reached
+                return;
+            }
 
             bool isFolderNode = IsFolderNode(treeView1.SelectedNode);
 
@@ -543,6 +570,21 @@ namespace SuperPutty
                 title = "Edit session: " + session.SessionName;
             }
 
+            if (node == null && DatabaseLocked(nodeRef))
+            {
+                // the table can't be written: new sessions, and copies of database sessions, go in Saved sessions
+                nodeRef = nodeRoot;
+                if (session.IsDatabase)
+                {
+                    session.SessionId = SuperPuTTY.MakeUniqueSessionId(session.SessionName);
+                    session.SessionName = SessionData.GetSessionNameFromId(session.SessionId);
+                }
+            }
+            if (node == null)
+            {
+                session.DatabaseId = null;
+            }
+
             dlgEditSession form = new dlgEditSession(session, treeView1.ImageList) {Text = title};
             form.SessionNameValidator += delegate(string txt, out string error)
             {
@@ -552,6 +594,12 @@ namespace SuperPutty
             
             if (form.ShowDialog(this) == DialogResult.OK)
             {
+                if (IsDatabaseNode(nodeRef))
+                {
+                    // database sessions are written to the table, then read back
+                    this.SaveToDatabase(node, nodeRef, session);
+                    return;
+                }
                 /* "node" will only be assigned if we're editing an existing session entry */
                 if (node == null)
                 {
@@ -640,8 +688,20 @@ namespace SuperPutty
         private void deleteToolStripMenuItem_Click(object sender, EventArgs e)
         {
             SessionData session = (SessionData)treeView1.SelectedNode.Tag;
+            if (DatabaseLocked(treeView1.SelectedNode))
+            {
+                return;
+            }
             if (Messenger.MessageBox("Are you sure you want to delete session \"" + session.SessionName + "\"?", "Delete session", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
+                if (session.IsDatabase)
+                {
+                    if (this.WriteDatabase(c => DatabaseSessions.Delete(c, session.DatabaseId)))
+                    {
+                        SessionShortcuts.Forget(session.SessionId);
+                    }
+                    return;
+                }
                 //session.RegistryRemove(session.SessionName);
                 treeView1.SelectedNode.Remove();
                 SuperPuTTY.RemoveSession(session.SessionId);
@@ -762,7 +822,29 @@ namespace SuperPutty
                         return string.IsNullOrEmpty(error);
                     }
                 };
-                if (dialog.ShowDialog(this) == DialogResult.OK && node.Text != dialog.ItemName)
+                if (dialog.ShowDialog(this) == DialogResult.OK && node.Text != dialog.ItemName && IsDatabaseNode(node))
+                {
+                    // the sessions in it, at every level, move to the new path in the table
+                    string from = DatabaseFolder(node);
+                    string to = SessionData.CombineSessionIds(NullIfEmpty(DatabaseFolder(node.Parent)), dialog.ItemName);
+                    List<SessionData> moved = new List<SessionData>();
+                    GetAllSessions(node, moved);
+                    if (moved.Count == 0)
+                    {
+                        // a folder made here and still empty exists only in the tree
+                        node.Text = dialog.ItemName;
+                        node.Name = dialog.ItemName;
+                        ResortNodes();
+                    }
+                    else if (this.WriteDatabase(c => DatabaseSessions.RenameFolder(c, from, to)))
+                    {
+                        foreach (SessionData session in moved)
+                        {
+                            SessionShortcuts.Rename(session.SessionId, DatabaseSessions.IdPrefix + SessionIdDelim + to + session.SessionId.Substring((DatabaseSessions.IdPrefix + SessionIdDelim + from).Length));
+                        }
+                    }
+                }
+                else if (dialog.DialogResult == DialogResult.OK && node.Text != dialog.ItemName)
                 {
                     node.Text = dialog.ItemName;
                     node.Name = dialog.ItemName;
@@ -788,6 +870,15 @@ namespace SuperPutty
                         MessageBoxButtons.YesNo,
                         MessageBoxIcon.Question))
                     {
+                        if (IsDatabaseNode(node))
+                        {
+                            string folder = DatabaseFolder(node);
+                            if (this.WriteDatabase(c => DatabaseSessions.DeleteFolder(c, folder)))
+                            {
+                                sessions.ForEach(session => SessionShortcuts.Forget(session.SessionId));
+                            }
+                            return;
+                        }
                         foreach (SessionData session in sessions)
                         {
                             SuperPuTTY.RemoveSession(session.SessionId);
@@ -841,6 +932,13 @@ namespace SuperPutty
             this.removeFolderToolStripMenuItem.Enabled = isRootNode;// && this.treeView1.SelectedNode.Nodes.Count == 0;
             this.moveFolderToolStripMenuItem.Visible = isRootNode;
             this.moveFolderToolStripMenuItem.Text = MoveMenuText(this.treeView1.SelectedNode);
+            // folders under Database sessions mirror the table: changed only when it can be written, and not moved yet
+            bool locked = DatabaseLocked(this.treeView1.SelectedNode);
+            this.newSessionToolStripMenuItem.Enabled = !locked;
+            this.newFolderToolStripMenuItem.Enabled = !locked;
+            this.renameToolStripMenuItem.Enabled &= !locked;
+            this.removeFolderToolStripMenuItem.Enabled &= !locked;
+            this.moveFolderToolStripMenuItem.Visible &= !IsDatabaseNode(this.treeView1.SelectedNode);
         }
 
         private void contextMenuStripAddTreeItem_Opening(object sender, CancelEventArgs e)
@@ -858,6 +956,11 @@ namespace SuperPutty
             this.favoriteToolStripMenuItem.Text = session != null && SessionShortcuts.IsFavorite(session.SessionId)
                 ? "Remove from Favorites" : "Add to Favorites";
             this.moveSessionToolStripMenuItem.Text = MoveMenuText(this.treeView1.SelectedNode);
+            // database sessions are edited and deleted only when the table can be written, and not moved yet
+            bool locked = DatabaseLocked(this.treeView1.SelectedNode);
+            this.settingsToolStripMenuItem.Enabled = !locked;
+            this.deleteToolStripMenuItem.Enabled = !locked;
+            this.moveSessionToolStripMenuItem.Visible = !IsDatabaseNode(this.treeView1.SelectedNode);
         }
 
         /// <summary>The text of the menu item that moves a node to the other root</summary>
@@ -867,6 +970,167 @@ namespace SuperPutty
         {
             return IsPrivateNode(node) ? "Move to Saved sessions" : "Move to Private sessions";
         }
+
+        #region Database sessions
+
+        /// <summary>Add or remove the Database sessions root to match Options, and show its status</summary>
+        void EnsureDatabaseRoot()
+        {
+            if (!DatabaseSessions.Enabled)
+            {
+                this.nodeDatabase?.Remove();
+                this.nodeDatabase = null;
+                return;
+            }
+            if (this.nodeDatabase == null)
+            {
+                string key = IsValidImage("database") ? "database" : ImageKeyFolder;
+                this.nodeDatabase = this.treeView1.Nodes.Add("database", "Database sessions", key, key);
+                this.nodeDatabase.Tag = RootKind.Database;
+                this.nodeDatabase.ContextMenuStrip = this.contextMenuStripDatabaseRoot;
+            }
+            this.ShowDatabaseStatus();
+        }
+
+        /// <summary>Show the database status in the root's title and tooltip, e.g. "Database sessions (offline, cached 09:41)"</summary>
+        void ShowDatabaseStatus()
+        {
+            if (this.nodeDatabase == null)
+                return;
+            this.nodeDatabase.Text = "Database sessions (" + DatabaseSessions.StatusText() + ")";
+            string tip = "From " + DatabaseSessions.FromSettings();
+            if (DatabaseSessions.SyncedAt.HasValue)
+                tip += Environment.NewLine + "Read at " + DatabaseSessions.SyncedAt.Value.ToString("g");
+            if (DatabaseSessions.State == DatabaseSessions.SyncState.Offline)
+                tip += Environment.NewLine + "Can't reach it: " + DatabaseSessions.LastError + Environment.NewLine
+                    + "Showing the cached copy; it's tried again every few minutes, or right-click -> Refresh";
+            this.nodeDatabase.ToolTipText = tip;
+        }
+
+        /// <summary>Redraw the root's title when the read starts, progresses, finishes or fails</summary>
+        /// <param name="sender">Not used</param>
+        /// <param name="e">Not used</param>
+        void DatabaseSessions_StatusChanged(object sender, EventArgs e)
+        {
+            this.EnsureDatabaseRoot();
+        }
+
+        /// <summary>
+        /// Redraw Database sessions after its sessions were swapped for a fresh read. The nodes are added with sorting
+        /// off and sorted once, since adding thousands one at a time into a sorted tree is slow.
+        /// </summary>
+        /// <param name="sender">Not used</param>
+        /// <param name="e">Not used</param>
+        void DatabaseSessions_Replaced(object sender, EventArgs e)
+        {
+            this.EnsureDatabaseRoot();
+            if (this.nodeDatabase == null)
+            {
+                this.ScheduleShortcutRebuild();
+                return;
+            }
+            bool firstFill = this.nodeDatabase.Nodes.Count == 0;
+            bool expanded = this.nodeDatabase.IsExpanded;
+            this.treeView1.BeginUpdate();
+            try
+            {
+                this.nodeDatabase.Nodes.Clear();
+                this.treeView1.TreeViewNodeSorter = null;
+                foreach (SessionData session in SuperPuTTY.GetAllSessions().Where(s => s.IsDatabase))
+                {
+                    this.TryAddSessionNode(session);
+                }
+            }
+            finally
+            {
+                this.treeView1.TreeViewNodeSorter = this;
+                this.treeView1.EndUpdate();
+            }
+            if (expanded || firstFill)
+            {
+                this.nodeDatabase.Expand();
+            }
+            this.ScheduleShortcutRebuild();
+            this.RefreshOpenStates();
+            if (this.pendingSelectId != null)
+            {
+                // the session just added or changed
+                TreeNode added = FindSessionNode(this.pendingSelectId);
+                this.pendingSelectId = null;
+                if (added != null)
+                {
+                    this.treeView1.SelectedNode = added;
+                    added.EnsureVisible();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Add a database session to the table, or save changes to one, then read the table again; the session is
+        /// selected once it's back. A failure (offline, a name clash, someone else's change) is shown, and the tree
+        /// is left as it was.
+        /// </summary>
+        /// <param name="node">The session's node when editing; null when adding</param>
+        /// <param name="nodeRef">The folder it goes in</param>
+        /// <param name="session">The session as filled in</param>
+        void SaveToDatabase(TreeNode node, TreeNode nodeRef, SessionData session)
+        {
+            string folder = DatabaseFolder(nodeRef);
+            string newId = DatabaseSessions.MakeSessionId(folder, session.SessionName);
+            SessionData real = node?.Tag as SessionData;
+            bool saved = this.WriteDatabase(c =>
+            {
+                if (real == null)
+                    DatabaseSessions.Insert(c, session, folder);
+                else
+                    DatabaseSessions.Update(c, real.DatabaseId, real.DatabaseVersion, session, folder);
+            });
+            if (saved)
+            {
+                if (real != null)
+                {
+                    // a renamed favourite stays a favourite
+                    SessionShortcuts.Rename(real.SessionId, newId);
+                }
+                this.pendingSelectId = newId;
+            }
+        }
+
+        /// <summary>Make a change to the table, with a wait cursor, then read it again; a failure is shown</summary>
+        /// <param name="write">The change, given the connection</param>
+        /// <returns>true if it worked</returns>
+        bool WriteDatabase(Action<DatabaseSessions.Connection> write)
+        {
+            Cursor previous = Cursor.Current;
+            Cursor.Current = Cursors.WaitCursor;
+            try
+            {
+                write(DatabaseSessions.FromSettings());
+            }
+            catch (InvalidOperationException ex)
+            {
+                Cursor.Current = previous;
+                Messenger.MessageBox("Couldn't save to the database: " + ex.Message, "Database sessions", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+            finally
+            {
+                Cursor.Current = previous;
+            }
+            DatabaseSessions.BeginSync();
+            return true;
+        }
+
+        /// <summary>Open the database settings; they take effect when it's closed with OK</summary>
+        void ShowDatabaseSettings()
+        {
+            using (dlgDatabaseSettings dialog = new dlgDatabaseSettings())
+            {
+                dialog.ShowDialog(this);
+            }
+        }
+
+        #endregion
 
         #region Open tabs
 
@@ -1054,7 +1318,7 @@ namespace SuperPutty
         TreeNode SelectedFolder()
         {
             TreeNode node = this.treeView1.SelectedNode;
-            if (node == null || IsQuickNode(node))
+            if (node == null || IsQuickNode(node) || DatabaseLocked(node))
                 return this.nodeRoot;
             return IsSessionNode(node) ? node.Parent : node;
         }
@@ -1128,6 +1392,26 @@ namespace SuperPutty
 
             this.contextMenuStripRecentGroup = new ContextMenuStrip { ShowImageMargin = false };
             this.contextMenuStripRecentGroup.Items.Add("Clear Recent", null, (s, e) => SessionShortcuts.ClearRecent());
+
+            this.contextMenuStripDatabaseRoot = new ContextMenuStrip { ShowImageMargin = false };
+            ToolStripMenuItem databaseNewSession = new ToolStripMenuItem("New session...", null, (s, e) => this.CreateOrEditSession(0, null));
+            ToolStripMenuItem databaseNewFolder = new ToolStripMenuItem("New folder", null, (s, e) => this.newFolderToolStripMenuItem_Click(this, EventArgs.Empty));
+            this.contextMenuStripDatabaseRoot.Opening += (s, e) =>
+            {
+                databaseNewSession.Enabled = DatabaseSessions.Writable;
+                databaseNewFolder.Enabled = DatabaseSessions.Writable;
+            };
+            this.contextMenuStripDatabaseRoot.Items.AddRange(new ToolStripItem[]
+            {
+                databaseNewSession,
+                databaseNewFolder,
+                new ToolStripSeparator(),
+                new ToolStripMenuItem("Refresh", null, (s, e) => DatabaseSessions.BeginSync()),
+                new ToolStripMenuItem("Database settings...", null, (s, e) => this.ShowDatabaseSettings()),
+                new ToolStripSeparator(),
+                new ToolStripMenuItem("Expand all", null, (s, e) => this.nodeDatabase?.ExpandAll()),
+                new ToolStripMenuItem("Collapse all", null, (s, e) => { this.nodeDatabase?.Collapse(); this.nodeDatabase?.Expand(); })
+            });
         }
 
         /// <summary>Set the Favorites and Recent entry menu for the entry right-clicked</summary>
@@ -1278,8 +1562,8 @@ namespace SuperPutty
                 TreeNode node = group.Nodes.Add(session.SessionId, session.SessionName, key, key);
                 node.Tag = new SessionShortcut { Session = session, Group = kind, Order = i };
                 node.ContextMenuStrip = this.contextMenuStripShortcut;
-                string folder = SessionData.GetSessionParentId(session.SessionId);
-                node.ToolTipText = (session.IsPrivate ? "Private sessions" : "Saved sessions") + (folder == null ? "" : "/" + folder)
+                string folder = SessionData.GetSessionParentId(TreeId(session.SessionId));
+                node.ToolTipText = (session.IsDatabase ? "Database sessions" : session.IsPrivate ? "Private sessions" : "Saved sessions") + (folder == null ? "" : "/" + folder)
                     + Environment.NewLine + session.ToString();
             }
             if (expand)
@@ -1296,7 +1580,7 @@ namespace SuperPutty
         /// <param name="node">The session or folder</param>
         void MoveToOtherRoot(TreeNode node)
         {
-            if (node == null || node.Parent == null || IsQuickNode(node))
+            if (node == null || node.Parent == null || IsQuickNode(node) || IsDatabaseNode(node))
                 return;
             TreeNode otherRoot = IsPrivateNode(node) ? this.nodeRoot : this.nodePrivate;
             TreeNode target = FindOrCreateParentNode(otherRoot, SessionData.CombineSessionIds(FolderPath(node.Parent), node.Text));
@@ -1493,6 +1777,51 @@ namespace SuperPutty
             return node != null && RootOf(node) == this.nodePrivate;
         }
 
+        /// <summary>Whether a node is in Database sessions (or is that root)</summary>
+        /// <param name="node">The node</param>
+        /// <returns>true under Database sessions</returns>
+        bool IsDatabaseNode(TreeNode node)
+        {
+            return node != null && this.nodeDatabase != null && RootOf(node) == this.nodeDatabase;
+        }
+
+        /// <summary>
+        /// Whether a node is in Database sessions while the table can't be written (read-only, no permission, offline,
+        /// or not read yet): its sessions and folders can then be opened but not added, changed or removed
+        /// </summary>
+        /// <param name="node">The node</param>
+        /// <returns>true if it's a database node that can't be changed now</returns>
+        bool DatabaseLocked(TreeNode node)
+        {
+            return IsDatabaseNode(node) && !DatabaseSessions.Writable;
+        }
+
+        /// <summary>A folder's path in the table's folder column</summary>
+        /// <param name="folder">A folder under Database sessions, or that root</param>
+        /// <returns>e.g. "Lab/Core", or "" for the root</returns>
+        string DatabaseFolder(TreeNode folder)
+        {
+            string path = TreeId(FolderPath(folder));
+            return path == null || path == DatabaseSessions.IdPrefix ? string.Empty : path;
+        }
+
+        /// <summary>Null for an empty string</summary>
+        /// <param name="text">The text</param>
+        /// <returns>The text, or null</returns>
+        static string NullIfEmpty(string text)
+        {
+            return string.IsNullOrEmpty(text) ? null : text;
+        }
+
+        /// <summary>A session ID as a path under its root: database sessions' IDs lose their "@db/" prefix</summary>
+        /// <param name="sessionId">The ID, e.g. "@db/Lab/sw1"</param>
+        /// <returns>e.g. "Lab/sw1"</returns>
+        static string TreeId(string sessionId)
+        {
+            string prefix = DatabaseSessions.IdPrefix + SessionIdDelim;
+            return sessionId != null && sessionId.StartsWith(prefix, StringComparison.Ordinal) ? sessionId.Substring(prefix.Length) : sessionId;
+        }
+
         /// <summary>A folder's path as used in session IDs, e.g. "Lab/Core"</summary>
         /// <param name="folder">The folder, or a root</param>
         /// <returns>The path, or null for a root</returns>
@@ -1504,6 +1833,10 @@ namespace SuperPutty
                 names.Add(node.Text);
             }
             names.Reverse();
+            if (folder != null && RootOf(folder) == this.nodeDatabase && this.nodeDatabase != null)
+            {
+                names.Insert(0, DatabaseSessions.IdPrefix);
+            }
             return names.Count == 0 ? null : string.Join(SessionIdDelim, names);
         }
 
@@ -1574,6 +1907,10 @@ namespace SuperPutty
         /// <returns>The node, or null if it isn't shown</returns>
         TreeNode FindSessionNode(String SessionId)
         {
+            if (SessionId != null && SessionId.StartsWith(DatabaseSessions.IdPrefix + SessionIdDelim, StringComparison.Ordinal))
+            {
+                return FindSessionNode(this.nodeDatabase, TreeId(SessionId));
+            }
             return FindSessionNode(this.nodeRoot, SessionId) ?? FindSessionNode(this.nodePrivate, SessionId);
         }
 
@@ -1740,7 +2077,8 @@ namespace SuperPutty
             // Start the drag-and-drop operation with a cloned copy of the node.
             //if (node != null && IsSessionNode(node))
             // the top-level nodes and the Favorites and Recent entries stay where they are
-            if (node != null && node.Parent != null && !IsQuickNode(node))
+            // from Database sessions only a session can be dragged, and only onto Favorites
+            if (node != null && node.Parent != null && !IsQuickNode(node) && (!IsDatabaseNode(node) || IsSessionNode(node)))
             {
                 this.treeView1.DoDragDrop(node, DragDropEffects.Copy);
             }
@@ -1775,7 +2113,8 @@ namespace SuperPutty
                 {
                     tree.SelectedNode = node;
                     // folder that is not the same parent and new node name is not already present
-                    if (IsFolderNode(node) && node != nodePayload.Parent && !node.Nodes.ContainsKey(nodePayload.Text))
+                    if (IsFolderNode(node) && node != nodePayload.Parent && !node.Nodes.ContainsKey(nodePayload.Text)
+                        && !IsDatabaseNode(node) && !IsDatabaseNode(nodePayload))
                     {
                         e.Effect = DragDropEffects.Copy;
                     }
@@ -1802,7 +2141,7 @@ namespace SuperPutty
             {
                 SessionShortcuts.AddFavorite(((SessionData)nodeDropped.Tag).SessionId);
             }
-            else if (node != null && IsFolderNode(node))
+            else if (node != null && IsFolderNode(node) && !IsDatabaseNode(node) && !IsDatabaseNode(nodeDropped))
             {
                 Log.DebugFormat("Drag drop");
 
@@ -2080,7 +2419,7 @@ namespace SuperPutty
                     treeView1_NodeMouseDoubleClick(null, null);
                     e.Handled = true;
                 }
-                else if (Control.ModifierKeys == Keys.Shift)
+                else if (Control.ModifierKeys == Keys.Shift && !DatabaseLocked(this.treeView1.SelectedNode))
                 {
                     CreateOrEditSessionToolStripMenuItem_Click(this.settingsToolStripMenuItem, e);
                     e.Handled = true;
@@ -2093,6 +2432,11 @@ namespace SuperPutty
             if (e.KeyCode == Keys.Delete && (treeView1.SelectedNode == null || treeView1.SelectedNode.Parent == null))
             {
                 // the top-level nodes can't be deleted
+                e.Handled = true;
+            }
+            else if (e.KeyCode == Keys.Delete && DatabaseLocked(treeView1.SelectedNode))
+            {
+                // the table can't be written
                 e.Handled = true;
             }
             else if (e.KeyCode == Keys.Delete && IsShortcutNode(treeView1.SelectedNode))

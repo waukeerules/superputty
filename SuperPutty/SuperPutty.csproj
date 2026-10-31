@@ -10,6 +10,8 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>SuperPutty</RootNamespace>
     <AssemblyName>SuperXPuTTY</AssemblyName>
+    <!-- Npgsql's dependencies need assembly binding redirects in SuperXPuTTY.exe.config on .NET Framework -->
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <FileUpgradeFlags>
@@ -119,6 +121,9 @@
     <Compile Include="Gui\DataGridViewProgressColumn.cs" />
     <Compile Include="Gui\DpiUtils.cs" />
     <Compile Include="Gui\HintText.cs" />
+    <Compile Include="Gui\dlgDatabaseSettings.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Gui\ImageListPopup.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -220,6 +225,7 @@
     <Compile Include="Data\ButtonBarData.cs" />
     <Compile Include="Data\SessionData.cs" />
     <Compile Include="Data\SessionShortcuts.cs" />
+    <Compile Include="Data\DatabaseSessions.cs" />
     <Compile Include="Data\SessionDataStartInfo.cs" />
     <Compile Include="DebugLogViewer.cs">
       <SubType>Form</SubType>
@@ -594,6 +600,9 @@
     </PackageReference>
     <PackageReference Include="Newtonsoft.Json">
       <Version>13.0.3</Version>
+    </PackageReference>
+    <PackageReference Include="Npgsql">
+      <Version>8.0.5</Version>
     </PackageReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

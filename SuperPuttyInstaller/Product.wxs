@@ -84,6 +84,55 @@
       <Component Id="ProductLibJson">
         <File Id="Newtonsoft.Json.dll" Source="$(var.SuperPutty.TargetDir)\Newtonsoft.Json.dll" />
       </Component>
+      <!-- Database sessions: Npgsql and the libraries it needs on .NET Framework -->
+      <Component Id="ProductLibDb_Npgsql">
+        <File Id="Npgsql.dll" Source="$(var.SuperPutty.TargetDir)\Npgsql.dll" />
+      </Component>
+      <Component Id="ProductLibDb_Microsoft_Bcl_AsyncInterfaces">
+        <File Id="Microsoft.Bcl.AsyncInterfaces.dll" Source="$(var.SuperPutty.TargetDir)\Microsoft.Bcl.AsyncInterfaces.dll" />
+      </Component>
+      <Component Id="ProductLibDb_Microsoft_Bcl_HashCode">
+        <File Id="Microsoft.Bcl.HashCode.dll" Source="$(var.SuperPutty.TargetDir)\Microsoft.Bcl.HashCode.dll" />
+      </Component>
+      <Component Id="ProductLibDb_Microsoft_Extensions_DependencyInjection_Abstractions">
+        <File Id="Microsoft.Extensions.DependencyInjection.Abstractions.dll" Source="$(var.SuperPutty.TargetDir)\Microsoft.Extensions.DependencyInjection.Abstractions.dll" />
+      </Component>
+      <Component Id="ProductLibDb_Microsoft_Extensions_Logging_Abstractions">
+        <File Id="Microsoft.Extensions.Logging.Abstractions.dll" Source="$(var.SuperPutty.TargetDir)\Microsoft.Extensions.Logging.Abstractions.dll" />
+      </Component>
+      <Component Id="ProductLibDb_System_Buffers">
+        <File Id="System.Buffers.dll" Source="$(var.SuperPutty.TargetDir)\System.Buffers.dll" />
+      </Component>
+      <Component Id="ProductLibDb_System_Collections_Immutable">
+        <File Id="System.Collections.Immutable.dll" Source="$(var.SuperPutty.TargetDir)\System.Collections.Immutable.dll" />
+      </Component>
+      <Component Id="ProductLibDb_System_Diagnostics_DiagnosticSource">
+        <File Id="System.Diagnostics.DiagnosticSource.dll" Source="$(var.SuperPutty.TargetDir)\System.Diagnostics.DiagnosticSource.dll" />
+      </Component>
+      <Component Id="ProductLibDb_System_Memory">
+        <File Id="System.Memory.dll" Source="$(var.SuperPutty.TargetDir)\System.Memory.dll" />
+      </Component>
+      <Component Id="ProductLibDb_System_Numerics_Vectors">
+        <File Id="System.Numerics.Vectors.dll" Source="$(var.SuperPutty.TargetDir)\System.Numerics.Vectors.dll" />
+      </Component>
+      <Component Id="ProductLibDb_System_Runtime_CompilerServices_Unsafe">
+        <File Id="System.Runtime.CompilerServices.Unsafe.dll" Source="$(var.SuperPutty.TargetDir)\System.Runtime.CompilerServices.Unsafe.dll" />
+      </Component>
+      <Component Id="ProductLibDb_System_Text_Encodings_Web">
+        <File Id="System.Text.Encodings.Web.dll" Source="$(var.SuperPutty.TargetDir)\System.Text.Encodings.Web.dll" />
+      </Component>
+      <Component Id="ProductLibDb_System_Text_Json">
+        <File Id="System.Text.Json.dll" Source="$(var.SuperPutty.TargetDir)\System.Text.Json.dll" />
+      </Component>
+      <Component Id="ProductLibDb_System_Threading_Channels">
+        <File Id="System.Threading.Channels.dll" Source="$(var.SuperPutty.TargetDir)\System.Threading.Channels.dll" />
+      </Component>
+      <Component Id="ProductLibDb_System_Threading_Tasks_Extensions">
+        <File Id="System.Threading.Tasks.Extensions.dll" Source="$(var.SuperPutty.TargetDir)\System.Threading.Tasks.Extensions.dll" />
+      </Component>
+      <Component Id="ProductLibDb_System_ValueTuple">
+        <File Id="System.ValueTuple.dll" Source="$(var.SuperPutty.TargetDir)\System.ValueTuple.dll" />
+      </Component>
     </ComponentGroup>
   </Fragment>
 </Wix>

@@ -416,6 +416,8 @@ namespace SuperPutty
 
         private void frmSuperPutty_Load(object sender, EventArgs e)
         {
+            // the cached database sessions are in place before a layout reopens any of them; the table is read after
+            DatabaseSessions.Start();
             this.BeginInvoke(new Action(this.LoadLayout));            
         }
         
@@ -2570,6 +2572,17 @@ namespace SuperPutty
             using (EnvironmentVariablesForm envForm = new EnvironmentVariablesForm())
             {
                 envForm.ShowDialog(this);
+            }
+        }
+
+        /// <summary>Open the settings for sessions shared through a Postgres table</summary>
+        /// <param name="sender">The menu item</param>
+        /// <param name="e">Not used</param>
+        private void databaseSessionsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (dlgDatabaseSettings dialog = new dlgDatabaseSettings())
+            {
+                dialog.ShowDialog(this);
             }
         }
     }
