@@ -132,6 +132,13 @@ namespace SuperPutty.Utils
 
 
 
+        /// <summary>The compiled pattern for each option <see cref="getcommand"/> has looked for, e.g. "-pw" or "-i"</summary>
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Regex> commandRegexes =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, Regex>();
+
+        /// <summary>The -pw option and its value, for <see cref="replacePassword"/>; compiled once</summary>
+        private static readonly Regex passwordRegex = new Regex(@"(-pw[=:\s])(""[^""]*""|[^""\s]+)", RegexOptions.Compiled);
+
         /// <summary>
         /// Return the command value in allCommands (without quotes)              
         /// </summary>
@@ -146,7 +153,8 @@ namespace SuperPutty.Utils
                 return "";
             }
             string strRegex = command + @"[=:\s](?:""([^""]*)""|([^""\s]+))";
-            Regex myRegex = new Regex(strRegex, RegexOptions.Compiled);
+            // compiled once per option: compiling on every call made a search over thousands of sessions take seconds
+            Regex myRegex = commandRegexes.GetOrAdd(command, c => new Regex(strRegex, RegexOptions.Compiled));
             foreach (Match myMatch in myRegex.Matches(allCommands))
             {
                 if (myMatch.Success)
@@ -170,14 +178,13 @@ namespace SuperPutty.Utils
             {
                 return "";
             }
-            string strRegex = @"(-pw[=:\s])(""[^""]*""|[^""\s]+)";
-            Regex myRegex = new Regex(strRegex, RegexOptions.Compiled);
+            Regex myRegex = passwordRegex;
 
             foreach (Match myMatch in myRegex.Matches(allCommands))
             {
                 if (myMatch.Success)
                 {
-                    allCommands = Regex.Replace(allCommands, strRegex, String.IsNullOrEmpty(text) ? "" : "${1}" + text);                                       
+                    allCommands = myRegex.Replace(allCommands, String.IsNullOrEmpty(text) ? "" : "${1}" + text);                                       
                 }
             }
             return allCommands;

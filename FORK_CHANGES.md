@@ -599,6 +599,16 @@ The Sessions tree now has four top-level groups, always in this order: **Favorit
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
 
+## Fix: searching sessions with extra arguments recompiled two regexes per session
+
+**Symptom:** found while timing 10,000 database sessions. A search over sessions that have Extra arguments spent most of its time compiling regular expressions: 10,000 calls of `CommandLineOptions.replacePassword` took 48 s, and of `getcommand` 49 s. Search calls `replacePassword` on every session's extra arguments, to hide `-pw`. `getcommand` reads the `-pw` password and, since the WinSCP fix, `-i`.
+
+**Cause:** both built a new `Regex` with `RegexOptions.Compiled` on every call. Compiling to IL is meant to be done once; done per call it costs far more than it saves.
+
+**Fix:** the `-pw` pattern is a static compiled `Regex`, and `getcommand` keeps one compiled `Regex` per option name. The functions' logic is unchanged.
+
+**Checked:** the same input gave the same results (`-pw secret` removed; `-i "C:\keys\a.ppk"` read as `C:\keys\a.ppk`). 10,000 calls now take 58 ms and 33 ms.
+
 ## Fix: WinSCP (external) didn't use the session's SSH key
 
 **Symptom:** right-click a session → WinSCP (external) failed with "No supported authentication methods available (server sent: publickey)", although the same session logged in fine in PuTTY with a key.
