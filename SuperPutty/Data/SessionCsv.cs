@@ -77,7 +77,16 @@ namespace SuperPutty.Data
             new Column { Header = "SPSL script", Names = new[] { "spslscript", "spslfilename", "spsl", "script" }, Get = s => s.SPSLFileName, Set = (s, v) => { s.SPSLFileName = v; return null; } },
             new Column { Header = "RDP options", Names = new[] { "rdpoptions" }, Get = s => s.RdpOptions, Set = (s, v) => { s.RdpOptions = v; return null; } },
             new Column { Header = "Local path", Names = new[] { "localpath" }, Get = s => s.LocalPath, Set = (s, v) => { s.LocalPath = v; return null; } },
-            new Column { Header = "Remote path", Names = new[] { "remotepath" }, Get = s => s.RemotePath, Set = (s, v) => { s.RemotePath = v; return null; } }
+            new Column { Header = "Remote path", Names = new[] { "remotepath" }, Get = s => s.RemotePath, Set = (s, v) => { s.RemotePath = v; return null; } },
+            new Column { Header = "Colour", Names = new[] { "colour", "color", "environmentcolour", "environmentcolor" },
+                Get = s => s.Color,
+                Set = (s, v) =>
+                {
+                    if (string.IsNullOrWhiteSpace(v)) { s.Color = string.Empty; return null; }
+                    string color = Gui.EnvironmentColors.Normalize(v);
+                    if (color == null) return "colour \"" + v + "\" isn't #RRGGBB";
+                    s.Color = color; return null;
+                } }
         };
 
         /// <summary>A header for matching: lower case, without spaces, _ and -</summary>
@@ -480,6 +489,7 @@ namespace SuperPutty.Data
                 current.RdpOptions = from.RdpOptions;
                 current.LocalPath = from.LocalPath;
                 current.RemotePath = from.RemotePath;
+                current.Color = from.Color;
                 done++;
             }
             SuperPuTTY.SaveSessions();

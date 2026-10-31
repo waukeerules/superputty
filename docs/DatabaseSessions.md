@@ -32,6 +32,7 @@ Default name: `superputty.sessions` (database `superputty`). All three names can
 | `spsl_script` | text | NULL | Path or URL of an SPSL script run when the session opens |
 | `rdp_options` | text | NULL | For RDP: overrides of Tools → Options → RDP, as `Key=Value;Key=Value` (see [RDP options](#rdp-options)) |
 | `local_path`, `remote_path` | text | NULL | Starting folders for the SCP file browser |
+| `color` | text | NULL | The session's environment colour, `#RRGGBB` (e.g. `#C62828` for production): a stripe on its tab and a frame round its terminal. NULL takes its folder's (see [Folder colours](#folder-colours)) or a user's name rule |
 | `locked` | boolean | `false` | Lock the whole session against changes from SuperXPuTTY |
 | `locked_fields` | text[] | `'{}'` | Lock only these columns, e.g. `'{host,port}'` |
 | `managed_by` | text | NULL | Which system owns the row, e.g. `'inventory'`. NULL for sessions people made in SuperXPuTTY |
@@ -55,6 +56,7 @@ Create / upgrade schema adds these; they're named after the table.
 | Trigger `<table>_touch` | Sets `updated_at` and `updated_by` on every insert and update |
 | Trigger `<table>_guard` | Enforces locks, but only for connections named `SuperPuTTY` |
 | Trigger `<table>_changed` | After every statement that changes the table (including `TRUNCATE`), raises the version in `<table>_version` and sends `NOTIFY superputty_sessions` |
+| Table `<table>_folders` | Folder colours (see [Folder colours](#folder-colours)), with the same touch and change triggers. Granted to whoever had rights on the sessions table when Create / upgrade schema ran; grant it to roles you add later too |
 | Table `<table>_version` | One row: `version` (raised on every change) and `changed_at`. Readable by everyone. Its trigger function runs as the table's owner (`SECURITY DEFINER`), so logins that may change sessions needn't be granted it |
 
 ## Locks
@@ -66,7 +68,7 @@ Locks are for sessions something else owns. They stop SuperXPuTTY changing what 
 | `locked = true` | Opens and connects it, but won't edit, delete, rename or move it, or rename or remove a folder holding it. This is "lock everything" |
 | `locked_fields = '{host,port}'` | Shows those fields greyed and read-only in Edit Session. The other fields (notes, icon, ...) can still be changed, and the session can still be deleted. Include `folder` to stop it being moved, and `name` to stop it being renamed |
 
-- **Field names:** `locked_fields` takes column names: `folder`, `name`, `protocol`, `host`, `port`, `username`, `putty_profile`, `extra_args`, `icon`, `notes`, `spsl_script`, `rdp_options`, `local_path`, `remote_path`.
+- **Field names:** `locked_fields` takes column names: `folder`, `name`, `protocol`, `host`, `port`, `username`, `putty_profile`, `extra_args`, `icon`, `notes`, `spsl_script`, `rdp_options`, `local_path`, `remote_path`, `color`.
 - **Columns SuperXPuTTY never changes:** `locked`, `locked_fields`, `managed_by`, `external_id` and `created_at`. The guard trigger refuses that too.
 - **Enforcement:** the guard trigger refuses SuperXPuTTY's changes to locked rows and fields, so even an older copy of the app can't get round them. Users see e.g. *Host of "core-sw1" is locked in the database*.
 - **Your scripts aren't affected,** because they connect under another application name. If a user's own login also runs scripts, those scripts aren't affected either. The lock is about the program, not the login: use [roles](#roles-and-permissions) for that.
@@ -84,6 +86,26 @@ UPDATE superputty.sessions SET deleted_at = NULL   WHERE managed_by = 'inventory
 - **A hidden row keeps its name.** `UNIQUE (folder, name)` still applies, so a user can't add a session with the same name in that folder; they're told it may be hidden by `deleted_at`.
 - **Deleting a folder in SuperXPuTTY** removes only the sessions it showed. Hidden rows in that folder stay.
 - **Renaming a folder** moves its hidden rows too, so they come back in the right place.
+
+## Folder colours
+
+`<table>_folders` holds settings for whole folders, which the sessions under them inherit. So far that's the environment colour:
+
+| Column | Type | Meaning |
+|---|---|---|
+| `folder` | text | The folder's path, as in the sessions' `folder` column, e.g. `HQ/Prod`. One row per folder |
+| `color` | text | `#RRGGBB`; every session below it (at any depth) without its own `color`, and without a nearer folder's, shows it |
+| `updated_at`, `updated_by` | | Kept current by the touch trigger (`updated_by` is the user's nickname) |
+
+```sql
+-- every production folder red
+INSERT INTO superputty.sessions_folders (folder, color) VALUES ('HQ/Prod', '#C62828')
+ON CONFLICT (folder) DO UPDATE SET color = EXCLUDED.color;
+```
+
+- **Users set it too:** right-click a folder → Colour, which writes this table (it needs the database online).
+- **Renaming or removing a folder** in SuperXPuTTY moves or removes its row and those of the folders under it.
+- **Each user can also have name rules** (Tools → Environment colours..., e.g. any folder named `Prod`), which apply when neither the session nor a folder above it has a colour.
 
 ## Icons
 

@@ -910,6 +910,19 @@ namespace SuperPutty.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("Prod=#C62828;Production=#C62828;Staging=#EF6C00;UAT=#EF6C00")]
+        public string EnvironmentColorRules {
+            get {
+                return ((string)(this["EnvironmentColorRules"]));
+            }
+            set {
+                this["EnvironmentColorRules"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("True")]
         public bool ReloadSessionsWhenChanged {
             get {

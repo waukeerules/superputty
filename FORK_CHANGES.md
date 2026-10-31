@@ -1040,6 +1040,64 @@ When `Sessions.xml` is changed by something other than this copy of SuperXPuTTY,
 - **With the setting off,** an outside edit wasn't reloaded.
 - **Not checked:** a network share (where only the 30 s poll may notice), and two running copies sharing a folder.
 
+## Environment colours: production in red
+
+A session can have a colour (e.g. red for production), so you notice before typing into the wrong device.
+
+**Where it shows:**
+- **On its tab:** a stripe along the top edge, drawn by `TabIcons` (which already paints over the tab strip for the icons).
+- **Around the terminal:** a 3 px frame (`ctlPuttyPanel.ApplyEnvironmentColor`: the tab's padding, in the colour, around the docked terminal).
+- **In the Sessions tree:** the folder where a colour starts (set on it, or matched by a rule) and a session with its own colour are shown in it, lightened on the dark theme. Folders don't colour every folder under them, so the tree stays readable.
+
+**Where a session's colour comes from**, first found wins (`Gui/EnvironmentColors.For`):
+1. **Its own colour:** right-click the session → **Colour**. Saved as a `Color` attribute in Sessions.xml (written only when set, so other sessions' lines are unchanged), or the `color` column for Database sessions.
+2. **Its folder's, or the nearest folder above with one:** right-click the folder → **Colour**.
+3. **A name rule:** Tools → **Environment colours...** (`Gui/dlgEnvironmentColors.cs`): a folder or session name, with `*` and `?` wildcards and any case, and its colour. Rules are tried on the session's folders from the deepest up, then on its own name; the first match wins. New installs start with `Prod`, `Production` red and `Staging`, `UAT` orange (`Settings.EnvironmentColorRules`), so a folder named Prod is red with no setup.
+- **The Colour menu** offers red (production), orange (staging), yellow, green (lab), blue and purple, **Other colour...**, and **None**.
+
+**Folder settings** (`Data/FolderSettings.cs`) are kept apart from Sessions.xml, which stays as upstream reads it. Folder defaults (username, profile, port, jump host) will be kept there too.
+- **Saved sessions:** `Folders.xml` beside Sessions.xml, so a team sharing the settings folder shares the colours.
+- **Private sessions:** `PrivateFolders.xml` beside PrivateSessions.xml.
+- **Database sessions:** a new table, `<table>_folders` (`folder`, `color`, `updated_at`, `updated_by`), added by Create / upgrade schema, so everyone using the table sees the same colours and a script can set them.
+  - It has the same touch trigger (`updated_by` is the nickname) and change trigger (the 30-second check notices folder colour changes).
+  - It's granted to whoever has rights on the sessions table.
+  - Setting a Database folder's colour needs the database online; it isn't queued like session changes.
+- **Following the folder:** renaming, moving (dragging, Move to Private sessions) and removing a folder moves or drops its colour and its subfolders'; Database folder renames and removals do the same in the table.
+
+**Database sessions:** a `color` column on the sessions table (also lockable with `locked_fields`). A table not yet upgraded keeps working: reads and writes leave `color` out until Create / upgrade schema adds it (`DatabaseSessions.HasColorColumn`), and setting a Database session's colour then says to run it.
+
+**CSV:** a `Colour` column, exported and imported (a value that isn't `#RRGGBB` skips the row).
+
+| File | Change |
+|---|---|
+| `Gui/EnvironmentColors.cs` | New. The rules, the resolution order, the presets and the Colour menu |
+| `Gui/dlgEnvironmentColors.cs` | New. Tools → Environment colours... |
+| `Data/FolderSettings.cs` | New. Per-folder settings for each root: Folders.xml, PrivateFolders.xml, and the table's for Database sessions |
+| `Data/SessionData.cs` | `Color` |
+| `Data/DatabaseSessions.cs` | `color` column; `<table>_folders` (create, grants, read with the sessions, cache, `SetFolder`, moved and removed with folders) |
+| `Data/SessionCsv.cs` | `Colour` column |
+| `Gui/TabIcons.cs` | The tab stripe |
+| `ctlPuttyPanel.cs` | `ApplyEnvironmentColor`: the frame |
+| `SessionTreeview.cs` | Colour menus for sessions and folders; node colours (`ColorNode`); folder settings follow renames, moves and removals |
+| `frmSuperPutty.cs` / `.Designer.cs` | Tools → Environment colours...; tabs redrawn when a colour changes |
+| `SuperPuTTY.cs` | `LoadSessions` reads the folder settings |
+| `Properties/Settings.*`, `App.config` | `EnvironmentColorRules` |
+
+**Checked:**
+- **Logic and files** (a test program running the app's code; 35 checks with the database ones below, all passed):
+  - rules parse and normalise, drop bad entries, and match with wildcards and any case (`Lab*` matches lab-east, not mylab; `Prod` not Products);
+  - a session two folders under Prod was red by rule; one named `br1-prd-rtr1` matched `*-prd-*`; a folder colour beat a rule further up, the nearest folder's beat a higher one, and a session's own beat both;
+  - Folders.xml was written; renaming Prod moved its subfolder's colour; moving a folder to Private sessions moved its colour to PrivateFolders.xml; removing a folder dropped the colours under it; both files read back after a reload;
+  - Sessions.xml had no `Color` attribute for sessions without one; a session's own colour was saved and read back;
+  - CSV exported the Colour column, and importing cleared one, set a lower-case one (normalised) and skipped `blue`.
+- **The database** (PostgreSQL 17.5, a throwaway database):
+  - on a table without `color` or the folders table, writes still worked, and Test connection offered the upgrade, which added both;
+  - the folders table was granted to the login allowed to change sessions;
+  - a session's colour was written and read back;
+  - a folder colour was written (with the nickname as `updated_by`), read back, and moved the change counter; setting it again updated the row; renaming the parent folder moved it; removing the folder removed it; clearing it removed the row.
+- **The real main window** (screenshot): four tabs. The production session had a red stripe on its tab and a red frame round the terminal; lab-sw1 (folder set to green) a green stripe; br1-rtr1 (its own blue) a blue stripe; br1-sw1 none. The Prod folder was red in the tree.
+- **Not checked:** the Colour menus and the Environment colours dialog clicked through, the dark and Classic themes, and floating or split tab panes.
+
 ## Sessions as CSV: export and import
 
 For audits, and for teams that keep their device lists in a spreadsheet (`Data/SessionCsv.cs`).
@@ -1047,7 +1105,7 @@ For audits, and for teams that keep their device lists in a spreadsheet (`Data/S
 **Export:**
 - **File → Export sessions to CSV...** writes every session (Saved, Private and Database).
 - **Right-click a folder or root → Export to CSV...** writes that folder and its subfolders.
-- **Columns:** `Source` (Saved, Private or Database), `Folder`, `Name`, `Protocol`, `Host`, `Port`, `Username`, `PuTTY profile`, `Extra args`, `Icon`, `Notes`, `SPSL script`, `RDP options`, `Local path`, `Remote path`. The file is UTF-8 with a byte order mark, so Excel shows accents and symbols right.
+- **Columns:** `Source` (Saved, Private or Database), `Folder`, `Name`, `Protocol`, `Host`, `Port`, `Username`, `PuTTY profile`, `Extra args`, `Icon`, `Notes`, `SPSL script`, `RDP options`, `Local path`, `Remote path`, and `Colour` (added with environment colours). The file is UTF-8 with a byte order mark, so Excel shows accents and symbols right.
 - **Passwords:** a `-pw` password in Extra args is written as `********`, and the status bar says how many were.
 - **Spreadsheet formulas:** a value starting with `=`, `+`, `-` or `@` (common in Extra args, e.g. `-L 8080:...`) is written with a leading `'`, so a spreadsheet shows it as text instead of running it as a formula. Import removes the `'` again.
 - **Name** is the last part of the session's ID, which is what places it in the tree (a hand-edited Sessions.xml can have a different display name).
@@ -1208,6 +1266,7 @@ Favorites, Recent and private sessions:
 13. Open View → Log Viewer, then point the settings folder at a large Sessions.xml: the window stays responsive. Close SuperXPuTTY: no error.
 14. With an SSH tab open, switch to another program, then click straight into the toolbar's Host box and type: the text goes into the box, not the terminal. Do the same with the Sessions search box. Switch away and come back with Alt+Tab: the terminal has the focus.
 15. File → Export sessions to CSV..., open it in Excel: one row per session, Extra args like `-L ...` shown as text, `-pw` passwords as `********`. Change a host and add a row with Folder, Name and Host, save as CSV, then File → Import sessions → From CSV file...: the summary says 1 new and the rest updated; Yes, and the host is changed and the new session is in its folder. A session with `-pw` still connects with its password.
+16. Make a folder named Prod with a session in it and open it: its tab has a red stripe and the terminal a red frame, and Prod is red in the tree. Right-click another folder → Colour → Green: its sessions' tabs turn green. Right-click a session in it → Colour → Blue: that one turns blue. Rename and drag the green folder: it stays green. Tools → Environment colours..., add `Lab*` purple: folders named Lab... turn purple. Do the same under Database sessions (after Create / upgrade schema): a second copy of SuperXPuTTY shows the folder's colour within 30 seconds.
 
 Database sessions:
 

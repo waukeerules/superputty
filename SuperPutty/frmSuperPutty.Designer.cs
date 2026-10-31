@@ -461,6 +461,11 @@ namespace SuperPutty
             this.databaseSessionsToolStripMenuItem.Size = new System.Drawing.Size(337, 26);
             this.databaseSessionsToolStripMenuItem.Text = "&Database sessions...";
             this.databaseSessionsToolStripMenuItem.Click += new System.EventHandler(this.databaseSessionsToolStripMenuItem_Click);
+            this.environmentColorsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.environmentColorsToolStripMenuItem.Name = "environmentColorsToolStripMenuItem";
+            this.environmentColorsToolStripMenuItem.Size = new System.Drawing.Size(337, 26);
+            this.environmentColorsToolStripMenuItem.Text = "Environment &colours...";
+            this.environmentColorsToolStripMenuItem.Click += new System.EventHandler(this.environmentColorsToolStripMenuItem_Click);
             this.toolsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
                 this.puTTYConfigurationToolStripMenuItem,
                 this.XorgToolStripMenuItem,
@@ -469,7 +474,8 @@ namespace SuperPutty
                 this.toolStripMenuItem4,
                 this.optionsToolStripMenuItem,
                 this.environmentVariablesToolStripMenuItem,
-                this.databaseSessionsToolStripMenuItem
+                this.databaseSessionsToolStripMenuItem,
+                this.environmentColorsToolStripMenuItem
             });
             this.toolsToolStripMenuItem.Name = "toolsToolStripMenuItem";
             this.toolsToolStripMenuItem.Size = new System.Drawing.Size(58, 24);
@@ -981,6 +987,7 @@ namespace SuperPutty
         private System.Windows.Forms.ToolStripMenuItem optionsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem environmentVariablesToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem databaseSessionsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem environmentColorsToolStripMenuItem;
         private System.Windows.Forms.StatusStrip statusStrip1;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabelMessage;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabelLayout;

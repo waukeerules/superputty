@@ -206,6 +206,9 @@
     <Setting Name="DatabaseCheckSeconds" Provider="SuperPutty.Utils.PortableSettingsProvider" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">30</Value>
     </Setting>
+    <Setting Name="EnvironmentColorRules" Provider="SuperPutty.Utils.PortableSettingsProvider" Type="System.String" Scope="User">
+      <Value Profile="(Default)">Prod=#C62828;Production=#C62828;Staging=#EF6C00;UAT=#EF6C00</Value>
+    </Setting>
     <Setting Name="ReloadSessionsWhenChanged" Provider="SuperPutty.Utils.PortableSettingsProvider" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>

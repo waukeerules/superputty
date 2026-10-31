@@ -281,6 +281,7 @@ namespace SuperPutty
             // tab icons are drawn as tall as the tab font (see TabIcons)
             IconLibrary.TabIconPixels = DockPanel.Theme.Skin.DockPaneStripSkin.TextFont.Height;
             TabIcons.Configure(DockPanel.Theme.Skin.DockPaneStripSkin.TextFont);
+            EnvironmentColors.Changed += this.EnvironmentColors_Changed;
         }
 
         /// <summary>
@@ -2606,6 +2607,34 @@ namespace SuperPutty
             using (dlgDatabaseSettings dialog = new dlgDatabaseSettings())
             {
                 dialog.ShowDialog(this);
+            }
+        }
+
+        /// <summary>Open the environment colour rules (e.g. folders named Prod in red)</summary>
+        /// <param name="sender">The menu item</param>
+        /// <param name="e">Not used</param>
+        private void environmentColorsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (dlgEnvironmentColors dialog = new dlgEnvironmentColors())
+            {
+                dialog.ShowDialog(this);
+            }
+        }
+
+        /// <summary>
+        /// A rule, a folder's or a session's colour may have changed: give every terminal tab its colour again (its frame,
+        /// and the stripe TabIcons draws on its tab)
+        /// </summary>
+        /// <param name="sender">Not used</param>
+        /// <param name="e">Not used</param>
+        private void EnvironmentColors_Changed(object sender, EventArgs e)
+        {
+            if (this.IsDisposed)
+                return;
+            foreach (ctlPuttyPanel panel in this.DockPanel.Contents.OfType<ctlPuttyPanel>())
+            {
+                panel.ApplyEnvironmentColor();
+                panel.Pane?.Invalidate(true);
             }
         }
     }

@@ -123,6 +123,11 @@
     <Compile Include="Gui\HintText.cs" />
     <Compile Include="Utils\SessionsFileWatcher.cs" />
     <Compile Include="Data\SessionCsv.cs" />
+    <Compile Include="Data\FolderSettings.cs" />
+    <Compile Include="Gui\EnvironmentColors.cs" />
+    <Compile Include="Gui\dlgEnvironmentColors.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Gui\dlgDatabaseSettings.cs">
       <SubType>Form</SubType>
     </Compile>

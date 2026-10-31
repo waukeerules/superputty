@@ -352,6 +352,8 @@ namespace SuperPutty
 
             // reload when the file is changed outside SuperPuTTY (also starts watching a file that doesn't exist yet)
             SessionsFileWatcher.Watch(fileName);
+            // folder colours, beside Sessions.xml and PrivateSessions.xml
+            FolderSettings.Load();
             if (sessions == null && privateSessions == null)
             {
                 return;

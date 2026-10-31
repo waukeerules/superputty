@@ -149,6 +149,26 @@ namespace SuperPutty.Data
         [Browsable(false)]
         public string DatabaseUpdatedBy { get; set; }
 
+        private string _Color;
+        /// <summary>
+        /// The session's own environment colour, "#RRGGBB" (e.g. red for production), set from its menu in the
+        /// Sessions tree; empty to take its folder's or a name rule's (Gui.EnvironmentColors). Shown on its tab.
+        /// </summary>
+        [XmlAttribute]
+        [Browsable(false)]
+        public string Color
+        {
+            get { return _Color; }
+            set { UpdateField(ref _Color, value, "Color"); }
+        }
+
+        /// <summary>XmlSerializer: write Color only when it's set, so Sessions.xml stays as it was for other sessions</summary>
+        /// <returns>true to write <see cref="Color"/></returns>
+        public bool ShouldSerializeColor()
+        {
+            return !string.IsNullOrEmpty(this.Color);
+        }
+
         /// <summary>Whether a database column is locked for this session, by the whole row or by locked_fields</summary>
         /// <param name="column">A column name, e.g. "host"</param>
         /// <returns>true if SuperPuTTY may not change it</returns>

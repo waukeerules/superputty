@@ -66,6 +66,7 @@ namespace SuperPutty
             this.TextOverride = session.SessionName;
 
             CreatePanel();
+            ApplyEnvironmentColor();
             AdjustMenu();
             AddOutputMenuItems();
             // the black check glyph is hard to see on the dark menu
@@ -98,6 +99,30 @@ namespace SuperPutty
         {
             base.OnTextChanged(e);
             this.ToolTipText = this.Text;
+        }
+
+        /// <summary>The tab's own background, put back when its session loses its environment colour</summary>
+        private System.Drawing.Color? normalBackColor;
+
+        /// <summary>
+        /// Show the session's environment colour (Gui.EnvironmentColors, e.g. red for production) as a frame around
+        /// the terminal, so it isn't mistaken for another; no frame when it has none. The tab's stripe is drawn by
+        /// TabIcons. frmSuperPutty calls this again whenever a colour may have changed.
+        /// </summary>
+        public void ApplyEnvironmentColor()
+        {
+            System.Drawing.Color? color = EnvironmentColors.For(this.Session);
+            if (this.normalBackColor == null)
+            {
+                this.normalBackColor = this.BackColor;
+            }
+            // the terminal is docked to fill, so padding shows the background around it as a frame
+            int width = color == null ? 0 : this.LogicalToDeviceUnits(3);
+            if (this.Padding.All != width)
+            {
+                this.Padding = new Padding(width);
+            }
+            this.BackColor = color ?? this.normalBackColor.Value;
         }
 
         private void CreatePanel()

@@ -127,6 +127,9 @@ namespace SuperPutty
         /// <summary>Menu items built in code: add to / remove from Favorites, and move between Saved and Private sessions</summary>
         ToolStripMenuItem favoriteToolStripMenuItem, moveSessionToolStripMenuItem, moveFolderToolStripMenuItem;
 
+        /// <summary>The Colour submenus of a session's and a folder's menu (environment colours, filled as they open)</summary>
+        ToolStripMenuItem colorSessionToolStripMenuItem, colorFolderToolStripMenuItem;
+
         /// <summary>Items of <see cref="contextMenuStripShortcut"/> whose text or visibility depends on the entry</summary>
         ToolStripMenuItem shortcutFavoriteToolStripMenuItem, shortcutRemoveToolStripMenuItem;
 
@@ -201,6 +204,7 @@ namespace SuperPutty
             ctlPuttyPanel.ConnectionChanged += PuttyPanel_ConnectionChanged;
             SuperPuTTY.DatabaseSessionsReplaced += DatabaseSessions_Replaced;
             DatabaseSessions.StatusChanged += DatabaseSessions_StatusChanged;
+            EnvironmentColors.Changed += EnvironmentColors_Changed;
             // tabs may already be open, e.g. when the Sessions panel is closed and shown again
             this.RefreshOpenStates();
         }
@@ -315,6 +319,7 @@ namespace SuperPutty
             ctlPuttyPanel.ConnectionChanged -= PuttyPanel_ConnectionChanged;
             SuperPuTTY.DatabaseSessionsReplaced -= DatabaseSessions_Replaced;
             DatabaseSessions.StatusChanged -= DatabaseSessions_StatusChanged;
+            EnvironmentColors.Changed -= EnvironmentColors_Changed;
             base.OnClosed(e);
         }
 
@@ -383,6 +388,11 @@ namespace SuperPutty
         {
             if (Session == null)
                 return;
+
+            if (PropertyName == "Color")
+            {
+                this.ColorNode(FindSessionNode(Session.SessionId));
+            }
 
             if (PropertyName == "SessionName" || PropertyName == "ImageKey")
             {
@@ -932,10 +942,14 @@ namespace SuperPutty
                 {
                     // the new path is given to every session below by walking the nodes, so they all have to be there
                     this.FillSubtree(node);
+                    string oldPath = NodePath(node);
                     node.Text = dialog.ItemName;
                     node.Name = dialog.ItemName;
                     UpdateSessionId(node);
                     SuperPuTTY.SaveSessions();
+                    // its colour (and its subfolders') goes with it
+                    FolderSettings.Store store = StoreOf(node).Value;
+                    FolderSettings.Move(store, oldPath, store, NodePath(node));
                     ResortNodes();
                 }
             }
@@ -977,6 +991,7 @@ namespace SuperPutty
                             SuperPuTTY.RemoveSession(session.SessionId);
                             SessionShortcuts.Forget(session.SessionId);
                         }
+                        FolderSettings.Remove(StoreOf(node).Value, NodePath(node));
                         node.Remove();
                         SuperPuTTY.ReportStatus("Removed Folder, {0} and {1} sessions", node.Text, sessions.Count);
                         SuperPuTTY.SaveSessions();
@@ -984,6 +999,11 @@ namespace SuperPutty
                 }
                 else
                 {
+                    FolderSettings.Store? store = StoreOf(node);
+                    if (store != null)
+                    {
+                        FolderSettings.Remove(store.Value, NodePath(node));
+                    }
                     node.Remove();
                     SuperPuTTY.ReportStatus("Removed Folder, {0}", node.Text);
                 }
@@ -1017,6 +1037,145 @@ namespace SuperPutty
             }
         }
 
+        #region Environment colours
+
+        /// <summary>The folder settings store of a node's root</summary>
+        /// <param name="node">A folder, session or root</param>
+        /// <returns>Shared, Private or Database; null under Favorites and Recent</returns>
+        FolderSettings.Store? StoreOf(TreeNode node)
+        {
+            TreeNode root = RootOf(node);
+            return root == null ? (FolderSettings.Store?)null : root == this.nodeRoot ? FolderSettings.Store.Shared
+                : root == this.nodePrivate ? FolderSettings.Store.Private : root == this.nodeDatabase ? FolderSettings.Store.Database
+                : (FolderSettings.Store?)null;
+        }
+
+        /// <summary>
+        /// Show a node's environment colour as its text colour: a session's own colour, or a folder's own setting or
+        /// a rule matching its name. Sessions that only inherit a colour aren't coloured here; their tabs are.
+        /// </summary>
+        /// <param name="node">A session or folder node</param>
+        void ColorNode(TreeNode node)
+        {
+            if (node == null || node.Parent == null || IsQuickNode(node))
+                return;
+            Color? color;
+            if (IsSessionNode(node))
+            {
+                color = EnvironmentColors.Parse(((SessionData)node.Tag).Color);
+            }
+            else
+            {
+                FolderSettings.Store? store = StoreOf(node);
+                color = store == null ? null : EnvironmentColors.ForFolder(store.Value, NodePath(node));
+            }
+            Color text = color == null ? Color.Empty : EnvironmentColors.ForText(color.Value, this.treeView1.BackColor);
+            if (node.ForeColor != text)
+            {
+                node.ForeColor = text;
+            }
+        }
+
+        /// <summary>Colour every node in the tree again (only folders already filled have nodes)</summary>
+        /// <param name="nodes">The nodes to start from</param>
+        void ColorNodes(TreeNodeCollection nodes)
+        {
+            foreach (TreeNode node in nodes)
+            {
+                this.ColorNode(node);
+                if (node.Nodes.Count > 0)
+                {
+                    this.ColorNodes(node.Nodes);
+                }
+            }
+        }
+
+        /// <summary>A rule, a folder's or a session's colour may have changed: colour the tree again</summary>
+        /// <param name="sender">Not used</param>
+        /// <param name="e">Not used</param>
+        void EnvironmentColors_Changed(object sender, EventArgs e)
+        {
+            if (!this.IsDisposed)
+            {
+                this.ColorNodes(this.treeView1.Nodes);
+            }
+        }
+
+        /// <summary>Fill a session's Colour menu</summary>
+        /// <param name="session">The selected session</param>
+        void FillSessionColorMenu(SessionData session)
+        {
+            if (session == null)
+                return;
+            EnvironmentColors.FillMenu(this.colorSessionToolStripMenuItem, session.Color, "None (use the folder's or a rule's)", color => this.SetSessionColor(session, color));
+        }
+
+        /// <summary>Fill a folder's Colour menu</summary>
+        /// <param name="node">The selected folder</param>
+        void FillFolderColorMenu(TreeNode node)
+        {
+            FolderSettings.Store? store = StoreOf(node);
+            if (node == null || store == null)
+                return;
+            FolderSetting setting = FolderSettings.Get(store.Value, NodePath(node));
+            EnvironmentColors.FillMenu(this.colorFolderToolStripMenuItem, setting?.Color, "None (use a parent's or a rule's)", color => this.SetFolderColor(node, color));
+        }
+
+        /// <summary>Set or clear a session's own colour, saving it to Sessions.xml or to the table</summary>
+        /// <param name="session">The session</param>
+        /// <param name="color">"#RRGGBB", or "" for none</param>
+        void SetSessionColor(SessionData session, string color)
+        {
+            if (session.IsDatabase)
+            {
+                if (!DatabaseSessions.HasColorColumn)
+                {
+                    Messenger.MessageBox("The database table has no color column yet. Run Create / upgrade schema in Tools > Database sessions.",
+                        "Colour", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                SessionData changed = (SessionData)session.Clone();
+                changed.Color = color;
+                this.WriteDatabase(new DatabaseOutbox.PendingChange { Kind = DatabaseOutbox.ChangeKind.Update, Session = changed, Folder = DatabaseSessions.FolderOf(session.SessionId) });
+                return;
+            }
+            session.Color = color;
+            SuperPuTTY.SaveSessions();
+            EnvironmentColors.RaiseChanged();
+        }
+
+        /// <summary>Set or clear a folder's colour: in Folders.xml or PrivateFolders.xml, or in the table's folder settings</summary>
+        /// <param name="node">The folder</param>
+        /// <param name="color">"#RRGGBB", or "" for none</param>
+        void SetFolderColor(TreeNode node, string color)
+        {
+            FolderSettings.Store store = StoreOf(node).Value;
+            FolderSetting setting = FolderSettings.Get(store, NodePath(node)) ?? new FolderSetting { Path = NodePath(node) };
+            setting.Color = color;
+            if (store != FolderSettings.Store.Database)
+            {
+                FolderSettings.Set(store, setting);
+                return;
+            }
+            if (DatabaseSessions.State != DatabaseSessions.SyncState.Online)
+            {
+                Messenger.MessageBox("Folder colours in Database sessions are saved in the database, which can't be reached now.",
+                    "Colour", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            try
+            {
+                DatabaseSessions.SetFolder(DatabaseSessions.FromSettings(), setting);
+                DatabaseSessions.BeginSync();
+            }
+            catch (InvalidOperationException ex)
+            {
+                Messenger.MessageBox("Couldn't save the folder's colour: " + ex.Message, "Colour", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        #endregion
+
         /// <summary>Export a folder's sessions, with those in its subfolders, to a CSV file</summary>
         /// <param name="node">The folder, or a root such as Saved sessions</param>
         private void ExportFolderToCsv(TreeNode node)
@@ -1043,6 +1202,9 @@ namespace SuperPutty
             this.renameToolStripMenuItem.Enabled &= !locked;
             this.removeFolderToolStripMenuItem.Enabled &= !locked;
             this.moveFolderToolStripMenuItem.Visible &= !IsDatabaseNode(this.treeView1.SelectedNode);
+            // roots aren't coloured: a colour belongs to a folder and what's under it
+            this.colorFolderToolStripMenuItem.Visible = isRootNode;
+            this.colorFolderToolStripMenuItem.Enabled = !locked;
         }
 
         private void contextMenuStripAddTreeItem_Opening(object sender, CancelEventArgs e)
@@ -1064,6 +1226,7 @@ namespace SuperPutty
             bool locked = DatabaseLocked(this.treeView1.SelectedNode) || (session != null && session.DatabaseLocked);
             this.settingsToolStripMenuItem.Enabled = !locked;
             this.deleteToolStripMenuItem.Enabled = !locked;
+            this.colorSessionToolStripMenuItem.Enabled = !locked && (session == null || !session.IsDatabaseFieldLocked("color"));
             this.moveSessionToolStripMenuItem.Visible = !IsDatabaseNode(this.treeView1.SelectedNode);
         }
 
@@ -1495,6 +1658,7 @@ namespace SuperPutty
                     TreeNode folder = node.Nodes.Add(name, name, ImageKeyFolder, ImageKeyFolder);
                     folder.ContextMenuStrip = this.contextMenuStripFolder;
                     folder.Nodes.Add(new TreeNode { Name = LazyPlaceholder });
+                    this.ColorNode(folder);
                 }
             }
             if (sessions != null)
@@ -1843,6 +2007,15 @@ namespace SuperPutty
             this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.renameToolStripMenuItem) + 1, this.moveFolderToolStripMenuItem);
             this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.connectAllToolStripMenuItem) + 1,
                 new ToolStripMenuItem("Export to CSV...", null, (s, e) => this.ExportFolderToCsv(this.treeView1.SelectedNode)));
+            // environment colours; a placeholder item so the submenu arrow shows before it's filled
+            this.colorFolderToolStripMenuItem = new ToolStripMenuItem("Colour");
+            this.colorFolderToolStripMenuItem.DropDownItems.Add("-");
+            this.colorFolderToolStripMenuItem.DropDownOpening += (s, e) => this.FillFolderColorMenu(this.treeView1.SelectedNode);
+            this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.renameToolStripMenuItem) + 1, this.colorFolderToolStripMenuItem);
+            this.colorSessionToolStripMenuItem = new ToolStripMenuItem("Colour");
+            this.colorSessionToolStripMenuItem.DropDownItems.Add("-");
+            this.colorSessionToolStripMenuItem.DropDownOpening += (s, e) => this.FillSessionColorMenu(this.SelectedSession);
+            this.contextMenuStripAddTreeItem.Items.Insert(this.contextMenuStripAddTreeItem.Items.IndexOf(this.favoriteToolStripMenuItem) + 1, this.colorSessionToolStripMenuItem);
 
             ToolStripMenuItem connect = new ToolStripMenuItem("Connect", null, (s, e) => this.treeView1_NodeMouseDoubleClick(null, null));
             connect.Font = this.connectToolStripMenuItem.Font;
@@ -2100,8 +2273,15 @@ namespace SuperPutty
             {
                 nodeNew.Expand();
             }
+            FolderSettings.Store? fromStore = IsSessionNode(nodePayload) ? null : StoreOf(nodePayload);
+            string fromPath = fromStore == null ? null : NodePath(nodePayload);
             nodePayload.Remove();
             target.Nodes.Add(nodeNew);
+            if (fromStore != null)
+            {
+                // a folder's colour (and its subfolders') goes with it, into the other file if it changed root
+                FolderSettings.Move(fromStore.Value, fromPath, StoreOf(nodeNew).Value, NodePath(nodeNew));
+            }
 
             List<SessionData> sessions = new List<SessionData>();
             if (IsSessionNode(nodeNew))
@@ -2176,6 +2356,7 @@ namespace SuperPutty
                     addedNode.NodeFont = new Font(this.treeView1.Font, FontStyle.Italic);
                     addedNode.ToolTipText = session.DatabasePendingNote + Environment.NewLine + addedNode.ToolTipText;
                 }
+                this.ColorNode(addedNode);
                 if (!string.IsNullOrEmpty(session.DatabaseUpdatedBy))
                 {
                     addedNode.ToolTipText = "Last changed by " + session.DatabaseUpdatedBy + Environment.NewLine + addedNode.ToolTipText;
@@ -2223,6 +2404,7 @@ namespace SuperPutty
                 SuperPuTTY.ReportStatus("Adding new folder, {1}.  parent={0}", parentNode.Text, nodeName);
                 nodeNew = parentNode.Nodes.Add(nodeName, nodeName, ImageKeyFolder, ImageKeyFolder);
                 nodeNew.ContextMenuStrip = this.contextMenuStripFolder;
+                this.ColorNode(nodeNew);
             }
             return nodeNew;
         }

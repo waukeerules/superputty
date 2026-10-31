@@ -56,6 +56,7 @@ namespace SuperPutty.Data
             new[] { "rdp_options", "text" },
             new[] { "local_path", "text" },
             new[] { "remote_path", "text" },
+            new[] { "color", "text" },
             new[] { "locked", "boolean NOT NULL DEFAULT false" },
             new[] { "locked_fields", "text[] NOT NULL DEFAULT '{}'" },
             new[] { "managed_by", "text" },
@@ -79,8 +80,26 @@ namespace SuperPutty.Data
         public static readonly string[] LockableFields =
         {
             "folder", "name", "protocol", "host", "port", "username", "putty_profile", "extra_args", "icon", "notes",
-            "spsl_script", "rdp_options", "local_path", "remote_path"
+            "spsl_script", "rdp_options", "local_path", "remote_path", "color"
         };
+
+        /// <summary>
+        /// The folder settings table's columns (&lt;table&gt;_folders): one row per folder with settings its sessions
+        /// inherit, so far the environment colour (Data.FolderSettings)
+        /// </summary>
+        private static readonly string[][] FolderColumns =
+        {
+            new[] { "folder", "text PRIMARY KEY" },
+            new[] { "color", "text" },
+            new[] { "updated_at", "timestamptz NOT NULL DEFAULT now()" },
+            new[] { "updated_by", "text NOT NULL DEFAULT current_user" }
+        };
+
+        /// <summary>
+        /// Whether the table had the color column at the last read: writes leave it out until Create / upgrade schema
+        /// adds it, so a table not yet upgraded can still be written
+        /// </summary>
+        public static bool HasColorColumn { get; private set; }
 
         /// <summary>The application name SuperPuTTY connects with; the guard trigger enforces locks only for it</summary>
         public const string ApplicationName = "SuperPuTTY";
@@ -130,6 +149,12 @@ namespace SuperPutty.Data
             public string QualifiedTable
             {
                 get { return Quote(this.Schema) + "." + Quote(this.Table); }
+            }
+
+            /// <summary>The quoted name of the folder settings table, e.g. "superputty"."sessions_folders"</summary>
+            public string QualifiedFoldersTable
+            {
+                get { return Quote(this.Schema) + "." + Quote(this.Table + "_folders"); }
             }
 
             /// <summary>
@@ -324,6 +349,9 @@ namespace SuperPutty.Data
             /// <summary>The version table, which the change trigger raises so SuperPuTTY notices changes, exists</summary>
             public bool ChangeCounterExists { get; set; }
 
+            /// <summary>The folder settings table exists</summary>
+            public bool FoldersTableExists { get; set; }
+
             /// <summary>The user may add and change rows</summary>
             public bool CanWrite { get; set; }
 
@@ -336,7 +364,7 @@ namespace SuperPutty.Data
             /// <summary>Whether "Create / upgrade schema" has something to do</summary>
             public bool NeedsSchema
             {
-                get { return this.Connected && (!this.DatabaseExists || !this.TableExists || this.MissingColumns.Count > 0 || !this.TriggerExists || !this.ChangeCounterExists); }
+                get { return this.Connected && (!this.DatabaseExists || !this.TableExists || this.MissingColumns.Count > 0 || !this.TriggerExists || !this.ChangeCounterExists || !this.FoldersTableExists); }
             }
 
             /// <summary>Whether the table can be read as it is</summary>
@@ -367,6 +395,8 @@ namespace SuperPutty.Data
                         text.Append(" Missing columns: " + string.Join(", ", this.MissingColumns) + "; Create / upgrade schema adds them.");
                     else if (!this.TriggerExists || !this.ChangeCounterExists)
                         text.Append(" Its triggers are missing or out of date; Create / upgrade schema adds them.");
+                    else if (!this.FoldersTableExists)
+                        text.Append(" The folder settings table (for folder colours) is missing; Create / upgrade schema adds it.");
                 }
                 return text.ToString();
             }
@@ -425,6 +455,7 @@ namespace SuperPutty.Data
                     result.ChangeCounterExists = Scalar(connection, "SELECT to_regclass(@v) IS NOT NULL AND EXISTS (SELECT 1 FROM pg_proc p "
                         + "JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = @s AND p.proname = @f AND strpos(p.prosrc, @t) > 0)",
                         "v", c.QualifiedVersionTable, "s", c.Schema, "f", c.Table + "_notify", "t", c.Table + "_version") as bool? == true;
+                    result.FoldersTableExists = Scalar(connection, "SELECT to_regclass(@f) IS NOT NULL", "f", c.QualifiedFoldersTable) as bool? == true;
                     result.CanWrite = Scalar(connection, "SELECT has_table_privilege(@t, 'INSERT') AND has_table_privilege(@t, 'UPDATE')", "t", qualified) as bool? == true;
                     result.Rows = Convert.ToInt64(Scalar(connection, "SELECT count(*) FROM " + qualified));
                 }
@@ -543,6 +574,39 @@ namespace SuperPutty.Data
                 Execute(connection, "DROP TRIGGER IF EXISTS " + Quote(TriggerName(c)) + " ON " + table);
                 Execute(connection, "CREATE TRIGGER " + Quote(TriggerName(c)) + " AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON " + table
                     + " FOR EACH STATEMENT EXECUTE FUNCTION " + notify + "()");
+
+                // folder settings (colours), with the same triggers: updated_by, and the version so others notice
+                string folders = c.QualifiedFoldersTable;
+                Execute(connection, "CREATE TABLE IF NOT EXISTS " + folders + " ("
+                    + string.Join(", ", FolderColumns.Select(col => Quote(col[0]) + " " + col[1]))
+                    + ", CHECK (folder <> '' AND left(folder, 1) <> '/' AND right(folder, 1) <> '/'))");
+                Execute(connection, "COMMENT ON TABLE " + folders + " IS 'SuperPuTTY folder settings, inherited by the sessions under each folder of " + c.Table + "'");
+                Execute(connection, "DROP TRIGGER IF EXISTS " + Quote(c.Table + "_folders_touch") + " ON " + folders);
+                Execute(connection, "CREATE TRIGGER " + Quote(c.Table + "_folders_touch") + " BEFORE INSERT OR UPDATE ON " + folders
+                    + " FOR EACH ROW EXECUTE FUNCTION " + function + "()");
+                Execute(connection, "DROP TRIGGER IF EXISTS " + Quote(c.Table + "_folders_changed") + " ON " + folders);
+                Execute(connection, "CREATE TRIGGER " + Quote(c.Table + "_folders_changed") + " AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON " + folders
+                    + " FOR EACH STATEMENT EXECUTE FUNCTION " + notify + "()");
+                // whoever may read or change the sessions may do the same with their folders
+                using (NpgsqlCommand grants = new NpgsqlCommand("SELECT grantee, string_agg(privilege_type, ', ') FROM information_schema.role_table_grants "
+                    + "WHERE table_schema = @s AND table_name = @t AND privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE') AND grantee <> current_user "
+                    + "GROUP BY grantee", connection))
+                {
+                    grants.Parameters.AddWithValue("s", c.Schema);
+                    grants.Parameters.AddWithValue("t", c.Table);
+                    List<KeyValuePair<string, string>> granted = new List<KeyValuePair<string, string>>();
+                    using (NpgsqlDataReader reader = grants.ExecuteReader())
+                    {
+                        while (reader.Read())
+                            granted.Add(new KeyValuePair<string, string>(reader.GetString(0), reader.GetString(1)));
+                    }
+                    foreach (KeyValuePair<string, string> grant in granted)
+                    {
+                        Execute(connection, "GRANT " + grant.Value + " ON " + folders + " TO " + (grant.Key == "PUBLIC" ? "PUBLIC" : Quote(grant.Key)));
+                    }
+                }
+                if (!before.FoldersTableExists)
+                    done.Add("added the folder settings table " + c.Table + "_folders");
                 if (!before.TriggerExists)
                     done.Add("added the change and lock triggers");
                 transaction.Commit();
@@ -633,6 +697,24 @@ namespace SuperPutty.Data
         /// <returns>The sessions</returns>
         public static List<SessionData> FetchAll(Connection c, Action<int> progress, out bool writable, out bool hasLocks, out string changeToken)
         {
+            List<FolderSetting> folders;
+            return FetchAll(c, progress, out writable, out hasLocks, out changeToken, out folders);
+        }
+
+        /// <summary>
+        /// Read every shown row and the change token (see <see cref="FetchAll(Connection, Action{int}, out bool, out bool, out string)"/>),
+        /// and the folders' settings from &lt;table&gt;_folders
+        /// </summary>
+        /// <param name="c">The connection</param>
+        /// <param name="progress">Told the number read so far after each page; may be null</param>
+        /// <param name="writable">Whether the connection isn't read-only and the login may add, change and remove rows</param>
+        /// <param name="hasLocks">Whether the table has the lock and inventory columns</param>
+        /// <param name="changeToken">What <see cref="ReadChangeToken"/> returned just before the rows were read</param>
+        /// <param name="folders">The folder settings; empty if the table isn't there yet or can't be read</param>
+        /// <returns>The sessions</returns>
+        public static List<SessionData> FetchAll(Connection c, Action<int> progress, out bool writable, out bool hasLocks, out string changeToken,
+            out List<FolderSetting> folders)
+        {
             List<SessionData> sessions = new List<SessionData>();
             using (NpgsqlConnection connection = Open(c))
             {
@@ -656,7 +738,10 @@ namespace SuperPutty.Data
                 string locks = (present.Contains("locked") ? "locked" : "false")
                     + ", " + (present.Contains("locked_fields") ? "locked_fields" : "'{}'::text[]")
                     + ", " + (present.Contains("managed_by") ? "managed_by" : "NULL::text")
-                    + ", " + (present.Contains("updated_by") ? "updated_by" : "NULL::text");
+                    + ", " + (present.Contains("updated_by") ? "updated_by" : "NULL::text")
+                    + ", " + (present.Contains("color") ? "color" : "NULL::text");
+                HasColorColumn = present.Contains("color");
+                folders = FetchFolders(connection, c);
                 // rows given a deleted_at (by the scripts that manage the table) are hidden, not removed
                 string visible = present.Contains("deleted_at") ? "deleted_at IS NULL" : null;
                 string lastFolder = null, lastName = null;
@@ -729,10 +814,60 @@ namespace SuperPutty.Data
                 DatabaseLocked = reader.GetBoolean(16),
                 DatabaseLockedFields = string.Join(",", reader.GetFieldValue<string[]>(17)),
                 DatabaseManagedBy = Text(reader, 18),
-                DatabaseUpdatedBy = Text(reader, 19)
+                DatabaseUpdatedBy = Text(reader, 19),
+                Color = Text(reader, 20)
             };
             session.SessionId = MakeSessionId(folder, name);
             return session;
+        }
+
+        /// <summary>Read the folders' settings</summary>
+        /// <param name="connection">An open connection</param>
+        /// <param name="c">The connection settings</param>
+        /// <returns>The settings; empty if the folders table isn't there yet or this login can't read it</returns>
+        private static List<FolderSetting> FetchFolders(NpgsqlConnection connection, Connection c)
+        {
+            List<FolderSetting> folders = new List<FolderSetting>();
+            try
+            {
+                using (NpgsqlCommand command = new NpgsqlCommand("SELECT folder, color FROM " + c.QualifiedFoldersTable, connection))
+                using (NpgsqlDataReader reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                        folders.Add(new FolderSetting { Path = reader.GetString(0), Color = Text(reader, 1) });
+                }
+            }
+            catch (PostgresException ex) when (ex.SqlState == "42P01" || ex.SqlState == "42501")
+            {
+                // not created yet (Create / upgrade schema), or not granted
+            }
+            return folders;
+        }
+
+        /// <summary>
+        /// Set a Database folder's settings in &lt;table&gt;_folders, or remove its row when they're empty. Needs the
+        /// table online and writable; it isn't queued offline like session changes.
+        /// </summary>
+        /// <param name="c">The connection</param>
+        /// <param name="setting">The folder and its settings</param>
+        /// <exception cref="InvalidOperationException">It's read-only, the folders table is missing, or the write failed</exception>
+        public static void SetFolder(Connection c, FolderSetting setting)
+        {
+            string path = (setting.Path ?? string.Empty).Trim('/');
+            Write(c, connection =>
+            {
+                if (Scalar(connection, "SELECT to_regclass(@f) IS NULL", "f", c.QualifiedFoldersTable) as bool? == true)
+                    throw new InvalidOperationException("The database has no folder settings table yet. Run Create / upgrade schema in Tools > Database sessions.");
+                string sql = setting.IsEmpty
+                    ? "DELETE FROM " + c.QualifiedFoldersTable + " WHERE folder = @folder"
+                    : "INSERT INTO " + c.QualifiedFoldersTable + " (folder, color) VALUES (@folder, @color) ON CONFLICT (folder) DO UPDATE SET color = EXCLUDED.color";
+                using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
+                {
+                    command.Parameters.AddWithValue("folder", path);
+                    command.Parameters.AddWithValue("color", (object)NullIfEmpty(setting.Color) ?? DBNull.Value);
+                    return command.ExecuteNonQuery();
+                }
+            });
         }
 
         /// <summary>A WHERE clause from the conditions given</summary>
@@ -837,6 +972,24 @@ namespace SuperPutty.Data
             command.Parameters.AddWithValue("rdp_options", (object)NullIfEmpty(session.RdpOptions) ?? DBNull.Value);
             command.Parameters.AddWithValue("local_path", (object)NullIfEmpty(session.LocalPath) ?? DBNull.Value);
             command.Parameters.AddWithValue("remote_path", (object)NullIfEmpty(session.RemotePath) ?? DBNull.Value);
+            if (HasColorColumn)
+            {
+                command.Parameters.AddWithValue("color", (object)NullIfEmpty(session.Color) ?? DBNull.Value);
+            }
+        }
+
+        /// <summary>The columns written: <see cref="WriteColumns"/>, plus color once the table has it</summary>
+        /// <returns>The column list for SQL</returns>
+        private static string WriteColumnList()
+        {
+            return WriteColumns + (HasColorColumn ? ", color" : "");
+        }
+
+        /// <summary>The parameters for <see cref="WriteColumnList"/></summary>
+        /// <returns>The parameter list for SQL</returns>
+        private static string WriteParameterList()
+        {
+            return WriteParameters + (HasColorColumn ? ", @color" : "");
         }
 
         /// <summary>Null for empty text, so optional columns stay NULL</summary>
@@ -922,8 +1075,8 @@ namespace SuperPutty.Data
         {
             return Write(c, connection =>
             {
-                using (NpgsqlCommand command = new NpgsqlCommand("INSERT INTO " + c.QualifiedTable + " (" + WriteColumns + ") VALUES ("
-                    + WriteParameters + ") RETURNING id", connection))
+                using (NpgsqlCommand command = new NpgsqlCommand("INSERT INTO " + c.QualifiedTable + " (" + WriteColumnList() + ") VALUES ("
+                    + WriteParameterList() + ") RETURNING id", connection))
                 {
                     AddSessionParameters(command, session, folder);
                     return command.ExecuteScalar().ToString();
@@ -948,8 +1101,8 @@ namespace SuperPutty.Data
                 throw new InvalidOperationException("This session was read by an older version; Refresh, then make your change again.");
             int rows = Write(c, connection =>
             {
-                using (NpgsqlCommand command = new NpgsqlCommand("UPDATE " + c.QualifiedTable + " SET (" + WriteColumns + ") = ("
-                    + WriteParameters + ") WHERE id = @id" + (force ? "" : " AND updated_at = @version"), connection))
+                using (NpgsqlCommand command = new NpgsqlCommand("UPDATE " + c.QualifiedTable + " SET (" + WriteColumnList() + ") = ("
+                    + WriteParameterList() + ") WHERE id = @id" + (force ? "" : " AND updated_at = @version"), connection))
                 {
                     AddSessionParameters(command, session, folder);
                     command.Parameters.AddWithValue("id", Guid.Parse(id));
@@ -993,19 +1146,30 @@ namespace SuperPutty.Data
         {
             return Write(c, connection =>
             {
+                List<string> ids = new List<string>();
                 using (NpgsqlCommand command = new NpgsqlCommand("UPDATE " + c.QualifiedTable
                     + " SET folder = @to || substr(folder, length(@from) + 1) WHERE " + InFolder + " RETURNING id", connection))
                 {
                     command.Parameters.AddWithValue("from", from.Trim('/'));
                     command.Parameters.AddWithValue("to", to.Trim('/'));
-                    List<string> ids = new List<string>();
                     using (NpgsqlDataReader reader = command.ExecuteReader())
                     {
                         while (reader.Read())
                             ids.Add(reader.GetGuid(0).ToString());
                     }
-                    return ids;
                 }
+                // the folders' own settings (colours) go with them
+                if (Scalar(connection, "SELECT to_regclass(@f) IS NOT NULL", "f", c.QualifiedFoldersTable) as bool? == true)
+                {
+                    using (NpgsqlCommand command = new NpgsqlCommand("UPDATE " + c.QualifiedFoldersTable
+                        + " SET folder = @to || substr(folder, length(@from) + 1) WHERE " + InFolder, connection))
+                    {
+                        command.Parameters.AddWithValue("from", from.Trim('/'));
+                        command.Parameters.AddWithValue("to", to.Trim('/'));
+                        command.ExecuteNonQuery();
+                    }
+                }
+                return ids;
             });
         }
 
@@ -1022,12 +1186,22 @@ namespace SuperPutty.Data
             return Write(c, connection =>
             {
                 // to_jsonb, so this works before Create / upgrade schema has added deleted_at
+                int removed;
                 using (NpgsqlCommand command = new NpgsqlCommand("DELETE FROM " + c.QualifiedTable + " t WHERE " + InFolder
                     + " AND (to_jsonb(t) ->> 'deleted_at') IS NULL", connection))
                 {
                     command.Parameters.AddWithValue("from", folder.Trim('/'));
-                    return command.ExecuteNonQuery();
+                    removed = command.ExecuteNonQuery();
                 }
+                if (Scalar(connection, "SELECT to_regclass(@f) IS NOT NULL", "f", c.QualifiedFoldersTable) as bool? == true)
+                {
+                    using (NpgsqlCommand command = new NpgsqlCommand("DELETE FROM " + c.QualifiedFoldersTable + " WHERE " + InFolder, connection))
+                    {
+                        command.Parameters.AddWithValue("from", folder.Trim('/'));
+                        command.ExecuteNonQuery();
+                    }
+                }
+                return removed;
             });
         }
 
@@ -1059,6 +1233,12 @@ namespace SuperPutty.Data
 
             /// <summary>Whether the login could write the table at the last read, so changes made offline can be queued</summary>
             public bool Writable { get; set; }
+
+            /// <summary>The folders' settings (colours) at the last read</summary>
+            public List<FolderSetting> Folders { get; set; } = new List<FolderSetting>();
+
+            /// <summary>Whether the table had the color column, so changes queued offline before the first read include it</summary>
+            public bool HasColor { get; set; }
         }
 
         /// <summary>The cache file's path; set it to use another (tests)</summary>
@@ -1185,6 +1365,7 @@ namespace SuperPutty.Data
             {
                 serverSessions = new List<SessionData>();
                 SuperPuTTY.ReplaceDatabaseSessions(new List<SessionData>());
+                FolderSettings.ReplaceDatabase(null);
                 SetStatus(SyncState.Off, null, null, 0);
                 return;
             }
@@ -1193,6 +1374,8 @@ namespace SuperPutty.Data
             if (cache != null && cache.Source == c.ToString())
             {
                 Writable = cache.Writable && !c.ReadOnly;
+                HasColorColumn = cache.HasColor;
+                FolderSettings.ReplaceDatabase(cache.Folders);
                 serverSessions = cache.Sessions;
                 ShowSessions(c);
                 SetStatus(SyncState.Loading, null, cache.SyncedAt, cache.Sessions.Count);
@@ -1227,8 +1410,9 @@ namespace SuperPutty.Data
                     }
                     bool writable, hasLocks;
                     string token;
-                    List<SessionData> sessions = FetchAll(c, n => Post(() => { LoadedSoFar = n; StatusChanged?.Invoke(null, EventArgs.Empty); }), out writable, out hasLocks, out token);
-                    CacheFile cache = new CacheFile { Source = c.ToString(), SyncedAt = DateTime.Now, Sessions = sessions, Writable = writable };
+                    List<FolderSetting> folders;
+                    List<SessionData> sessions = FetchAll(c, n => Post(() => { LoadedSoFar = n; StatusChanged?.Invoke(null, EventArgs.Empty); }), out writable, out hasLocks, out token, out folders);
+                    CacheFile cache = new CacheFile { Source = c.ToString(), SyncedAt = DateTime.Now, Sessions = sessions, Writable = writable, Folders = folders, HasColor = HasColorColumn };
                     try
                     {
                         SaveCache(cache);
@@ -1244,6 +1428,7 @@ namespace SuperPutty.Data
                         NeedsUpgrade = !hasLocks;
                         changeToken = token;
                         StartChecking();
+                        FolderSettings.ReplaceDatabase(folders);
                         serverSessions = sessions;
                         ShowSessions(c);
                         SetStatus(SyncState.Online, null, cache.SyncedAt, sessions.Count);

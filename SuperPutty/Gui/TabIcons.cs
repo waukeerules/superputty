@@ -205,14 +205,28 @@ namespace SuperPutty.Gui
             {
                 g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                 g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                int stripe = Math.Max(3, strip.LogicalToDeviceUnits(3));
                 foreach (object tab in tabs)
                 {
                     Type type = tab.GetType();
                     // tabs scrolled out of view have no width and aren't drawn
                     object width = type.GetProperty("TabWidth")?.GetValue(tab);
                     Rectangle? bounds = type.GetProperty("Rectangle")?.GetValue(tab) as Rectangle?;
-                    Icon icon = Get(type.GetProperty("Content")?.GetValue(tab) as IDockContent);
-                    if (icon == null || bounds == null || (width is int && (int)width == 0))
+                    IDockContent content = type.GetProperty("Content")?.GetValue(tab) as IDockContent;
+                    if (bounds == null || (width is int && (int)width == 0))
+                        continue;
+
+                    // the environment colour (e.g. red for production) as a stripe along the tab's top edge
+                    Color? environment = EnvironmentColors.For((content as ctlPuttyPanel)?.Session);
+                    if (environment != null)
+                    {
+                        using (SolidBrush brush = new SolidBrush(environment.Value))
+                        {
+                            g.FillRectangle(brush, bounds.Value.X, bounds.Value.Y, bounds.Value.Width, stripe);
+                        }
+                    }
+                    Icon icon = Get(content);
+                    if (icon == null)
                         continue;
 
                     Rectangle rect = bounds.Value;
