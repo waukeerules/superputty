@@ -22,7 +22,7 @@ namespace SuperPutty.Gui
         private readonly TextBox textHost = new TextBox();
 
         /// <summary>Server port</summary>
-        private readonly NumericUpDown numericPort = new NumericUpDown { Minimum = 1, Maximum = 65535, Value = 5432, Width = 80 };
+        private readonly NumericUpDown numericPort = new NumericUpDown { Minimum = 1, Maximum = 65535, Value = 5432 };
 
         /// <summary>Database name</summary>
         private readonly TextBox textDatabase = new TextBox();
@@ -40,7 +40,7 @@ namespace SuperPutty.Gui
         private readonly TextBox textPassword = new TextBox();
 
         /// <summary>SSL mode</summary>
-        private readonly ComboBox comboSsl = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 140 };
+        private readonly ComboBox comboSsl = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
 
         /// <summary>Never create or change anything</summary>
         private readonly CheckBox checkReadOnly = new CheckBox { Text = "Read only: never create or change anything in the database", AutoSize = true };
@@ -52,13 +52,13 @@ namespace SuperPutty.Gui
         private readonly Button buttonSchema = new Button { Text = "Create / upgrade schema", AutoSize = true, Enabled = false };
 
         /// <summary>What Test connection or Create found</summary>
-        private readonly Label labelResult = new Label { AutoSize = true, MaximumSize = new Size(460, 0) };
+        private readonly Label labelResult = new Label { AutoSize = true };
 
         /// <summary>Saves and closes</summary>
-        private readonly Button buttonOK = new Button { Text = "OK", DialogResult = DialogResult.None, Width = 88 };
+        private readonly Button buttonOK = new Button { Text = "OK", DialogResult = DialogResult.None, AutoSize = true };
 
         /// <summary>Closes without saving</summary>
-        private readonly Button buttonCancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 88 };
+        private readonly Button buttonCancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
 
         /// <summary>The password as stored when the dialog opened (encrypted, or a placeholder)</summary>
         private readonly string storedPassword;
@@ -96,9 +96,18 @@ namespace SuperPutty.Gui
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             this.comboSsl.Items.AddRange(SslModes);
+            // sizes are given for 100% and converted for the monitor: a form built in code isn't scaled by WinForms,
+            // and at 150% fixed pixel sizes (the 88 x 23 OK button) were too small for their text
             foreach (TextBox box in new[] { this.textHost, this.textDatabase, this.textSchema, this.textTable, this.textUser, this.textPassword })
             {
-                box.Width = 300;
+                box.Width = this.LogicalToDeviceUnits(300);
+            }
+            this.numericPort.Width = this.LogicalToDeviceUnits(80);
+            this.comboSsl.Width = this.LogicalToDeviceUnits(140);
+            this.labelResult.MaximumSize = new Size(this.LogicalToDeviceUnits(460), 0);
+            foreach (Button button in new[] { this.buttonOK, this.buttonCancel })
+            {
+                button.MinimumSize = new Size(this.LogicalToDeviceUnits(88), 0);
             }
 
             AddRow(grid, null, this.checkEnabled);

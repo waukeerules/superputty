@@ -760,7 +760,11 @@ Measured against a generated table of 10,000 sessions in 900 folders, 5 levels d
 - **First search:** most of its time is drawing icons not drawn before.
 - **Expand all** creates every node, which is slower than before; it's still the one action that needs them all.
 
-**Dialog layout:** OK and Cancel are docked to the bottom of the window, and the fields above scroll if the window comes out too short. They stay visible whatever size it ends up. Sizing the window to its contents alone (below) still cut them off on one display. The dialog also sizes itself to its contents after it's laid out and themed, again when it's shown, and again when it moves to a monitor with another scaling. Before, the form's own AutoSize cut off the OK and Cancel row at some scalings.
+**Dialog layout:** the real cause of the clipped OK and Cancel was DPI scaling.
+- **The cause:** the dialog (and Pending changes) is built in code, and WinForms doesn't scale the fixed sizes of such a form, so at 150% the 88 x 23 OK button stayed 23 px tall while its text was drawn for 150%. This only showed with the app's own per-monitor DPI setup (its manifest and `EnableWindowsFormsHighDpiAutoResizing`), not in tests that set DPI awareness another way.
+- **The fix:** fixed sizes are given for 100% and converted with `LogicalToDeviceUnits`. OK and Cancel also size themselves to their text, with a minimum width.
+- **Checked** with a test program built with the app's manifest and config, on the user's 150% monitors: OK was 88 x 23 and cut off before, and is 132 x 32 and whole now.
+- **Before that:** OK and Cancel were docked to the bottom of the window, with the fields above scrolling if the window comes out too short. The dialog also sizes itself to its contents after it's laid out and themed, again when it's shown, and again when it moves to a monitor with another scaling. Before, the form's own AutoSize cut off the OK and Cancel row at some scalings.
 
 | File | Change |
 |---|---|

@@ -23,7 +23,6 @@ namespace SuperPutty.Gui
             FullRowSelect = true,
             HideSelection = false,
             ShowItemToolTips = true,
-            Size = new Size(620, 220),
             Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
         };
 
@@ -52,17 +51,18 @@ namespace SuperPutty.Gui
             this.AutoScaleMode = AutoScaleMode.Font;
             this.Padding = new Padding(12);
             this.CancelButton = this.buttonClose;
-            this.list.Columns.Add("Change", 230);
-            this.list.Columns.Add("Queued", 90);
-            this.list.Columns.Add("Status", 420);
+            // sizes for 100%, converted for the monitor (a form built in code isn't scaled by WinForms)
+            this.list.Columns.Add("Change", this.LogicalToDeviceUnits(230));
+            this.list.Columns.Add("Queued", this.LogicalToDeviceUnits(90));
+            this.list.Columns.Add("Status", this.LogicalToDeviceUnits(420));
 
             FlowLayoutPanel buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(0, 8, 0, 0) };
             buttons.Controls.AddRange(new Control[] { this.buttonRetry, this.buttonOverwrite, this.buttonDiscard, this.buttonClose });
             this.list.Dock = DockStyle.Fill;
             this.Controls.Add(this.list);
             this.Controls.Add(buttons);
-            this.ClientSize = new Size(800, 320);
-            this.MinimumSize = new Size(480, 240);
+            this.ClientSize = new Size(this.LogicalToDeviceUnits(800), this.LogicalToDeviceUnits(320));
+            this.MinimumSize = new Size(this.LogicalToDeviceUnits(480), this.LogicalToDeviceUnits(240));
 
             ToolTip tips = new ToolTip();
             tips.SetToolTip(this.buttonRetry, "Try the selected changes again; they're sent now if the database can be reached");
