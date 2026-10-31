@@ -93,14 +93,30 @@ namespace SuperPutty
         /// <summary>A database session to select once the table has been read again after adding or changing it</summary>
         string pendingSelectId;
 
-        /// <summary>Every database session by folder path ("" at the top), for whole-folder actions (Connect all, rename, ...)</summary>
-        Dictionary<string, List<SessionData>> databaseAll = new Dictionary<string, List<SessionData>>();
+        /// <summary>The sessions under one root (Saved, Private or Database sessions), by folder path ("" at the top)</summary>
+        class FolderIndex
+        {
+            /// <summary>Every session, for whole-folder actions on database folders not opened yet</summary>
+            public readonly Dictionary<string, List<SessionData>> All = new Dictionary<string, List<SessionData>>();
 
-        /// <summary>The database sessions the search shows, by folder path; folders are filled from it when opened</summary>
-        Dictionary<string, List<SessionData>> databaseShown = new Dictionary<string, List<SessionData>>();
+            /// <summary>The sessions the search shows; folders are filled from it when opened</summary>
+            public readonly Dictionary<string, List<SessionData>> Shown = new Dictionary<string, List<SessionData>>();
 
-        /// <summary>The subfolders of each folder path that hold something the search shows</summary>
-        Dictionary<string, SortedSet<string>> databaseSubfolders = new Dictionary<string, SortedSet<string>>();
+            /// <summary>The subfolders of each folder that hold something the search shows</summary>
+            public readonly Dictionary<string, SortedSet<string>> Subfolders = new Dictionary<string, SortedSet<string>>();
+        }
+
+        /// <summary>The index for each root; rebuilt from the session list when <see cref="indexDirty"/></summary>
+        Dictionary<RootKind, FolderIndex> folderIndex = new Dictionary<RootKind, FolderIndex>();
+
+        /// <summary>Whether sessions were added, removed or moved since the index was built</summary>
+        bool indexDirty = true;
+
+        /// <summary>Folders open under each root before a reload, reopened when it's filled again</summary>
+        Dictionary<RootKind, List<string>> reopenAfterReload;
+
+        /// <summary>Folders with more children than this are filled with sorting off and sorted once</summary>
+        const int SortOnceAbove = 200;
 
         /// <summary>The name of the placeholder child that marks a database folder as not filled in yet</summary>
         const string LazyPlaceholder = "\u0001lazy";
@@ -193,8 +209,8 @@ namespace SuperPutty
         {
             if (SuperPuTTY.Settings.ExpandSessionsTreeOnStartup)
             {
-                nodeRoot.ExpandAll();
-                nodePrivate.ExpandAll();
+                ExpandFully(nodeRoot);
+                ExpandFully(nodePrivate);
                 this.treeView1.SelectedNode = nodeRoot;
             }
             else
@@ -324,30 +340,41 @@ namespace SuperPutty
             this.nodeDatabase = null;
             this.EnsureDatabaseRoot();
 
-            foreach (SessionData session in SuperPuTTY.GetAllSessions())
-            {
-                TryAddSessionNode(session);
-            }
-            this.FillDatabaseRoot();
+            // every root is filled on demand: only its top level now, each folder when it's first opened
+            this.indexDirty = true;
+            this.FillRoot(this.nodeRoot, null);
+            this.FillRoot(this.nodePrivate, null);
+            this.FillRoot(this.nodeDatabase, null);
             BuildShortcutGroups();
             ResortNodes();
         }
 
+        /// <summary>
+        /// Show a session just added to the list (a new session, a copy, an import). Folders are filled on demand, so
+        /// it's only added if its folder is already filled; otherwise it shows when the folder is opened. Folders
+        /// missing on the way are made (and are filled: they hold only this session).
+        /// </summary>
+        /// <param name="session">The session</param>
         private void TryAddSessionNode(SessionData session)
         {
+            this.indexDirty = true;
             if (session.IsDatabase)
             {
-                // Database sessions fills its folders as they're opened (FillDatabaseRoot)
+                // Database sessions is redrawn after each read (DatabaseSessions_Replaced)
                 return;
             }
+            if (this.filter != null && !this.filter(session))
+                return;
             TreeNode nodeParent = session.IsPrivate ? this.nodePrivate : this.nodeRoot;
-            if (this.filter == null || this.filter(session))
+            string folder = session.SessionId == null ? null : SessionData.GetSessionParentId(session.SessionId);
+            foreach (string part in (folder ?? string.Empty).Split(SessionIdDelim.ToCharArray(), StringSplitOptions.RemoveEmptyEntries))
             {
-                if (session.SessionId != null && session.SessionId != session.SessionName)
-                {
-                    // take session id and create folder nodes
-                    nodeParent = FindOrCreateParentNode(nodeParent, TreeId(session.SessionId));
-                }
+                if (nodeParent == null || IsUnfilled(nodeParent))
+                    return;
+                nodeParent = nodeParent.Nodes[part] ?? AddFolderNode(nodeParent, part);
+            }
+            if (nodeParent != null && !IsUnfilled(nodeParent))
+            {
                 AddSessionNode(nodeParent, session, true);
             }
         }
@@ -412,6 +439,7 @@ namespace SuperPutty
                 }
                 // a renamed or moved favourite stays a favourite
                 SessionShortcuts.Rename(Session.OldSessionId, Session.SessionId);
+                this.indexDirty = true;
             }
         }
 
@@ -438,6 +466,7 @@ namespace SuperPutty
 
         void Sessions_ListChanged(object sender, ListChangedEventArgs e)
         {
+            this.indexDirty = true;
             if (isRenamingNode)
             {
                 return;
@@ -454,12 +483,33 @@ namespace SuperPutty
             }
             else if (e.ListChangedType == ListChangedType.Reset)
             {
-                // clear
-                List<TreeNode> nodesToRemove = nodeRoot.Nodes.Cast<TreeNode>().Concat(nodePrivate.Nodes.Cast<TreeNode>()).ToList();
-
-                foreach (TreeNode node in nodesToRemove)
+                // the list is being reloaded (File > Reload sessions): empty Saved and Private sessions, ignore the
+                // sessions added one by one, and fill them once the reload is done, reopening the open folders
+                if (this.reopenAfterReload == null && !this.IsHandleCreated)
                 {
-                    node.Remove();
+                    // not shown yet: empty the roots and let the sessions be added one by one, as they come
+                    this.nodeRoot.Nodes.Clear();
+                    this.nodePrivate.Nodes.Clear();
+                }
+                else if (this.reopenAfterReload == null)
+                {
+                    this.reopenAfterReload = new Dictionary<RootKind, List<string>>();
+                    foreach (TreeNode root in new[] { this.nodeRoot, this.nodePrivate })
+                    {
+                        List<string> open = new List<string>();
+                        this.CollectOpenFolders(root, open);
+                        this.reopenAfterReload[(RootKind)root.Tag] = open;
+                        root.Nodes.Clear();
+                        root.Nodes.Add(new TreeNode { Name = LazyPlaceholder });
+                    }
+                    this.BeginInvoke((MethodInvoker)delegate
+                    {
+                        Dictionary<RootKind, List<string>> reopen = this.reopenAfterReload;
+                        this.reopenAfterReload = null;
+                        this.FillRoot(this.nodeRoot, reopen[RootKind.Shared]);
+                        this.FillRoot(this.nodePrivate, reopen[RootKind.Private]);
+                        this.RefreshOpenStates();
+                    });
                 }
                 ScheduleShortcutRebuild();
             }
@@ -602,6 +652,8 @@ namespace SuperPutty
             if (node == null)
             {
                 session.DatabaseId = null;
+                // the folder it goes in is filled first, so the new session shows there and is selected
+                this.EnsureFolderFilled(nodeRef);
             }
 
             dlgEditSession form = new dlgEditSession(session, treeView1.ImageList) {Text = title};
@@ -790,7 +842,7 @@ namespace SuperPutty
         {
             TreeNode node = this.treeView1.SelectedNode;
             // a database folder not opened yet is filled first, or the new folder would go when it's opened
-            this.EnsureDatabaseFolderFilled(node);
+            this.EnsureFolderFilled(node);
             if (node != null)
             {
                 dlgRenameItem dialog = new dlgRenameItem
@@ -878,6 +930,8 @@ namespace SuperPutty
                 }
                 else if (dialog.DialogResult == DialogResult.OK && node.Text != dialog.ItemName)
                 {
+                    // the new path is given to every session below by walking the nodes, so they all have to be there
+                    this.FillSubtree(node);
                     node.Text = dialog.ItemName;
                     node.Name = dialog.ItemName;
                     UpdateSessionId(node);
@@ -1074,7 +1128,8 @@ namespace SuperPutty
                 this.ScheduleShortcutRebuild();
                 return;
             }
-            this.FillDatabaseRoot();
+            this.indexDirty = true;
+            this.FillRoot(this.nodeDatabase, null);
             this.ScheduleShortcutRebuild();
             this.RefreshOpenStates();
             if (this.pendingSelectId != null)
@@ -1179,7 +1234,7 @@ namespace SuperPutty
         /// <returns>true if it can be moved there</returns>
         bool CanMoveInDatabase(TreeNode payload, TreeNode target)
         {
-            this.EnsureDatabaseFolderFilled(target);
+            this.EnsureFolderFilled(target);
             if (DatabaseLocked(target) || !IsFolderNode(target) || target == payload || target == payload.Parent
                 || target.Nodes.ContainsKey(payload.Text))
                 return false;
@@ -1251,55 +1306,112 @@ namespace SuperPutty
             }
         }
 
-        /// <summary>
-        /// Show the database sessions: index them by folder, then put only the top level in the tree; each folder is
-        /// filled the first time it's opened (<see cref="FillDatabaseFolder"/>). With 10,000 sessions, creating every
-        /// node up front kept the window busy for seconds. Folders that were open stay open.
-        /// </summary>
-        void FillDatabaseRoot()
+        /// <summary>The root node for a kind</summary>
+        /// <param name="kind">Shared, Private or Database</param>
+        /// <returns>Its node, or null (Database sessions while it's off)</returns>
+        TreeNode RootNode(RootKind kind)
         {
-            if (this.nodeDatabase == null)
-                return;
-            List<string> open = new List<string>();
-            CollectOpenFolders(this.nodeDatabase, open);
-            bool firstFill = this.nodeDatabase.Nodes.Count == 0;
-            bool expanded = this.nodeDatabase.IsExpanded;
+            return kind == RootKind.Shared ? this.nodeRoot : kind == RootKind.Private ? this.nodePrivate
+                : kind == RootKind.Database ? this.nodeDatabase : null;
+        }
 
-            this.databaseAll = new Dictionary<string, List<SessionData>>();
-            this.databaseShown = new Dictionary<string, List<SessionData>>();
-            this.databaseSubfolders = new Dictionary<string, SortedSet<string>>();
-            foreach (SessionData session in SuperPuTTY.GetAllSessions().Where(x => x.IsDatabase))
+        /// <summary>A session's folder within its root</summary>
+        /// <param name="session">The session</param>
+        /// <returns>e.g. "Lab/Core", or "" at the top</returns>
+        static string FolderOf(SessionData session)
+        {
+            return session.IsDatabase ? DatabaseSessions.FolderOf(session.SessionId)
+                : SessionData.GetSessionParentId(session.SessionId) ?? string.Empty;
+        }
+
+        /// <summary>A folder node's path within its root, as <see cref="FolderOf"/> gives it</summary>
+        /// <param name="node">A folder, or a root</param>
+        /// <returns>e.g. "Lab/Core", or "" for a root</returns>
+        string NodePath(TreeNode node)
+        {
+            return IsDatabaseNode(node) ? DatabaseFolder(node) : FolderPath(node) ?? string.Empty;
+        }
+
+        /// <summary>The index for a root, rebuilt first if sessions changed since it was built</summary>
+        /// <param name="kind">The root</param>
+        /// <returns>Its index</returns>
+        FolderIndex IndexFor(RootKind kind)
+        {
+            if (this.indexDirty)
             {
-                string folder = DatabaseSessions.FolderOf(session.SessionId);
-                AddToIndex(this.databaseAll, folder, session);
+                this.BuildIndex();
+            }
+            FolderIndex index;
+            if (!this.folderIndex.TryGetValue(kind, out index))
+                this.folderIndex[kind] = index = new FolderIndex();
+            return index;
+        }
+
+        /// <summary>
+        /// Index every session by root and folder, for filling folders on demand: all of them, and those the search
+        /// shows with every folder on the way to them
+        /// </summary>
+        void BuildIndex()
+        {
+            this.folderIndex = new Dictionary<RootKind, FolderIndex>
+            {
+                { RootKind.Shared, new FolderIndex() },
+                { RootKind.Private, new FolderIndex() },
+                { RootKind.Database, new FolderIndex() }
+            };
+            foreach (SessionData session in SuperPuTTY.GetAllSessions())
+            {
+                FolderIndex index = this.folderIndex[session.IsDatabase ? RootKind.Database : session.IsPrivate ? RootKind.Private : RootKind.Shared];
+                string folder = FolderOf(session);
+                AddToIndex(index.All, folder, session);
                 if (this.filter == null || this.filter(session))
                 {
-                    AddToIndex(this.databaseShown, folder, session);
+                    AddToIndex(index.Shown, folder, session);
                     // every folder on the way down shows, so the session can be reached
                     for (string child = folder; child.Length > 0; )
                     {
                         string parent = SessionData.GetSessionParentId(child) ?? string.Empty;
                         SortedSet<string> subfolders;
-                        if (!this.databaseSubfolders.TryGetValue(parent, out subfolders))
-                            this.databaseSubfolders[parent] = subfolders = new SortedSet<string>(StringComparer.Ordinal);
+                        if (!index.Subfolders.TryGetValue(parent, out subfolders))
+                            index.Subfolders[parent] = subfolders = new SortedSet<string>(StringComparer.Ordinal);
                         if (!subfolders.Add(SessionData.GetSessionNameFromId(child)))
                             break;
                         child = parent;
                     }
                 }
             }
+            this.indexDirty = false;
+        }
 
+        /// <summary>
+        /// Put a root's top level in the tree; each folder is filled the first time it's opened
+        /// (<see cref="FillFolder"/>). With 10,000 sessions, creating every node up front kept the window busy for
+        /// seconds: almost all of it inside the Windows tree control. Folders that were open are opened again.
+        /// </summary>
+        /// <param name="root">Saved, Private or Database sessions; nothing happens for null</param>
+        /// <param name="reopen">Folder paths to open again; null to reopen those open now</param>
+        void FillRoot(TreeNode root, List<string> reopen)
+        {
+            if (root == null)
+                return;
+            if (reopen == null)
+            {
+                reopen = new List<string>();
+                this.CollectOpenFolders(root, reopen);
+            }
+            bool firstFill = root.Nodes.Count == 0;
+            bool expanded = root.IsExpanded;
             this.treeView1.BeginUpdate();
             try
             {
-                this.FillDatabaseFolder(this.nodeDatabase, string.Empty);
+                this.FillFolder(root);
                 if (expanded || firstFill)
                 {
-                    this.nodeDatabase.Expand();
+                    root.Expand();
                 }
-                foreach (string path in open)
+                foreach (string path in reopen)
                 {
-                    this.FindDatabaseFolder(path)?.Expand();
+                    this.FindFolder(root, path)?.Expand();
                 }
             }
             finally
@@ -1320,7 +1432,7 @@ namespace SuperPutty
             list.Add(session);
         }
 
-        /// <summary>The paths of the open folders under a database node, parents before children</summary>
+        /// <summary>The paths of the open folders under a root or folder, parents before children</summary>
         /// <param name="node">The root or a folder</param>
         /// <param name="open">Collects the paths</param>
         void CollectOpenFolders(TreeNode node, List<string> open)
@@ -1329,23 +1441,42 @@ namespace SuperPutty
             {
                 if (child.IsExpanded && IsFolderNode(child) && child.Name != LazyPlaceholder)
                 {
-                    open.Add(DatabaseFolder(child));
+                    open.Add(NodePath(child));
                     this.CollectOpenFolders(child, open);
                 }
             }
         }
 
-        /// <summary>
-        /// Put a database folder's subfolders and sessions in the tree, from the index. Subfolders get a placeholder
-        /// child, so they show as openable, and are filled when opened (<see cref="treeView1_BeforeExpand"/>).
-        /// </summary>
-        /// <param name="node">The folder, or the root</param>
-        /// <param name="path">Its path, "" for the root</param>
-        void FillDatabaseFolder(TreeNode node, string path)
+        /// <summary>Whether a folder is still only a placeholder, waiting to be filled</summary>
+        /// <param name="node">The folder</param>
+        /// <returns>true until it's filled</returns>
+        static bool IsUnfilled(TreeNode node)
         {
+            return node != null && node.Nodes.Count == 1 && node.Nodes[0].Name == LazyPlaceholder;
+        }
+
+        /// <summary>
+        /// Put a folder's subfolders and sessions in the tree, from the index. Subfolders get a placeholder child, so
+        /// they show as openable, and are filled when opened (<see cref="treeView1_BeforeExpand"/>). A big folder is
+        /// filled with sorting off and sorted once, as sorting each node into place is slow.
+        /// </summary>
+        /// <param name="node">The folder, or a root</param>
+        void FillFolder(TreeNode node)
+        {
+            RootKind kind = (RootKind)RootOf(node).Tag;
+            FolderIndex index = this.IndexFor(kind);
+            string path = NodePath(node);
             node.Nodes.Clear();
             SortedSet<string> subfolders;
-            if (this.databaseSubfolders.TryGetValue(path, out subfolders))
+            List<SessionData> sessions;
+            index.Subfolders.TryGetValue(path, out subfolders);
+            index.Shown.TryGetValue(path, out sessions);
+            bool sortOnce = (subfolders?.Count ?? 0) + (sessions?.Count ?? 0) > SortOnceAbove && this.treeView1.TreeViewNodeSorter != null;
+            if (sortOnce)
+            {
+                this.treeView1.TreeViewNodeSorter = null;
+            }
+            if (subfolders != null)
             {
                 foreach (string name in subfolders)
                 {
@@ -1355,13 +1486,30 @@ namespace SuperPutty
                     folder.Nodes.Add(new TreeNode { Name = LazyPlaceholder });
                 }
             }
-            List<SessionData> sessions;
-            if (this.databaseShown.TryGetValue(path, out sessions))
+            if (sessions != null)
             {
                 foreach (SessionData session in sessions)
                 {
                     this.AddSessionNode(node, session, true);
                 }
+            }
+            if (sortOnce)
+            {
+                this.ResortNodes();
+            }
+        }
+
+        /// <summary>Fill a folder, and every folder below it, so its whole subtree is in the tree (before walking it)</summary>
+        /// <param name="node">The folder or root; nothing happens for a session or null</param>
+        void FillSubtree(TreeNode node)
+        {
+            if (node == null || IsSessionNode(node) || IsQuickNode(node))
+                return;
+            this.EnsureFolderFilled(node);
+            foreach (TreeNode child in node.Nodes.Cast<TreeNode>().ToList())
+            {
+                if (!IsSessionNode(child) && child.Name != LazyPlaceholder)
+                    this.FillSubtree(child);
             }
         }
 
@@ -1386,16 +1534,16 @@ namespace SuperPutty
             }
         }
 
-        /// <summary>Fill a database folder that's still only a placeholder</summary>
+        /// <summary>Fill a folder that's still only a placeholder</summary>
         /// <param name="node">The folder</param>
-        void EnsureDatabaseFolderFilled(TreeNode node)
+        void EnsureFolderFilled(TreeNode node)
         {
-            if (node != null && node.Nodes.Count == 1 && node.Nodes[0].Name == LazyPlaceholder)
+            if (IsUnfilled(node))
             {
                 this.treeView1.BeginUpdate();
                 try
                 {
-                    this.FillDatabaseFolder(node, DatabaseFolder(node));
+                    this.FillFolder(node);
                 }
                 finally
                 {
@@ -1404,26 +1552,24 @@ namespace SuperPutty
             }
         }
 
-        /// <summary>Fill a database folder as it's opened</summary>
+        /// <summary>Fill a folder as it's opened</summary>
         /// <param name="sender">The tree</param>
         /// <param name="e">The folder being opened</param>
         void treeView1_BeforeExpand(object sender, TreeViewCancelEventArgs e)
         {
-            if (IsDatabaseNode(e.Node))
-            {
-                this.EnsureDatabaseFolderFilled(e.Node);
-            }
+            this.EnsureFolderFilled(e.Node);
         }
 
-        /// <summary>A database folder's node, filling the folders on the way</summary>
+        /// <summary>A folder's node under a root, filling the folders on the way</summary>
+        /// <param name="root">The root</param>
         /// <param name="path">e.g. "Region 1/Iowa"</param>
         /// <returns>The node, or null if it isn't shown</returns>
-        TreeNode FindDatabaseFolder(string path)
+        TreeNode FindFolder(TreeNode root, string path)
         {
-            TreeNode node = this.nodeDatabase;
+            TreeNode node = root;
             foreach (string part in path.Split(SessionIdDelim.ToCharArray(), StringSplitOptions.RemoveEmptyEntries))
             {
-                this.EnsureDatabaseFolderFilled(node);
+                this.EnsureFolderFilled(node);
                 node = node?.Nodes[part];
                 if (node == null || !IsFolderNode(node))
                     return null;
@@ -1924,6 +2070,9 @@ namespace SuperPutty
         /// <returns>The node in its new place, or null if a session there would have the same ID as one elsewhere</returns>
         TreeNode MoveNode(TreeNode nodePayload, TreeNode target)
         {
+            // the move walks the nodes (copying them, giving sessions new IDs), so every level has to be there
+            this.FillSubtree(nodePayload);
+            this.EnsureFolderFilled(target);
             string conflict = FindMoveConflict(nodePayload, target);
             if (conflict != null)
             {
@@ -2222,6 +2371,8 @@ namespace SuperPutty
                 for (int i = 0; i < parts.Length - 1; i++)
                 {
                     string part = parts[i];
+                    // folders are filled on demand: fill this one before looking in it
+                    this.EnsureFolderFilled(nodeParent);
                     TreeNode node = nodeParent.Nodes[part];
                     if (node == null)
                     {
@@ -2271,7 +2422,7 @@ namespace SuperPutty
                 {
                     string Part = Parts[i];
                     // database folders are filled as they're needed
-                    this.EnsureDatabaseFolderFilled(CurrentNode);
+                    this.EnsureFolderFilled(CurrentNode);
                     CurrentNode = CurrentNode.Nodes[Part];
                     if (CurrentNode == null)
                     {
@@ -2370,13 +2521,15 @@ namespace SuperPutty
             {
                 // database folders may not be filled in yet: take their sessions from the index
                 string path = DatabaseFolder(nodeFolder);
-                foreach (KeyValuePair<string, List<SessionData>> folder in this.databaseAll)
+                foreach (KeyValuePair<string, List<SessionData>> folder in this.IndexFor(RootKind.Database).All)
                 {
                     if (path.Length == 0 || folder.Key == path || folder.Key.StartsWith(path + SessionIdDelim, StringComparison.Ordinal))
                         sessions.AddRange(folder.Value);
                 }
                 return;
             }
+            // other folders are walked node by node (moves rely on that), so fill them first
+            this.FillSubtree(nodeFolder);
             if (nodeFolder != null)
             {
                 foreach (TreeNode child in nodeFolder.Nodes)

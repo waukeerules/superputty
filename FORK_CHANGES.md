@@ -734,7 +734,7 @@ The guard trigger stops SuperXPuTTY changing these three, and the tree's tooltip
   - **Discard** drops the selected changes.
 - **Each database has its own queue,** so changing the connection settings loses nothing. Online with nothing queued, a change is saved at once, as before.
 
-**10,000 sessions:** Database sessions is filled on demand.
+**10,000 sessions:** Database sessions is filled on demand (since extended to Saved and Private sessions; see "Saved and Private sessions filled on demand").
 - **On demand:** the sessions are indexed by folder, only the top level is put in the tree, and each folder is filled the first time it's opened (`FillDatabaseRoot`, `FillDatabaseFolder`, `treeView1_BeforeExpand`).
 - **After a refresh,** folders that were open stay open.
 - **Whole-folder actions** (Connect all, Rename, Remove, moves and their lock checks) take sessions from the index (`GetAllSessions`), so they include folders not opened yet.
@@ -907,6 +907,45 @@ The hint stays visible while the box has focus, so the session name box shows it
 **Cause:** `SessionTreeview.AddSessionNode` subscribes to each session's `OnPropertyChanged` and `OnPropertyChanging`, and the tree is rebuilt on every search (and every clear). Each rebuild added another subscription, so after a dozen searches, a session's rename ran the tree's handler a dozen times.
 
 **Fix:** it unsubscribes before subscribing, so each session has the handlers once.
+
+## Saved and Private sessions filled on demand
+
+Saved sessions and Private sessions are filled on demand, like Database sessions. With 10,000 sessions in `Sessions.xml`, building every node up front made opening the panel, reloading, searching and clearing a search take 1 to 4 seconds each. A sampling profile put about 80% of that inside the Windows tree control itself, creating and deleting 11,000 items. Pausing drawing and sorting once didn't help, so the fix had to be creating fewer items.
+
+**How it works** (`SessionTreeview`):
+- **The index:** every root has an index by folder (`FolderIndex`), rebuilt from the session list when sessions have been added, removed or moved since (`indexDirty`).
+- **Filling:** a root shows its top level; each folder has a placeholder child until it's first opened, and is filled from the index (`FillRoot`, `FillFolder`, `treeView1_BeforeExpand`).
+- **Big folders:** a folder with over 200 children is filled with sorting off and sorted once.
+- **Actions that walk a folder's nodes fill that folder's subtree first (`FillSubtree`):**
+  - renaming a folder, which gives every session below its new path;
+  - dragging, which copies the nodes;
+  - Move to Private/Saved sessions;
+  - Connect all and Remove folder (`GetAllSessions`; database folders use the index instead);
+  - and the folder a new session goes in.
+- **Finding a session** (Show in tree, renames, selecting a new session) fills the folders on the way (`FindSessionNode`).
+- **Adding a session** shows it at once if its folder is filled; otherwise it shows when the folder is opened. New folders on the way are made.
+- **Reload** (File → Reload sessions) no longer inserts 10,000 nodes one by one as they're re-added. The roots are emptied, the sessions added meanwhile are skipped, and the roots are filled once afterwards, reopening the folders that were open.
+
+Timed with a 10,000-session `Sessions.xml` mirroring the test table (2.5 MB), on the UI thread:
+
+| | Before | After |
+|---|---|---|
+| Open the Sessions panel | 1.2 s | 0.23 s |
+| File → Reload sessions | 3.7 s | 1.4 s (1.0 s of it reading the file) |
+| A search (first / again) | 2.1 s / 0.35 s | 0.29 s / 0.33 s |
+| Clearing a search | 3.1 s | 0.11 s |
+| Expand all (11,135 nodes) | 1.5 s | 2.1 s |
+| Saving after an edit | 0.05 s | 0.05 s |
+
+**Checked against the compiled assembly**, with that file:
+- **Show in tree:** a session 5 folders deep was found in 11 ms (the tree then had 57 nodes).
+- **Connect all** on an unopened region listed its 2,000 sessions.
+- **Renaming** an unopened site moved a session two levels below it.
+- **Dragging** an unopened Servers folder into another folder moved all 20 of its sessions.
+- **Move to Private** of an unopened folder made its 12 sessions private and saved them to PrivateSessions.xml.
+- **Adding:** a session added to an opened folder showed at once. One added to an unopened folder was there once it was opened. One in new folders made them.
+- **Reload** kept Region 1/Iowa open and gave 10,003 sessions.
+- **Database sessions** timings and checks were unchanged.
 
 ## Fix: the Log Viewer froze the window during a burst of log lines, and crashed on exit
 
