@@ -7,7 +7,9 @@
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/SilverGreen93/superputty/" />
     <Property Id="ARPNOREPAIR" Value="1" />
 
-    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />    
+    <!-- AllowSameVersionUpgrades: every build is versioned from the exe (2.1.1.0), so without it a newer build of the
+         same version installed alongside the old one and Windows Installer kept the old, same-versioned exe -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
       <Media Id="1" Cabinet="Cab1.cab" EmbedCab="yes" />
     
     <Feature Id="ProductFeature" Title="SuperXPuTTY" Level="1">

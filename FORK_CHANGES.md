@@ -599,6 +599,20 @@ The Sessions tree now has four top-level groups, always in this order: **Favorit
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
 
+## Fix: installing a newer build didn't replace the installed program
+
+**Symptom:** running a freshly built MSI over an installed SuperXPuTTY seemed to work, but the old program kept running.
+
+**Cause:** the MSI's version comes from `SuperXPuTTY.exe`, which was fixed at 2.1.1.0 in `AssemblyInfo.cs`, so every build had the same version.
+- **No upgrade:** `MajorUpgrade` only removes older versions, so a new MSI was installed alongside the old one.
+- **Old file kept:** Windows Installer doesn't replace a file with one of the same version.
+- **Two installs on the machine:** a 2.1.0.0 and a 2.1.1.0, both in `C:\Program Files (x86)\SuperXPuTTY`. Removing one didn't remove files the other still had.
+
+**Fix:**
+- **`MajorUpgrade AllowSameVersionUpgrades="yes"`** in `SuperPuttyInstaller/Product.wxs`, so a rebuild of the same version also replaces the installed copy rather than installing beside it. WiX warns ICE61 about this, which is expected.
+
+**Checked:** the rebuilt Release MSI's Upgrade table removes any older version up to and including its own. This alone didn't replace the exe on a machine with two installs (see the version change that follows).
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
