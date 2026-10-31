@@ -1188,7 +1188,7 @@ A session can have a colour (e.g. red for production), so you notice before typi
 - **In the Sessions tree:** the folder where a colour starts (set on it, or matched by a rule) and a session with its own colour are shown in it, lightened on the dark theme. Folders don't colour every folder under them, so the tree stays readable.
 
 **Where a session's colour comes from**, first found wins (`Gui/EnvironmentColors.For`):
-1. **Its own colour:** right-click the session → **Colour**. Saved as a `Color` attribute in Sessions.xml (written only when set, so other sessions' lines are unchanged), or the `color` column for Database sessions.
+1. **Its own colour:** right-click the session → **Colour**, or Edit Session's **Colour** button (beside Icon; a swatch, or a slashed box for none, with a tooltip naming the colour it gets from its folder or a rule when it has none of its own). Saved as a `Color` attribute in Sessions.xml (written only when set, so other sessions' lines are unchanged), or the `color` column for Database sessions.
 2. **Its folder's, or the nearest folder above with one:** right-click the folder → **Colour**.
 3. **A name rule:** Tools → **Environment colours...** (`Gui/dlgEnvironmentColors.cs`): a folder or session name, with `*` and `?` wildcards and any case, and its colour. Rules are tried on the session's folders from the deepest up, then on its own name; the first match wins. New installs start with `Prod`, `Production` red and `Staging`, `UAT` orange (`Settings.EnvironmentColorRules`), so a folder named Prod is red with no setup.
 - **The Colour menu** offers red (production), orange (staging), yellow, green (lab), blue and purple, **Other colour...**, and **None**.
@@ -1216,6 +1216,7 @@ A session can have a colour (e.g. red for production), so you notice before typi
 | `Data/SessionCsv.cs` | `Colour` column |
 | `Gui/TabIcons.cs` | The tab stripe |
 | `ctlPuttyPanel.cs` | `ApplyEnvironmentColor`: the frame |
+| `dlgEditSession.cs` / `.Designer.cs` | The Colour button (the session name box narrowed to make room), saved with the session and lockable as `color` |
 | `SessionTreeview.cs` | Colour menus for sessions and folders; node colours (`ColorNode`); folder settings follow renames, moves and removals |
 | `frmSuperPutty.cs` / `.Designer.cs` | Tools → Environment colours...; tabs redrawn when a colour changes |
 | `SuperPuTTY.cs` | `LoadSessions` reads the folder settings |

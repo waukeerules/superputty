@@ -32,6 +32,8 @@ namespace SuperPutty
             this.comboBoxProto = new System.Windows.Forms.ComboBox();
             this.textBoxExtraArgs = new System.Windows.Forms.TextBox();
             this.textBoxJumpHost = new System.Windows.Forms.TextBox();
+            this.buttonColor = new System.Windows.Forms.Button();
+            this.labelColor = new System.Windows.Forms.Label();
             this.labelJumpHost = new System.Windows.Forms.Label();
             this.buttonRdpOptions = new System.Windows.Forms.Button();
             this.label6 = new System.Windows.Forms.Label();
@@ -95,6 +97,25 @@ namespace SuperPutty
             this.textBoxExtraArgs.Validating += new System.ComponentModel.CancelEventHandler(this.textBoxExtraArgs_Validating);
             this.textBoxExtraArgs.TextChanged += new System.EventHandler(this.placeholderField_TextChanged);
             this.textBoxExtraArgs.Validated += new System.EventHandler(this.textBoxExtraArgs_Validated);
+            //
+            // buttonColor
+            //
+            this.buttonColor.Location = new System.Drawing.Point(497, 29);
+            this.buttonColor.Name = "buttonColor";
+            this.buttonColor.Size = new System.Drawing.Size(40, 40);
+            this.buttonColor.TabIndex = 33;
+            this.buttonColor.UseVisualStyleBackColor = true;
+            this.buttonColor.Click += new System.EventHandler(this.buttonColor_Click);
+            //
+            // labelColor
+            //
+            this.labelColor.AutoSize = true;
+            this.labelColor.Location = new System.Drawing.Point(431, 40);
+            this.labelColor.Margin = new System.Windows.Forms.Padding(5, 0, 5, 0);
+            this.labelColor.Name = "labelColor";
+            this.labelColor.Size = new System.Drawing.Size(58, 20);
+            this.labelColor.TabIndex = 34;
+            this.labelColor.Text = "Colour:";
             //
             // textBoxJumpHost
             //
@@ -396,7 +417,7 @@ namespace SuperPutty
             this.textBoxSessionName.Location = new System.Drawing.Point(151, 36);
             this.textBoxSessionName.Margin = new System.Windows.Forms.Padding(5);
             this.textBoxSessionName.Name = "textBoxSessionName";
-            this.textBoxSessionName.Size = new System.Drawing.Size(359, 27);
+            this.textBoxSessionName.Size = new System.Drawing.Size(270, 27);
             this.textBoxSessionName.TabIndex = 20;
             this.textBoxSessionName.Validating += new System.ComponentModel.CancelEventHandler(this.textBoxSessionName_Validating);
             this.textBoxSessionName.Validated += new System.EventHandler(this.textBoxSessionName_Validated);
@@ -477,6 +498,8 @@ namespace SuperPutty
             this.groupBox1.Controls.Add(this.comboBoxProto);
             this.groupBox1.Controls.Add(this.textBoxExtraArgs);
             this.groupBox1.Controls.Add(this.textBoxJumpHost);
+            this.groupBox1.Controls.Add(this.buttonColor);
+            this.groupBox1.Controls.Add(this.labelColor);
             this.groupBox1.Controls.Add(this.labelJumpHost);
             this.groupBox1.Controls.Add(this.buttonRdpOptions);
             this.groupBox1.Controls.Add(this.buttonBrowse);
@@ -549,6 +572,8 @@ namespace SuperPutty
         private System.Windows.Forms.Label label6;
         private System.Windows.Forms.TextBox textBoxExtraArgs;
         private System.Windows.Forms.TextBox textBoxJumpHost;
+        private System.Windows.Forms.Button buttonColor;
+        private System.Windows.Forms.Label labelColor;
         private System.Windows.Forms.Label labelJumpHost;
         private System.Windows.Forms.Button buttonRdpOptions;
         private System.Windows.Forms.Button buttonImageSelect;

@@ -70,6 +70,8 @@ namespace SuperPutty
             HintText.Set(this.textBoxJumpHost, inheritedJump ?? "none; or a session, e.g. Bastions/bastion1, or admin@10.0.0.1:22");
             this.toolTip.SetToolTip(this.textBoxJumpHost, "Connect through this SSH server (SSH, Telnet, Rlogin, Raw): a saved session's path, or user@host:port. "
                 + "Uses plink beside PuTTY; the jump host must accept a key (Pageant, or a key in its PuTTY profile).");
+            this.color = session.Color;
+            this.ShowColor();
 
             // draw the profile list ourselves so a profile that isn't saved in PuTTY/KiTTY shows in red; the dark
             // theme draws a drop-down list's text in its own colour, ignoring ForeColor
@@ -248,6 +250,67 @@ namespace SuperPutty
             this.BeginInvoke(new MethodInvoker(delegate { this.textBoxSessionName.Focus(); }));
         }
 
+        /// <summary>The session's own environment colour as chosen here, "#RRGGBB", or empty for none</summary>
+        private string color;
+
+        /// <summary>
+        /// Show the chosen colour on the Colour button: a swatch, or an empty box with a slash for none. The tooltip says
+        /// what the session shows without one of its own (its folder's or a rule's colour).
+        /// </summary>
+        private void ShowColor()
+        {
+            int size = this.LogicalToDeviceUnits(22);
+            Bitmap swatch = new Bitmap(size, size);
+            Color? own = EnvironmentColors.Parse(this.color);
+            using (Graphics g = Graphics.FromImage(swatch))
+            {
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                if (own != null)
+                {
+                    using (SolidBrush brush = new SolidBrush(own.Value))
+                    {
+                        g.FillRectangle(brush, 0, 0, size - 1, size - 1);
+                    }
+                }
+                else
+                {
+                    g.DrawLine(Pens.Gray, 1, size - 2, size - 2, 1);
+                }
+                g.DrawRectangle(Pens.Gray, 0, 0, size - 1, size - 1);
+            }
+            this.buttonColor.Image?.Dispose();
+            this.buttonColor.Image = swatch;
+
+            string tip;
+            if (own != null)
+            {
+                tip = "This session's colour: " + this.color + " (shown on its tab and around its terminal)";
+            }
+            else
+            {
+                SessionData without = (SessionData)this.Session.Clone();
+                without.Color = string.Empty;
+                Color? inherited = string.IsNullOrEmpty(this.Session.SessionId) ? null : EnvironmentColors.For(without);
+                tip = inherited == null ? "No colour. Choose one, e.g. red for production"
+                    : "No colour of its own: it shows " + EnvironmentColors.Format(inherited.Value) + " from its folder or a name rule";
+            }
+            this.toolTip.SetToolTip(this.buttonColor, tip);
+        }
+
+        /// <summary>Choose the session's colour: the presets, Other colour..., or None</summary>
+        /// <param name="sender">The Colour button</param>
+        /// <param name="e">Not used</param>
+        private void buttonColor_Click(object sender, EventArgs e)
+        {
+            ToolStripMenuItem holder = new ToolStripMenuItem();
+            EnvironmentColors.FillMenu(holder, this.color, "None (use the folder's or a rule's)", chosen =>
+            {
+                this.color = chosen;
+                this.ShowColor();
+            });
+            holder.DropDown.Show(this.buttonColor, new Point(0, this.buttonColor.Height));
+        }
+
         /// <summary>
         /// Database columns locked for this session (the row's locked_fields, comma-separated, e.g. "host,port"): their
         /// fields are shown but can't be changed. Set by SessionTreeview before showing the dialog for a database session.
@@ -272,6 +335,7 @@ namespace SuperPutty
                 { "putty_profile", new Control[] { this.comboBoxPuttyProfile } },
                 { "extra_args", new Control[] { this.textBoxExtraArgs } },
                 { "jump_host", new Control[] { this.textBoxJumpHost } },
+                { "color", new Control[] { this.buttonColor } },
                 { "icon", new Control[] { this.buttonImageSelect } },
                 { "notes", new Control[] { this.textBoxNote } },
                 { "spsl_script", new Control[] { this.textBoxSPSLScriptFile, this.buttonBrowse, this.buttonClearSPSLFile } },
@@ -403,6 +467,9 @@ namespace SuperPutty
             Session.Host         = textBoxHostname.Text.Trim();
             Session.ExtraArgs    = textBoxExtraArgs.Text.Trim();
             Session.JumpHost     = textBoxJumpHost.Text.Trim();
+            Session.Color        = this.color ?? string.Empty;
+            // open tabs of this session show the new colour now, not at the next change
+            EnvironmentColors.RaiseChanged();
             if (!Int32.TryParse(this.textBoxPort.Text, out val))
                 Session.Port     = 0;
             else
