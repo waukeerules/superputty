@@ -379,6 +379,7 @@ namespace SuperPutty
             this.textBoxSessionName.TabIndex = 20;
             this.textBoxSessionName.Validating += new System.ComponentModel.CancelEventHandler(this.textBoxSessionName_Validating);
             this.textBoxSessionName.Validated += new System.EventHandler(this.textBoxSessionName_Validated);
+            this.textBoxSessionName.TextChanged += new System.EventHandler(this.textBoxSessionName_TextChanged);
             // 
             // lblHostname
             // 

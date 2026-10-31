@@ -519,6 +519,20 @@ Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom netw
 - **Dialogs:** the Script Editor in both Run as modes, and Edit Button in SPSL mode, were rendered in the dark theme at 150% scaling.
 - **Not checked:** sending from the Script Editor to live sessions, and the Save as... and Delete dialogs in the running app.
 
+## Fix: Save stayed disabled in Create new session until the name box was left
+
+**Symptom:** in Create new session, typing the host address first and then the session name left **Save** disabled, with an error mark beside the name, until you clicked out of the name box.
+
+**Cause:** upstream checks the name only when the box is left (`Validating`). Tabbing past the still-empty name box marked it "Empty name". That mark, and the disabled Save it causes, stayed until the box was left again.
+
+**Fix:** the name is checked as it's typed (`textBoxSessionName_TextChanged`), and a host typed after its error clears that error too. Save is enabled once there's a valid name and a host or PuTTY profile, without leaving any box. A taken name now shows its error as it's typed.
+
+**Checked against the compiled assembly**, following the order above:
+- **Leaving the empty name:** marked "Empty name", Save disabled.
+- **Typing the host:** Save still disabled.
+- **Typing the name, without leaving the box:** the mark cleared and Save was enabled.
+- **Typing a taken name:** "Session with same name exists" appeared and Save was disabled; correcting it enabled Save again.
+
 ## Fix: the installer didn't include Newtonsoft.Json.dll
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.

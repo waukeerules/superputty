@@ -176,6 +176,35 @@ namespace SuperPutty
         private void placeholderField_TextChanged(object sender, EventArgs e)
         {
             UpdatePlaceholderPreview();
+            if (sender == this.textBoxHostname)
+            {
+                // a host typed after the error was shown clears it now, not only when the box is left
+                if (this.errorProvider.GetError(this.textBoxHostname) != String.Empty && this.textBoxHostname.Text.Trim() != String.Empty)
+                {
+                    this.SetError(this.textBoxHostname, String.Empty);
+                    this.SetError(this.comboBoxPuttyProfile, String.Empty);
+                }
+                this.EnableDisableSaveButton();
+            }
+        }
+
+        /// <summary>
+        /// Check the session name as it's typed, not only when the box is left: otherwise an "Empty name" error from
+        /// tabbing past the box first kept Save disabled until the box was left again
+        /// </summary>
+        /// <param name="sender">The session name box</param>
+        /// <param name="e">Not used</param>
+        private void textBoxSessionName_TextChanged(object sender, EventArgs e)
+        {
+            string error = null;
+            if (this.SessionNameValidator != null && !this.SessionNameValidator(this.textBoxSessionName.Text, out error))
+            {
+                this.SetError(this.textBoxSessionName, error ?? "Invalid Session Name");
+            }
+            else
+            {
+                this.SetError(this.textBoxSessionName, String.Empty);
+            }
         }
 
         private void labelPlaceholderPreview_Click(object sender, EventArgs e)
@@ -569,7 +598,11 @@ namespace SuperPutty
 
         void EnableDisableSaveButton()
         {
-            this.buttonSave.Enabled = this.errorProvider.GetError(this.textBoxSessionName) == String.Empty &&
+            // a new session needs a name, and a host or profile, before the boxes have been left and checked
+            bool filledIn = this.textBoxSessionName.Text.Trim() != String.Empty &&
+                (this.textBoxHostname.Text.Trim() != String.Empty || !string.IsNullOrEmpty(this.comboBoxPuttyProfile.SelectedItem as string));
+            this.buttonSave.Enabled = filledIn &&
+                                      this.errorProvider.GetError(this.textBoxSessionName) == String.Empty &&
                                       this.errorProvider.GetError(this.textBoxHostname) == String.Empty &&
                                       this.errorProvider.GetError(this.textBoxPort) == String.Empty &&
                                       this.errorProvider.GetError(this.comboBoxPuttyProfile) == String.Empty &&
