@@ -105,6 +105,12 @@ namespace SuperPutty
         /// <summary>Sort names Z to A: chosen with the toolbar's sort button, and not saved, so A to Z returns on restart</summary>
         bool sortDescending;
 
+        /// <summary>The sessions with a tab open, by session ID, and whether they're connected; drawn as a dot on their icons</summary>
+        Dictionary<string, IconLibrary.OpenState> openStates = new Dictionary<string, IconLibrary.OpenState>();
+
+        /// <summary>Whether a refresh of the open-tab dots is already queued</summary>
+        bool openStateRefreshPending;
+
         public SessionData SelectedSession
         {
             get
@@ -149,6 +155,14 @@ namespace SuperPutty
             SuperPuTTY.Sessions.ListChanged += new ListChangedEventHandler(Sessions_ListChanged);
             SuperPuTTY.Settings.SettingsSaving += new SettingsSavingEventHandler(Settings_SettingsSaving);
             SessionShortcuts.Changed += SessionShortcuts_Changed;
+            if (m_DockPanel != null)
+            {
+                m_DockPanel.ContentAdded += DockPanel_ContentChanged;
+                m_DockPanel.ContentRemoved += DockPanel_ContentChanged;
+            }
+            ctlPuttyPanel.ConnectionChanged += PuttyPanel_ConnectionChanged;
+            // tabs may already be open, e.g. when the Sessions panel is closed and shown again
+            this.RefreshOpenStates();
         }
 
         void ExpandInitialTree()
@@ -252,6 +266,12 @@ namespace SuperPutty
             SuperPuTTY.Sessions.ListChanged -= new ListChangedEventHandler(Sessions_ListChanged);
             SuperPuTTY.Settings.SettingsSaving -= new SettingsSavingEventHandler(Settings_SettingsSaving);
             SessionShortcuts.Changed -= SessionShortcuts_Changed;
+            if (m_DockPanel != null)
+            {
+                m_DockPanel.ContentAdded -= DockPanel_ContentChanged;
+                m_DockPanel.ContentRemoved -= DockPanel_ContentChanged;
+            }
+            ctlPuttyPanel.ConnectionChanged -= PuttyPanel_ConnectionChanged;
             base.OnClosed(e);
         }
 
@@ -317,7 +337,7 @@ namespace SuperPutty
 
                 Node.Text = Session.SessionName;
                 Node.Name = Session.SessionName;
-                string imageKey = IsValidImage(Session.ImageKey) ? Session.ImageKey : ImageKeySession;
+                string imageKey = SessionImageKey(Session);
                 Node.ImageKey = imageKey;
                 Node.SelectedImageKey = imageKey;
                 ScheduleShortcutRebuild();
@@ -848,6 +868,120 @@ namespace SuperPutty
             return IsPrivateNode(node) ? "Move to Saved sessions" : "Move to Private sessions";
         }
 
+        #region Open tabs
+
+        /// <summary>
+        /// A session's icon as the tree shows it: its own icon (or the default), with a green dot while a tab for it is
+        /// open and connected, or a red one while its tabs have dropped
+        /// </summary>
+        /// <param name="session">The session</param>
+        /// <returns>The image key</returns>
+        string SessionImageKey(SessionData session)
+        {
+            string baseKey = IsValidImage(session.ImageKey) ? session.ImageKey : ImageKeySession;
+            IconLibrary.OpenState state;
+            if (session.SessionId == null || !this.openStates.TryGetValue(session.SessionId, out state))
+                return baseKey;
+            return IconLibrary.EnsureWithState(this.treeView1.ImageList, baseKey, state);
+        }
+
+        /// <summary>Update the dots when a tab opens or closes</summary>
+        /// <param name="sender">The dock panel</param>
+        /// <param name="e">The tab</param>
+        void DockPanel_ContentChanged(object sender, DockContentEventArgs e)
+        {
+            if (e.Content is ctlPuttyPanel)
+            {
+                this.ScheduleOpenStateRefresh();
+            }
+        }
+
+        /// <summary>Update the dots when a tab's session drops or comes back</summary>
+        /// <param name="sender">The tab</param>
+        /// <param name="e">Not used</param>
+        void PuttyPanel_ConnectionChanged(object sender, EventArgs e)
+        {
+            this.ScheduleOpenStateRefresh();
+        }
+
+        /// <summary>
+        /// Refresh the dots once the current change is done: a closing tab is only gone from the dock panel afterwards,
+        /// and a layout opens many tabs in a row
+        /// </summary>
+        void ScheduleOpenStateRefresh()
+        {
+            if (!this.IsHandleCreated)
+            {
+                this.RefreshOpenStates();
+                return;
+            }
+            if (!this.openStateRefreshPending)
+            {
+                this.openStateRefreshPending = true;
+                this.BeginInvoke((MethodInvoker)delegate
+                {
+                    this.openStateRefreshPending = false;
+                    this.RefreshOpenStates();
+                });
+            }
+        }
+
+        /// <summary>
+        /// Work out which sessions have a tab open, and whether any of each one's tabs is connected, then give every
+        /// session node and Favorites/Recent entry the matching icon
+        /// </summary>
+        void RefreshOpenStates()
+        {
+            Dictionary<string, IconLibrary.OpenState> states = new Dictionary<string, IconLibrary.OpenState>();
+            if (m_DockPanel != null)
+            {
+                foreach (ctlPuttyPanel panel in m_DockPanel.Contents.OfType<ctlPuttyPanel>())
+                {
+                    if (panel.IsDisposed || panel.Session == null || panel.Session.SessionId == null)
+                        continue;
+                    IconLibrary.OpenState state = panel.IsDisconnected ? IconLibrary.OpenState.Disconnected : IconLibrary.OpenState.Connected;
+                    IconLibrary.OpenState existing;
+                    // one connected tab is enough for the session to show as connected
+                    if (!states.TryGetValue(panel.Session.SessionId, out existing) || state == IconLibrary.OpenState.Connected)
+                    {
+                        states[panel.Session.SessionId] = state;
+                    }
+                }
+            }
+            this.openStates = states;
+            if (this.treeView1.ImageList == null)
+                return;
+            foreach (TreeNode root in this.treeView1.Nodes)
+            {
+                this.ApplyOpenStates(root);
+            }
+        }
+
+        /// <summary>Give the session nodes and entries under a node the icons for their current open state</summary>
+        /// <param name="node">A root or folder</param>
+        void ApplyOpenStates(TreeNode node)
+        {
+            foreach (TreeNode child in node.Nodes)
+            {
+                SessionData session = child.Tag as SessionData ?? (child.Tag as SessionShortcut)?.Session;
+                if (session != null)
+                {
+                    string key = SessionImageKey(session);
+                    if (child.ImageKey != key)
+                    {
+                        child.ImageKey = key;
+                        child.SelectedImageKey = key;
+                    }
+                }
+                else
+                {
+                    this.ApplyOpenStates(child);
+                }
+            }
+        }
+
+        #endregion
+
         #region Toolbar
 
         /// <summary>
@@ -1140,7 +1274,7 @@ namespace SuperPutty
             for (int i = 0; i < sessions.Count; i++)
             {
                 SessionData session = sessions[i];
-                string key = IsValidImage(session.ImageKey) ? session.ImageKey : ImageKeySession;
+                string key = SessionImageKey(session);
                 TreeNode node = group.Nodes.Add(session.SessionId, session.SessionName, key, key);
                 node.Tag = new SessionShortcut { Session = session, Group = kind, Order = i };
                 node.ContextMenuStrip = this.contextMenuStripShortcut;
@@ -1276,11 +1410,12 @@ namespace SuperPutty
                 addedNode.ContextMenuStrip = this.contextMenuStripAddTreeItem;
                 addedNode.ToolTipText = session.ToString();
 
-                // Override with custom icon if valid
-                if (IsValidImage(session.ImageKey))
+                // Override with custom icon if valid, and a dot if the session has a tab open
+                string imageKey = SessionImageKey(session);
+                if (imageKey != ImageKeySession)
                 {
-                    addedNode.ImageKey = session.ImageKey;
-                    addedNode.SelectedImageKey = session.ImageKey;
+                    addedNode.ImageKey = imageKey;
+                    addedNode.SelectedImageKey = imageKey;
                 }
             }
 

@@ -599,6 +599,23 @@ The Sessions tree now has four top-level groups, always in this order: **Favorit
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
 
+## Open sessions marked in the Sessions tree
+
+A session with a tab open shows a dot on its icon in the Sessions tree, and in Favorites and Recent. The icon itself stays, so you can still tell a switch from a router.
+- **Green:** a tab for it is open and connected.
+- **Red:** all of its tabs have dropped, or are reconnecting (the tab shows the disconnected badge).
+- **No dot:** no tab is open.
+
+The dots update as tabs open and close (the dock panel's `ContentAdded`/`ContentRemoved`), and as a session drops and comes back (the new `ctlPuttyPanel.ConnectionChanged`, raised by `SetConnection`). Tabs are matched to sessions by session ID. The dotted icons are drawn into the tree's image list on first use (`IconLibrary.EnsureWithState`, e.g. `router|connected`), with a ring in the background colour so the dot stands off the icon in either theme.
+
+**Checked against the compiled assembly**, with a dock panel, the Sessions tree and two real (not started) session tabs:
+- **No tabs:** no dots.
+- **sw1 and r1 opened:** both green.
+- **r1 marked disconnected:** r1 red, sw1 still green. Back to connected: green again.
+- **sw1's tab closed:** its dot went.
+- **Render:** at 150% scaling in the light theme.
+- **Not checked:** the dark theme, and a real drop with PuTTY running.
+
 ## Script Editor: Always on top
 
 An **Always on top** check box under Saved scripts keeps the Script Editor above other windows. It's useful because the editor isn't owned by the main window, so clicking a tab would otherwise hide it. The choice is saved (`ScriptEditorTopMost`, default off) and applied the next time the editor opens.
@@ -739,6 +756,7 @@ Favorites, Recent and private sessions:
 7. Toolbar: select a session, click **New session**: it's created in that session's folder. **New folder**, **Expand all**, **Collapse all**. **Sort** twice: Z to A, then A to Z; restart: A to Z.
 8. Create new session: type the host first, then the name. **Save** is enabled without clicking elsewhere. Type an existing name: the error shows at once.
 9. Hints: the empty search box says "Search... (press Enter)", or "Type to search..." with "Filter while typing" on. Create new session shows grey examples in Session name, Host address and Login username; each goes when you type. The toolbar's Host and Login boxes show theirs too.
+10. Open a session: its icon in the Sessions tree gets a green dot (in Favorites and Recent too). Let it drop (e.g. 192.168.3.2 left at the login prompt): the dot turns red, and green again once it reconnects. Close the tab: the dot goes.
 
 Dropped sessions:
 

@@ -337,5 +337,65 @@ namespace SuperPutty.Gui
             list.Images.Add(key, drawn);
             return true;
         }
+
+        /// <summary>Whether a session has a tab open, and how it's doing; shown as a dot on its icon in the Sessions tree</summary>
+        public enum OpenState
+        {
+            /// <summary>No tab open: the plain icon</summary>
+            None,
+            /// <summary>A tab is open and connected: a green dot</summary>
+            Connected,
+            /// <summary>Its tabs have all dropped, or are reconnecting: a red dot</summary>
+            Disconnected
+        }
+
+        /// <summary>
+        /// The key of an icon with a dot for its open state, drawn into the list on first use (e.g. "switch#1E63B4|connected").
+        /// Used by the Sessions tree to mark sessions that have a tab open.
+        /// </summary>
+        /// <param name="list">The tree's image list</param>
+        /// <param name="baseKey">The session's own icon key; it must be in the list or drawable</param>
+        /// <param name="state">The open state</param>
+        /// <returns>The key to show: <paramref name="baseKey"/> itself for <see cref="OpenState.None"/></returns>
+        public static string EnsureWithState(ImageList list, string baseKey, OpenState state)
+        {
+            if (state == OpenState.None || !Ensure(list, baseKey))
+                return baseKey;
+            string key = baseKey + (state == OpenState.Connected ? "|connected" : "|disconnected");
+            if (!list.Images.ContainsKey(key))
+            {
+                using (Image icon = list.Images[baseKey])
+                {
+                    Bitmap bitmap = new Bitmap(icon);
+                    DrawStateDot(bitmap, state == OpenState.Connected ? Color.FromArgb(0x2E, 0xB8, 0x4E) : Color.FromArgb(0xD3, 0x2F, 0x2F));
+                    list.Images.Add(key, bitmap);
+                }
+            }
+            return key;
+        }
+
+        /// <summary>
+        /// Draw a status dot in an icon's bottom-right corner, with a ring in the background colour so it stands off
+        /// the icon beneath
+        /// </summary>
+        /// <param name="bitmap">The icon, drawn on in place</param>
+        /// <param name="color">The dot's colour</param>
+        public static void DrawStateDot(Bitmap bitmap, Color color)
+        {
+            float size = bitmap.Width;
+            float dot = size * 0.42f;
+            float ring = Math.Max(1.5f, size * 0.07f);
+            RectangleF bounds = new RectangleF(size - dot - ring, size - dot - ring, dot, dot);
+            Color background = DarkBackground ? Color.FromArgb(0x25, 0x25, 0x26) : Color.White;
+            using (Graphics g = Graphics.FromImage(bitmap))
+            using (Brush ringBrush = new SolidBrush(background))
+            using (Brush fill = new SolidBrush(color))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                RectangleF outer = RectangleF.Inflate(bounds, ring, ring);
+                g.FillEllipse(ringBrush, outer);
+                g.FillEllipse(fill, bounds);
+            }
+        }
     }
 }

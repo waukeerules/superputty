@@ -942,7 +942,14 @@ namespace SuperPutty
                 this.seenInactive = false;
             }
             this.UpdateTabIcon();
+            ConnectionChanged?.Invoke(this, EventArgs.Empty);
         }
+
+        /// <summary>
+        /// Raised when any tab's session drops, starts reconnecting or comes back, so the Sessions tree can update the
+        /// session's dot (SessionTreeview)
+        /// </summary>
+        public static event EventHandler ConnectionChanged;
 
         /// <summary>Silence times offered in the tab menu, in seconds</summary>
         private static readonly int[] SilenceChoices = { 10, 30, 60, 300 };
