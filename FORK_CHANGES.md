@@ -452,6 +452,18 @@ Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom netw
 - **Picker:** it opened on `green_switch` with Switch selected, and choosing Blue returned `switch#1E63B4`.
 - **Not checked:** this wasn't checked in the running app (tabs, toolbars, button bar, Options), nor at a display scaling other than 100%.
 
+## Fix: "Show folders first" seemed to flip each time Options was saved
+
+**Symptom:** with Tools → Options → GUI → "Show folders first" on, opening Options and clicking OK without touching it rearranged the Sessions tree: folders sometimes came first, sometimes mixed in with sessions, as if the option had been toggled.
+
+**Cause:** upstream's tree sort (`SessionTreeview.Compare`) put a folder first only when it was the first of the two nodes compared. With the nodes the other way round, it compared names instead, so the comparison could say both "the folder goes first" and "the session goes first" for the same pair. The sort's result then depended on the order the nodes happened to be in, and saving Options re-sorts the tree (`Settings_SettingsSaving` → `ResortNodes`). The setting itself never changed.
+
+**Fix:** the comparison is now symmetric (`SessionTreeview.CompareNodes`): with the option on, folders always go before sessions, and nodes of the same kind are sorted by name. The option's tooltip, which wrongly said "Show search box above sessions", now describes it.
+
+**Checked against the compiled assembly:**
+- **Old logic:** over a mix of 3 folders and 5 sessions, 24 pairs gave contradictory answers when swapped, and 200 sorts from random starting orders gave 124 different results.
+- **New logic:** no pair disagreed, and all 200 sorts gave the same order: folders first, then sessions, each by name.
+
 ## Fix: the installer didn't include Newtonsoft.Json.dll
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
@@ -532,6 +544,11 @@ Icons:
    - **A photo:** it should be refused with one reason.
    - **Remove:** select the custom icon → **Remove**; it should go after you confirm.
 6. Button bar: right-click a button → Edit → **Icon** → **Choose icon...**, pick a coloured switch, OK. The button should show it, and the list should now show that icon above "Choose icon...". The colour circles should still work.
+
+Show folders first:
+
+1. Tools → Options → GUI: tick "Show folders first", OK. The Sessions tree should list folders before sessions at every level.
+2. Open Options and click OK several times without changing anything: the tree order shouldn't change. Untick it: folders and sessions should mix, by name.
 
 Dropped sessions:
 

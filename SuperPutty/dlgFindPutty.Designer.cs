@@ -620,7 +620,7 @@
             this.checkSessionTreeFoldersFirst.Size = new System.Drawing.Size(146, 24);
             this.checkSessionTreeFoldersFirst.TabIndex = 43;
             this.checkSessionTreeFoldersFirst.Text = "Show folders first";
-            this.toolTip.SetToolTip(this.checkSessionTreeFoldersFirst, "Show search box above sessions");
+            this.toolTip.SetToolTip(this.checkSessionTreeFoldersFirst, "List folders before sessions in the Sessions tree");
             this.checkSessionTreeFoldersFirst.UseVisualStyleBackColor = true;
             // 
             // checkBoxPersistTsHistory

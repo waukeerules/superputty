@@ -843,17 +843,36 @@ namespace SuperPutty
             return NodeToReturn;
         }
 
+        /// <summary>Sort the tree's nodes (the TreeView's node sorter); see <see cref="CompareNodes"/></summary>
+        /// <param name="x">One node</param>
+        /// <param name="y">The other</param>
+        /// <returns>Negative if x goes first, positive if y does, 0 if equal</returns>
         public int Compare(object x, object y)
         {
             TreeNode tx = x as TreeNode;
             TreeNode ty = y as TreeNode;
-            if (SuperPuTTY.Settings.SessiontreeShowFoldersFirst) { 
-                if (IsFolderNode(tx) && IsSessionNode(ty)) {
-                    return -1;
-                }
-            }
-            return string.Compare(tx.Text, ty.Text);
+            return CompareNodes(tx.Text, IsFolderNode(tx), ty.Text, IsFolderNode(ty), SuperPuTTY.Settings.SessiontreeShowFoldersFirst);
+        }
 
+        /// <summary>
+        /// Order two tree nodes: by name, with folders before sessions when "Show folders first" is on. It must give
+        /// the opposite answer when the nodes are swapped; upstream only put a folder first when it came first in the
+        /// comparison, so the order depended on where nodes happened to be, and every re-sort (e.g. after saving
+        /// Options) could move folders around, as if the option had flipped.
+        /// </summary>
+        /// <param name="xText">The first node's name</param>
+        /// <param name="xIsFolder">Whether the first node is a folder</param>
+        /// <param name="yText">The second node's name</param>
+        /// <param name="yIsFolder">Whether the second node is a folder</param>
+        /// <param name="foldersFirst">Whether folders go before sessions</param>
+        /// <returns>Negative if the first goes first, positive if the second does, 0 if equal</returns>
+        public static int CompareNodes(string xText, bool xIsFolder, string yText, bool yIsFolder, bool foldersFirst)
+        {
+            if (foldersFirst && xIsFolder != yIsFolder)
+            {
+                return xIsFolder ? -1 : 1;
+            }
+            return string.Compare(xText, yText);
         }
 
         void ResortNodes()
