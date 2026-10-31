@@ -1343,6 +1343,18 @@ namespace SuperPutty.Utils
         [DllImport("user32.dll")]
         public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
 
+        /// <summary>The window at a point on the screen</summary>
+        /// <param name="point">The point, in screen coordinates</param>
+        /// <returns>The innermost visible window there, or IntPtr.Zero</returns>
+        [DllImport("user32.dll")]
+        public static extern IntPtr WindowFromPoint(System.Drawing.Point point);
+
+        /// <summary>Whether a key or mouse button is down right now, unlike GetKeyState, which follows the messages read so far</summary>
+        /// <param name="vKey">The virtual key, e.g. (int)Keys.LButton</param>
+        /// <returns>The high bit is set while it's down</returns>
+        [DllImport("user32.dll")]
+        public static extern short GetAsyncKeyState(int vKey);
+
         [DllImport("user32.dll")]
         public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
         [DllImport("user32.dll")]

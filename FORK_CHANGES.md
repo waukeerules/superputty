@@ -988,6 +988,21 @@ When `Sessions.xml` is changed by something other than this copy of SuperXPuTTY,
 - **With the setting off,** an outside edit wasn't reloaded.
 - **Not checked:** a network share (where only the 30 s poll may notice), and two running copies sharing a folder.
 
+## Fix: clicking a text box sometimes sent the typing to the terminal
+
+**Symptom:** with a terminal tab open, clicking the toolbar's Host, Login or Password box, or the Sessions search box, sometimes showed the cursor there for a moment and then lost it: what was typed next went into PuTTY. Without a terminal tab it never happened.
+
+**Cause:** `ChildWindowFocusHelper` listens to the shell's window-activation messages. When SuperXPuTTY becomes active again after another window was, it gives the active terminal the focus ("SHELLHOOK" in the log), about 100 ms later. That is right for Alt+Tab or the taskbar, but it also happened when you came back by clicking a text box, and took the focus straight out of it. "Another window" includes more than other applications: a floating SuperXPuTTY pane, a dialog, or a moment when no window is active. So it struck while moving between fields too, not only after using another program.
+
+**Fix:** when the activation comes from a mouse click on one of SuperXPuTTY's own controls that takes typing or arrow keys (text boxes, combo boxes, the Sessions tree, lists), the focus stays where the click put it (`ChildWindowFocusHelper.IsClickOnInputControl`). The button is still down when the shell reports the activation, so `GetAsyncKeyState` and `WindowFromPoint` tell which control was clicked. Coming back any other way (Alt+Tab, the taskbar, the title bar, clicking the terminal) still focuses the terminal.
+
+**Checked** with the real main window, an SSH tab to a lab host and real mouse clicks and typing:
+- **Before the fix:** after another window was active, clicking the Sessions search box and typing "abc" sent it to PuTTY; the log showed `ReFocusPuTTY ... caller=SHELLHOOK`.
+- **After the fix:**
+  - clicking Host, Login, Password and the search box kept the typing in every case: from box to box, from the terminal, and coming back from another window;
+  - coming back without clicking a box (like Alt+Tab) still put the focus in the terminal, twice out of twice.
+- **Not checked:** floating panes and a second monitor.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
@@ -1095,6 +1110,7 @@ Favorites, Recent and private sessions:
 11. A session whose PuTTY profile (or `-i`) uses a key: right-click → WinSCP (external) logs in with the key. Clear the session's username, with the user only in the PuTTY profile's Auto-login username: WinSCP still logs in as that user. A session with `{user}` as its username opens WinSCP as your user, not "{user}".
 12. With two copies of SuperXPuTTY on one settings folder (or a text editor), change a session in one: the other reloads within a few seconds ("Sessions.xml was changed outside SuperXPuTTY") and shows the change. Save in the first again: it doesn't reload itself. Untick Options → GUI → Reload when changed: changes are no longer picked up until File → Reload sessions.
 13. Open View → Log Viewer, then point the settings folder at a large Sessions.xml: the window stays responsive. Close SuperXPuTTY: no error.
+14. With an SSH tab open, switch to another program, then click straight into the toolbar's Host box and type: the text goes into the box, not the terminal. Do the same with the Sessions search box. Switch away and come back with Alt+Tab: the terminal has the focus.
 
 Database sessions:
 

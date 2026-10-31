@@ -143,7 +143,12 @@ namespace SuperPutty.Utils
                                 {
                                     m_externalWindow = false;
                                     NativeMethods.BringWindowToTop(this.MainForm.Handle);
-                                    this.MainForm.FocusActiveDocument("SHELLHOOK");
+                                    // coming back by clicking a box, list or tree in SuperPuTTY: the click already put the
+                                    // focus there, and taking it to the terminal lost what was typed next
+                                    if (!this.IsClickOnInputControl())
+                                    {
+                                        this.MainForm.FocusActiveDocument("SHELLHOOK");
+                                    }
                                     //return false;
                                 }
                                 else if (current == this.MainForm.Handle)
@@ -168,6 +173,26 @@ namespace SuperPutty.Utils
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Whether the window is being activated by a click on one of SuperPuTTY's own controls that takes typing or
+        /// arrow keys (the toolbar's Host, Login and Password boxes, the Sessions search box and tree, ...), so the
+        /// focus should stay where the click put it. Checked when the shell reports the activation, while the button is
+        /// still down; coming back with Alt+Tab, the taskbar or the title bar still returns to the terminal.
+        /// </summary>
+        /// <returns>true if a mouse button is down over such a control</returns>
+        bool IsClickOnInputControl()
+        {
+            bool buttonDown = new[] { Keys.LButton, Keys.RButton, Keys.MButton }.Any(b => (NativeMethods.GetAsyncKeyState((int)b) & 0x8000) != 0);
+            if (!buttonDown)
+            {
+                return false;
+            }
+            // only finds controls of this process; PuTTY's own window isn't one
+            Control control = Control.FromChildHandle(NativeMethods.WindowFromPoint(Cursor.Position));
+            return control is TextBoxBase || control is ComboBox || control is TreeView || control is ListView
+                || control is ListBox || control is DataGridView || control is UpDownBase;
         }
 
         /// <summary>Whether a window is the embedded application of one of the terminal tabs</summary>
