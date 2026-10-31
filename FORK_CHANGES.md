@@ -539,9 +539,61 @@ Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom netw
 
 **Cause:** upstream's drop handler (`resetFoldersChildrenPaths`) gave new IDs only to the moved folder's own sessions, not to those further down.
 
-**Fix:** the drop handler now uses the existing recursive `UpdateSessionId`, which updates every level below the moved folder.
+**Fix:** a move now updates every level below the moved folder (`SessionTreeview.MoveNode`, using the existing recursive `UpdateSessionId`). Dragging and the new "Move to Private/Saved sessions" share this code.
 
-**Checked against the compiled assembly** (in the change that followed, which keeps this fix): moving `Core` (holding `Core/Dist/sw9`) into `Home` gave the session the ID `Home/Core/Dist/sw9`.
+**Checked against the compiled assembly:** moving `Core` (holding `Core/Dist/sw9`) into `Home` gave the session the ID `Home/Core/Dist/sw9`.
+
+## Favorites, Recent, private sessions, and a larger search bar
+
+The Sessions tree now has four top-level groups, always in this order: **Favorites**, **Recent**, **Saved sessions** and **Private sessions**.
+
+- **Favorites** (star): sessions you've starred, as shortcuts. The sessions themselves stay in their folders.
+  - **Adding one:** right-click a session → **Add to Favorites**, or drag it onto Favorites. **Remove from Favorites** (or Delete on the entry) removes the shortcut, never the session.
+  - **The group:** shown only when it has something in it, and sorted by name.
+- **Recent** (clock): the last 10 sessions you opened, most recent first.
+  - **What counts:** opening a saved session from anywhere: the tree, the Quick Selector or Connect All. A layout reopening its sessions doesn't count, nor do quick connections.
+  - **Clearing:** right-click Recent → **Clear Recent**. Delete on an entry removes just that one.
+  - **Turning it off:** Tools → Options → GUI → **Show recent**.
+- **Entries in both:** double-click or Enter opens the session. Right-click offers **Connect**, **Show in Sessions tree** and removing the entry, plus **Add to Favorites** in Recent. The tooltip says where the session lives. A session that's renamed or moved stays a favourite; a deleted one is dropped from both.
+- **Per user:** both lists are in `SessionShortcuts.json` beside your `SuperXPuTTY.settings` (`Data/SessionShortcuts.cs`), not in `Sessions.xml`, so starring a session in a shared settings folder doesn't change it for the team.
+- **Private sessions** (padlock): sessions only you see, in `PrivateSessions.xml` beside your `SuperXPuTTY.settings` instead of the shared `Sessions.xml`.
+  - **Creating one:** right-click Private sessions → **New session...** or **New folder**.
+  - **Moving:** right-click a session or folder → **Move to Private sessions** / **Move to Saved sessions** moves it to the same folder path on the other side, creating folders as needed. Dragging between the two also works.
+  - **Everywhere else:** they work like any session: the Quick Selector, search, layouts, Connect All, `OPENSESSION`. Each session's `IsPrivate` (not saved in either file) says which file it's saved to; `SuperPuTTY.SaveSessions` splits them. `PrivateSessions.xml` is only written once you have, or had, a private session.
+  - **IDs:** session IDs must be unique across both, since the two can have the same folders.
+    - **Creating or renaming:** a session whose ID is already used on the other side is refused, with a message saying where.
+    - **Moving:** a move that would clash is refused.
+    - **Loading:** a private session whose ID clashes with a shared one on load is renamed (`Lab/sw1` → `Lab/sw1-1`) and logged.
+  - **Shared layouts:** a layout that includes a private session opens without it for anyone else.
+- **Toolbar** under the search box, like mRemoteNG's, built in code in `SessionTreeview.BuildToolbar`:
+  - **New session** and **New folder** add to the selected folder, or to the selected session's folder; with Favorites or Recent selected, they add to Saved sessions.
+  - **Expand all** and **Collapse all**. Collapse all closes Favorites and Recent too, leaving Saved sessions and Private sessions open at their top-level folders.
+  - **Sort** switches names between A to Z and Z to A. Folders stay first if Options says so, and Recent stays newest first. The choice isn't saved, so it's back to A to Z after a restart.
+  - **Icons:** drawn at the icon size, like the main toolbars (`newsession`, `newfolder`, `expandall`, `collapseall`, `sortaz`, `sortza`).
+- **Search bar:** follows Tools → Options → **Icon size**, like the toolbars. The text is larger, and the search and clear buttons are drawn icons (`search`, `clear`) at the box's height instead of the old 16 px pictures.
+- **New icons:** `star` and `lock` (General, so sessions can use them too), plus the `search` glyph and the toolbar's glyphs.
+
+| File | Change |
+|---|---|
+| `Data/SessionShortcuts.cs` | New. The Favorites and Recent lists, `SessionShortcuts.json`, and the `Changed` event the tree redraws on |
+| `Data/SessionData.cs` | `IsPrivate`, not serialized |
+| `SuperPuTTY.cs` | `UserSettingsFolder`, `PrivateSessionsFileName`; `LoadSessions` reads both files and `SaveSessions` writes both; `OpenProtoSession` adds to Recent unless `IsRestoringLayout` |
+| `frmSuperPutty.cs` | Sets `SuperPuTTY.IsRestoringLayout` while a layout loads |
+| `SessionTreeview.cs` | The groups and the Private sessions root, their menus (built in code), moving between roots, drop on Favorites, the search bar size, the toolbar and its temporary sort order |
+| `Gui/IconTemplates.cs` | `star`, `lock`, `search`, and the toolbar's glyphs |
+| `dlgFindPutty.cs` / `.Designer.cs` | **Show recent** |
+| `Properties/Settings.*`, `App.config` | `SessionsShowRecent` (default on) |
+
+**Checked against the compiled assembly**, with a scratch settings folder and scratch files:
+- **Lists:** `PushRecent` puts a session first without duplicates and keeps at most 10. `ReplaceId` follows a rename.
+- **Loading:** shared `Lab/sw1` and `Lab/r1`, plus private `Lab/sw1` and `Home/pi`, loaded as four sessions, with the private `Lab/sw1` renamed `Lab/sw1-1`.
+- **Tree:** with two favourites and two recent sessions, it showed Favorites, Recent, Saved sessions and Private sessions in that order, Recent most recent first.
+- **Moving `Lab/r1` to Private:** it moved, stayed a favourite, and the files split as expected (`Sessions.xml`: `Lab/sw1`; `PrivateSessions.xml`: `Home/pi`, `Lab/r1`, `Lab/sw1-1`). Moving it back made it shared again.
+- **Moving a folder:** moving folder `Core` with a subfolder also moved `Core/Dist/sw9`.
+- **Clashing name:** creating a shared `Home/pi` was refused: "A session with this name is already in the same folder of Private sessions".
+- **Search bar:** rendered at icon sizes 16, 24 and 32: the box is 34, 37 and 41 px tall at 150% scaling (was 22 px before scaling).
+- **Toolbar:** rendered under the search box with the dark renderer. Sort Z to A put `sw1` before `r1` and `Lab` before `Home`, kept the top-level order, and switched back. New with `Lab/sw1` selected targets `Lab`.
+- **Not checked:** the running app (menus, dragging, the dark theme, Options), and opening a session to see it reach Recent.
 
 ## Fix: the installer didn't include Newtonsoft.Json.dll
 
@@ -637,6 +689,17 @@ Script editing:
 4. **Save as...** on the left saves the script as the current kind (it's listed as SPSL or lines). Clear the editor, double-click it: it comes back, and Run as switches to match.
 5. Edit a button-bar button → Action: Run SPSL script: the panel appears beside the script by itself, with a Saved scripts tab listing your SPSL scripts, and the script box doesn't get a `#!/bin/spsl` line. Click OK with an error in the script: you're asked whether to save anyway.
 6. Click the mask button on the Send Commands toolbar: the icon switches between a grey eye and an amber asterisk, and typing is masked accordingly.
+
+Favorites, Recent and private sessions:
+
+1. Right-click a session → **Add to Favorites**: a Favorites group appears at the top with it. Drag another session onto Favorites: it's added too. Delete on a favourite removes only the shortcut.
+2. Open two sessions: they appear under Recent, the latest first. Load a layout: its sessions aren't added. Right-click Recent → **Clear Recent**. Untick Options → GUI → **Show recent**: the group goes.
+3. Rename a favourite (Edit session): it stays in Favorites under its new name.
+4. Right-click **Private sessions** → New session...: it's saved to `PrivateSessions.xml` in `Documents\SuperXPuTTY` (or beside the exe if portable), not `Sessions.xml`. Right-click it → **Move to Saved sessions**, then back. Drag a folder from Saved sessions to Private sessions.
+5. Try to create a shared session with the same folder and name as a private one: it's refused, with the reason.
+6. Change Options → Icon size to 32 and back to 16: the search box, its buttons and the toolbar follow (after a restart, as for the other icons). Check the dark theme.
+7. Toolbar: select a session, click **New session**: it's created in that session's folder. **New folder**, **Expand all**, **Collapse all**. **Sort** twice: Z to A, then A to Z; restart: A to Z.
+8. Create new session: type the host first, then the name. **Save** is enabled without clicking elsewhere. Type an existing name: the error shows at once.
 
 Dropped sessions:
 

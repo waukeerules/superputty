@@ -218,6 +218,7 @@
     <Compile Include="Data\RDPDataHelper.cs" />
     <Compile Include="Data\ButtonBarData.cs" />
     <Compile Include="Data\SessionData.cs" />
+    <Compile Include="Data\SessionShortcuts.cs" />
     <Compile Include="Data\SessionDataStartInfo.cs" />
     <Compile Include="DebugLogViewer.cs">
       <SubType>Form</SubType>

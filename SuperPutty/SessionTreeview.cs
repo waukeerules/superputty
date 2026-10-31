@@ -53,11 +53,57 @@ namespace SuperPutty
         public const string ImageKeySession = "computer";
         public const string ImageKeyFolder = "folder";
 
+        /// <summary>The icons of the Favorites, Recent and Private sessions groups</summary>
+        public const string ImageKeyFavorites = "star", ImageKeyRecent = "clock", ImageKeyPrivate = "lock";
+
+        /// <summary>The tree's top-level nodes, in the order they're shown; each one's Tag</summary>
+        enum RootKind { Favorites, Recent, Shared, Private }
+
+        /// <summary>
+        /// The Tag of an entry in Favorites or Recent: a shortcut to a session, which stays in its own folder. Not a
+        /// SessionData, so the folder and session code (rename, delete, drag) leaves these entries alone.
+        /// </summary>
+        class SessionShortcut
+        {
+            /// <summary>The session it opens</summary>
+            public SessionData Session;
+
+            /// <summary>Which group it's in</summary>
+            public RootKind Group;
+
+            /// <summary>Its place in the group's list; Recent is shown in this order, most recent first</summary>
+            public int Order;
+        }
+
         private DockPanel m_DockPanel;
         private bool isRenamingNode;
         TreeNode nodeRoot;
         ImageList imgIcons = new ImageList();
         Func<SessionData, bool> filter;
+
+        /// <summary>The Favorites and Recent groups (null while empty or hidden), and the Private sessions root</summary>
+        TreeNode nodeFavorites, nodeRecent, nodePrivate;
+
+        /// <summary>Menus built in code: for Favorites and Recent entries, and for the Recent group</summary>
+        ContextMenuStrip contextMenuStripShortcut, contextMenuStripRecentGroup;
+
+        /// <summary>Menu items built in code: add to / remove from Favorites, and move between Saved and Private sessions</summary>
+        ToolStripMenuItem favoriteToolStripMenuItem, moveSessionToolStripMenuItem, moveFolderToolStripMenuItem;
+
+        /// <summary>Items of <see cref="contextMenuStripShortcut"/> whose text or visibility depends on the entry</summary>
+        ToolStripMenuItem shortcutFavoriteToolStripMenuItem, shortcutRemoveToolStripMenuItem;
+
+        /// <summary>Whether a redraw of Favorites and Recent is already queued</summary>
+        bool shortcutRebuildPending;
+
+        /// <summary>The toolbar under the search box: new session, new folder, expand all, collapse all, sort</summary>
+        ToolStrip toolStripTree;
+
+        /// <summary>The toolbar's sort button, whose icon shows the current order</summary>
+        ToolStripButton sortToolStripButton;
+
+        /// <summary>Sort names Z to A: chosen with the toolbar's sort button, and not saved, so A to Z returns on restart</summary>
+        bool sortDescending;
 
         public SessionData SelectedSession
         {
@@ -66,6 +112,11 @@ namespace SuperPutty
                 if (treeView1.SelectedNode != null && treeView1.SelectedNode.Tag is SessionData)
                 {
                     return treeView1.SelectedNode.Tag as SessionData;
+                }
+                // a Favorites or Recent entry stands for its session
+                if (treeView1.SelectedNode != null && treeView1.SelectedNode.Tag is SessionShortcut)
+                {
+                    return ((SessionShortcut)treeView1.SelectedNode.Tag).Session;
                 }
                 return null;
             }
@@ -88,6 +139,8 @@ namespace SuperPutty
             {
                 this.treeView1.ImageList = SuperPuTTY.Images;
             }
+            this.BuildShortcutMenus();
+            this.BuildToolbar();
             this.ApplySettings();
 
             // populate sessions in the treeview from the registry
@@ -95,6 +148,7 @@ namespace SuperPutty
             this.ExpandInitialTree();
             SuperPuTTY.Sessions.ListChanged += new ListChangedEventHandler(Sessions_ListChanged);
             SuperPuTTY.Settings.SettingsSaving += new SettingsSavingEventHandler(Settings_SettingsSaving);
+            SessionShortcuts.Changed += SessionShortcuts_Changed;
         }
 
         void ExpandInitialTree()
@@ -102,20 +156,26 @@ namespace SuperPutty
             if (SuperPuTTY.Settings.ExpandSessionsTreeOnStartup)
             {
                 nodeRoot.ExpandAll();
+                nodePrivate.ExpandAll();
                 this.treeView1.SelectedNode = nodeRoot;
             }
             else
             {
                 // start with semi-collapsed view
-                nodeRoot.Expand();
-                foreach (TreeNode node in this.nodeRoot.Nodes)
+                foreach (TreeNode root in new[] { this.nodeRoot, this.nodePrivate })
                 {
-                    if (!IsSessionNode(node))
+                    root.Expand();
+                    foreach (TreeNode node in root.Nodes)
                     {
-                        node.Collapse();
+                        if (!IsSessionNode(node))
+                        {
+                            node.Collapse();
+                        }
                     }
                 }
             }
+            this.nodeFavorites?.Expand();
+            this.nodeRecent?.Expand();
         }
 
         protected override void OnLoad(EventArgs e)
@@ -133,6 +193,13 @@ namespace SuperPutty
                 {
                     MyColors = DarkModeCS.GetSystemColors(null, 0)
                 };
+                foreach (ToolStrip menu in new ToolStrip[] { this.contextMenuStripShortcut, this.contextMenuStripRecentGroup, this.toolStripTree })
+                {
+                    menu.Renderer = new MyRenderer(new CustomColorTable(new OSThemeColors()), false)
+                    {
+                        MyColors = DarkModeCS.GetSystemColors(null, 0)
+                    };
+                }
             }
         }
 
@@ -146,13 +213,43 @@ namespace SuperPutty
             this.treeView1.ShowLines = SuperPuTTY.Settings.SessionsTreeShowLines;
             this.treeView1.Font = SuperPuTTY.Settings.SessionsTreeFont;
             this.panelSearch.Visible = SuperPuTTY.Settings.SessionsShowSearch;
+            this.ApplySearchBarSize();
+            this.BuildShortcutGroups();
             this.ResortNodes();
+        }
+
+        /// <summary>
+        /// Size the search box and its buttons for the icon size chosen in Options, as the toolbars are: a larger font,
+        /// and the buttons drawn as icons at that height instead of the old 16 px pictures
+        /// </summary>
+        void ApplySearchBarSize()
+        {
+            this.txtSearch.Font = new Font("Segoe UI", IconLibrary.TabFontSize);
+            int height = this.txtSearch.PreferredHeight;
+            int glyph = Math.Max(16, height - 8);
+            foreach (KeyValuePair<Button, string> button in new[]
+            {
+                new KeyValuePair<Button, string>(this.btnSearch, "search"),
+                new KeyValuePair<Button, string>(this.btnClear, "clear")
+            })
+            {
+                Image old = button.Key.Image;
+                button.Key.AutoSize = false;
+                button.Key.Size = new Size(height + 2, height);
+                button.Key.Image = IconLibrary.RenderDrawn(button.Value, glyph);
+                old?.Dispose();
+            }
+            this.panelSearch.Height = height + this.panelSearch.Padding.Vertical;
+            this.ApplyToolbarIcons();
+            this.txtSearch.Location = new Point(0, this.panelSearch.Padding.Top);
+            this.txtSearch.Width = this.panelSearch.ClientSize.Width - this.btnSearch.Width - this.btnClear.Width - this.panelSearch.Padding.Right - 1;
         }
 
         protected override void OnClosed(EventArgs e)
         {
             SuperPuTTY.Sessions.ListChanged -= new ListChangedEventHandler(Sessions_ListChanged);
             SuperPuTTY.Settings.SettingsSaving -= new SettingsSavingEventHandler(Settings_SettingsSaving);
+            SessionShortcuts.Changed -= SessionShortcuts_Changed;
             base.OnClosed(e);
         }
 
@@ -162,26 +259,36 @@ namespace SuperPutty
         void LoadSessions()
         {
             treeView1.Nodes.Clear();
+            this.nodeFavorites = null;
+            this.nodeRecent = null;
 
             this.nodeRoot = treeView1.Nodes.Add("root", "Saved sessions", ImageKeyFolder, ImageKeyFolder);
+            this.nodeRoot.Tag = RootKind.Shared;
             this.nodeRoot.ContextMenuStrip = this.contextMenuStripFolder;
+
+            string privateKey = IsValidImage(ImageKeyPrivate) ? ImageKeyPrivate : ImageKeyFolder;
+            this.nodePrivate = treeView1.Nodes.Add("private", "Private sessions", privateKey, privateKey);
+            this.nodePrivate.Tag = RootKind.Private;
+            this.nodePrivate.ContextMenuStrip = this.contextMenuStripFolder;
+            this.nodePrivate.ToolTipText = "Only you see these: they're kept beside your settings, not in the shared Sessions.xml";
 
             foreach (SessionData session in SuperPuTTY.GetAllSessions())
             {
                 TryAddSessionNode(session);
             }
+            BuildShortcutGroups();
             ResortNodes();
         }
 
         private void TryAddSessionNode(SessionData session)
         {
-            TreeNode nodeParent = this.nodeRoot;
+            TreeNode nodeParent = session.IsPrivate ? this.nodePrivate : this.nodeRoot;
             if (this.filter == null || this.filter(session))
             {
                 if (session.SessionId != null && session.SessionId != session.SessionName)
                 {
                     // take session id and create folder nodes
-                    nodeParent = FindOrCreateParentNode(session.SessionId);
+                    nodeParent = FindOrCreateParentNode(nodeParent, session.SessionId);
                 }
                 AddSessionNode(nodeParent, session, true);
             }
@@ -211,6 +318,7 @@ namespace SuperPutty
                 string imageKey = IsValidImage(Session.ImageKey) ? Session.ImageKey : ImageKeySession;
                 Node.ImageKey = imageKey;
                 Node.SelectedImageKey = imageKey;
+                ScheduleShortcutRebuild();
 
                 bool IsSelectedSession = treeView1.SelectedNode == Node;
                 ResortNodes();
@@ -244,6 +352,8 @@ namespace SuperPutty
                 {
                     this.isRenamingNode = false;
                 }
+                // a renamed or moved favourite stays a favourite
+                SessionShortcuts.Rename(Session.OldSessionId, Session.SessionId);
             }
         }
 
@@ -279,16 +389,21 @@ namespace SuperPutty
             {
                 SessionData session = sessions[e.NewIndex];
                 TryAddSessionNode(session);
+                if (SessionShortcuts.IsFavorite(session.SessionId) || SessionShortcuts.Recent.Contains(session.SessionId))
+                {
+                    ScheduleShortcutRebuild();
+                }
             }
             else if (e.ListChangedType == ListChangedType.Reset)
             {
                 // clear
-                List<TreeNode> nodesToRemove = nodeRoot.Nodes.Cast<TreeNode>().ToList();
+                List<TreeNode> nodesToRemove = nodeRoot.Nodes.Cast<TreeNode>().Concat(nodePrivate.Nodes.Cast<TreeNode>()).ToList();
 
                 foreach (TreeNode node in nodesToRemove)
                 {
                     node.Remove();
                 }
+                ScheduleShortcutRebuild();
             }
             // @TODO: implement more later, note delete will be tricky...need a copy of the list
         }
@@ -315,6 +430,10 @@ namespace SuperPutty
             {
                 SessionData sessionData = (SessionData)node.Tag;
                 SuperPuTTY.OpenProtoSession(sessionData);
+            }
+            else if (IsShortcutNode(node) && node == treeView1.SelectedNode)
+            {
+                SuperPuTTY.OpenProtoSession(((SessionShortcut)node.Tag).Session);
             }
         }
 
@@ -361,7 +480,8 @@ namespace SuperPutty
             TreeNode nodeRef = nodeRoot;
             string title = null;
 
-            if (treeView1.SelectedNode == null)
+            // Favorites and Recent hold shortcuts, not sessions: new sessions from there go in Saved sessions
+            if (treeView1.SelectedNode == null || IsQuickNode(treeView1.SelectedNode))
             {
                 treeView1.SelectedNode = nodeRoot;
             }
@@ -413,8 +533,9 @@ namespace SuperPutty
                 /* "node" will only be assigned if we're editing an existing session entry */
                 if (node == null)
                 {
+                    session.IsPrivate = IsPrivateNode(nodeRef);
                     // get the path up to the ref (parent) node
-                    if (nodeRoot != nodeRef)
+                    if (nodeRef.Parent != null)
                     {
                         UpdateSessionId(nodeRef, session);
                         session.SessionId = SessionData.CombineSessionIds(session.SessionId, session.SessionName);
@@ -453,9 +574,16 @@ namespace SuperPutty
             else
                 IsDupeNode = ParentNode.Nodes.ContainsKey(NewName);
 
+            string newId = SessionData.CombineSessionIds(FolderPath(ParentNode), NewName);
+            SessionData sameId = string.IsNullOrEmpty(NewName) ? null : SuperPuTTY.GetSessionById(newId);
             if (IsDupeNode)
             {
                 Error = "Session with same name exists";
+            }
+            else if (sameId != null && (Node == null || sameId != Node.Tag))
+            {
+                // IDs must be unique across Saved and Private sessions, which can have the same folders
+                Error = "A session with this name is already in the same folder of " + (sameId.IsPrivate ? "Private sessions" : "Saved sessions");
             }
             else if (NewName.Contains(SessionIdDelim))
             {
@@ -496,6 +624,7 @@ namespace SuperPutty
                 treeView1.SelectedNode.Remove();
                 SuperPuTTY.RemoveSession(session.SessionId);
                 SuperPuTTY.SaveSessions();
+                SessionShortcuts.Forget(session.SessionId);
                 //m_SessionsById.Remove(session.SessionId);
             }
         }
@@ -640,6 +769,7 @@ namespace SuperPutty
                         foreach (SessionData session in sessions)
                         {
                             SuperPuTTY.RemoveSession(session.SessionId);
+                            SessionShortcuts.Forget(session.SessionId);
                         }
                         node.Remove();
                         SuperPuTTY.ReportStatus("Removed Folder, {0} and {1} sessions", node.Text, sessions.Count);
@@ -683,10 +813,12 @@ namespace SuperPutty
 
         private void contextMenuStripFolder_Opening(object sender, CancelEventArgs e)
         {
-            bool isRootNode = this.treeView1.SelectedNode != this.nodeRoot;
+            bool isRootNode = this.treeView1.SelectedNode != null && this.treeView1.SelectedNode.Parent != null;
             this.renameToolStripMenuItem.Enabled = isRootNode;
             // TODO: handle removing folder and nodes in it recursively
             this.removeFolderToolStripMenuItem.Enabled = isRootNode;// && this.treeView1.SelectedNode.Nodes.Count == 0;
+            this.moveFolderToolStripMenuItem.Visible = isRootNode;
+            this.moveFolderToolStripMenuItem.Text = MoveMenuText(this.treeView1.SelectedNode);
         }
 
         private void contextMenuStripAddTreeItem_Opening(object sender, CancelEventArgs e)
@@ -699,7 +831,432 @@ namespace SuperPutty
             winSCPToolStripMenuItem.Visible = SuperPuTTY.IsWinSCPEnabled;
 
             connectInNewSuperPuTTYToolStripMenuItem.Enabled = !SuperPuTTY.Settings.SingleInstanceMode;
+
+            SessionData session = this.SelectedSession;
+            this.favoriteToolStripMenuItem.Text = session != null && SessionShortcuts.IsFavorite(session.SessionId)
+                ? "Remove from Favorites" : "Add to Favorites";
+            this.moveSessionToolStripMenuItem.Text = MoveMenuText(this.treeView1.SelectedNode);
         }
+
+        /// <summary>The text of the menu item that moves a node to the other root</summary>
+        /// <param name="node">The session or folder</param>
+        /// <returns>"Move to Private sessions" or "Move to Saved sessions"</returns>
+        string MoveMenuText(TreeNode node)
+        {
+            return IsPrivateNode(node) ? "Move to Saved sessions" : "Move to Private sessions";
+        }
+
+        #region Toolbar
+
+        /// <summary>
+        /// Build the toolbar under the search box, like mRemoteNG's: new session, new folder, expand all, collapse all
+        /// and sort. It's docked between the search box and the tree.
+        /// </summary>
+        void BuildToolbar()
+        {
+            this.toolStripTree = new ToolStrip
+            {
+                Dock = DockStyle.Top,
+                GripStyle = ToolStripGripStyle.Hidden,
+                CanOverflow = false,
+                Padding = new Padding(2, 1, 2, 1)
+            };
+            this.sortToolStripButton = NewToolbarButton("", (s, e) => this.ToggleSortOrder());
+            this.toolStripTree.Items.AddRange(new ToolStripItem[]
+            {
+                NewToolbarButton("New session (in the selected folder)", (s, e) => this.NewSessionFromToolbar()),
+                NewToolbarButton("New folder (in the selected folder)", (s, e) => this.NewFolderFromToolbar()),
+                new ToolStripSeparator(),
+                NewToolbarButton("Expand all", (s, e) => this.treeView1.ExpandAll()),
+                NewToolbarButton("Collapse all", (s, e) => this.CollapseAll()),
+                new ToolStripSeparator(),
+                this.sortToolStripButton
+            });
+            this.Controls.Add(this.toolStripTree);
+            // dock order: the search box at the very top, then this toolbar, then the tree filling the rest
+            this.Controls.SetChildIndex(this.toolStripTree, this.Controls.GetChildIndex(this.panelSearch));
+        }
+
+        /// <summary>A toolbar button showing only its icon, set later by <see cref="ApplyToolbarIcons"/></summary>
+        /// <param name="toolTip">What it does</param>
+        /// <param name="click">What to do when it's clicked</param>
+        /// <returns>The button</returns>
+        ToolStripButton NewToolbarButton(string toolTip, EventHandler click)
+        {
+            ToolStripButton button = new ToolStripButton
+            {
+                DisplayStyle = ToolStripItemDisplayStyle.Image,
+                ImageScaling = ToolStripItemImageScaling.None,
+                ToolTipText = toolTip
+            };
+            button.Click += click;
+            return button;
+        }
+
+        /// <summary>Draw the toolbar's icons at the icon size chosen in Options, as the main toolbars are</summary>
+        void ApplyToolbarIcons()
+        {
+            int size = IconLibrary.ToPixels(IconLibrary.LogicalSize);
+            this.toolStripTree.ImageScalingSize = new Size(size, size);
+            string[] keys = { "newsession", "newfolder", null, "expandall", "collapseall", null, this.sortDescending ? "sortza" : "sortaz" };
+            for (int i = 0; i < keys.Length; i++)
+            {
+                if (keys[i] != null)
+                {
+                    Image old = this.toolStripTree.Items[i].Image;
+                    this.toolStripTree.Items[i].Image = IconLibrary.RenderDrawn(keys[i], size);
+                    old?.Dispose();
+                }
+            }
+            this.sortToolStripButton.ToolTipText = this.sortDescending
+                ? "Sorted Z to A: click for A to Z"
+                : "Sorted A to Z: click for Z to A (until SuperPuTTY restarts)";
+        }
+
+        /// <summary>The folder the toolbar's New buttons add to: the selected folder, or the selected session's folder</summary>
+        /// <returns>A folder or root; Saved sessions when Favorites or Recent is selected</returns>
+        TreeNode SelectedFolder()
+        {
+            TreeNode node = this.treeView1.SelectedNode;
+            if (node == null || IsQuickNode(node))
+                return this.nodeRoot;
+            return IsSessionNode(node) ? node.Parent : node;
+        }
+
+        /// <summary>Create a session in the selected folder, as its menu's "New session..." does</summary>
+        void NewSessionFromToolbar()
+        {
+            this.treeView1.SelectedNode = this.SelectedFolder();
+            this.CreateOrEditSession(0, null);
+        }
+
+        /// <summary>Create a folder in the selected folder, as its menu's "New folder" does</summary>
+        void NewFolderFromToolbar()
+        {
+            this.treeView1.SelectedNode = this.SelectedFolder();
+            this.newFolderToolStripMenuItem_Click(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Collapse everything, Favorites and Recent included, leaving Saved sessions and Private sessions open so
+        /// their top-level folders show
+        /// </summary>
+        void CollapseAll()
+        {
+            this.treeView1.CollapseAll();
+            this.nodeRoot.Expand();
+            this.nodePrivate.Expand();
+        }
+
+        /// <summary>Switch between A to Z and Z to A; folders stay first if Options says so</summary>
+        void ToggleSortOrder()
+        {
+            this.sortDescending = !this.sortDescending;
+            TreeNode selected = this.treeView1.SelectedNode;
+            this.ResortNodes();
+            this.treeView1.SelectedNode = selected;
+            this.ApplyToolbarIcons();
+        }
+
+        #endregion
+
+        #region Favorites, Recent and Private sessions
+
+        /// <summary>
+        /// Build the menus and menu items for Favorites, Recent and moving between Saved and Private sessions. They're
+        /// made here rather than in the designer file, beside the code that uses them.
+        /// </summary>
+        void BuildShortcutMenus()
+        {
+            this.favoriteToolStripMenuItem = new ToolStripMenuItem("Add to Favorites", null, (s, e) => this.ToggleFavorite(this.SelectedSession));
+            this.contextMenuStripAddTreeItem.Items.Insert(this.contextMenuStripAddTreeItem.Items.IndexOf(this.toolStripSeparator1), this.favoriteToolStripMenuItem);
+            this.moveSessionToolStripMenuItem = new ToolStripMenuItem("Move to Private sessions", null, (s, e) => this.MoveToOtherRoot(this.treeView1.SelectedNode));
+            this.contextMenuStripAddTreeItem.Items.Insert(this.contextMenuStripAddTreeItem.Items.IndexOf(this.deleteToolStripMenuItem) + 1, this.moveSessionToolStripMenuItem);
+            this.moveFolderToolStripMenuItem = new ToolStripMenuItem("Move to Private sessions", null, (s, e) => this.MoveToOtherRoot(this.treeView1.SelectedNode));
+            this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.renameToolStripMenuItem) + 1, this.moveFolderToolStripMenuItem);
+
+            ToolStripMenuItem connect = new ToolStripMenuItem("Connect", null, (s, e) => this.treeView1_NodeMouseDoubleClick(null, null));
+            connect.Font = this.connectToolStripMenuItem.Font;
+            this.shortcutFavoriteToolStripMenuItem = new ToolStripMenuItem("Add to Favorites", null, (s, e) => this.ToggleFavorite(this.SelectedSession));
+            this.shortcutRemoveToolStripMenuItem = new ToolStripMenuItem("Remove from Recent", null, (s, e) => this.RemoveShortcut(this.treeView1.SelectedNode));
+            this.contextMenuStripShortcut = new ContextMenuStrip { ShowImageMargin = false };
+            this.contextMenuStripShortcut.Items.AddRange(new ToolStripItem[]
+            {
+                connect,
+                new ToolStripMenuItem("Show in Sessions tree", null, (s, e) => this.ShowInTree(this.SelectedSession)),
+                new ToolStripSeparator(),
+                this.shortcutFavoriteToolStripMenuItem,
+                this.shortcutRemoveToolStripMenuItem
+            });
+            this.contextMenuStripShortcut.Opening += this.contextMenuStripShortcut_Opening;
+
+            this.contextMenuStripRecentGroup = new ContextMenuStrip { ShowImageMargin = false };
+            this.contextMenuStripRecentGroup.Items.Add("Clear Recent", null, (s, e) => SessionShortcuts.ClearRecent());
+        }
+
+        /// <summary>Set the Favorites and Recent entry menu for the entry right-clicked</summary>
+        /// <param name="sender">The menu</param>
+        /// <param name="e">Not used</param>
+        void contextMenuStripShortcut_Opening(object sender, CancelEventArgs e)
+        {
+            SessionShortcut shortcut = this.treeView1.SelectedNode?.Tag as SessionShortcut;
+            if (shortcut == null)
+            {
+                e.Cancel = true;
+                return;
+            }
+            bool favorite = SessionShortcuts.IsFavorite(shortcut.Session.SessionId);
+            // in Favorites, "Remove from Favorites" is the remove item, so the toggle would only repeat it
+            this.shortcutFavoriteToolStripMenuItem.Visible = shortcut.Group == RootKind.Recent;
+            this.shortcutFavoriteToolStripMenuItem.Text = favorite ? "Remove from Favorites" : "Add to Favorites";
+            this.shortcutRemoveToolStripMenuItem.Text = shortcut.Group == RootKind.Favorites ? "Remove from Favorites" : "Remove from Recent";
+        }
+
+        /// <summary>Add a session to Favorites, or remove it if it's there</summary>
+        /// <param name="session">The session; nothing happens if null</param>
+        void ToggleFavorite(SessionData session)
+        {
+            if (session == null)
+                return;
+            if (SessionShortcuts.IsFavorite(session.SessionId))
+                SessionShortcuts.RemoveFavorite(session.SessionId);
+            else
+                SessionShortcuts.AddFavorite(session.SessionId);
+        }
+
+        /// <summary>Remove a Favorites or Recent entry from its group; the session itself stays</summary>
+        /// <param name="node">The entry</param>
+        void RemoveShortcut(TreeNode node)
+        {
+            SessionShortcut shortcut = node?.Tag as SessionShortcut;
+            if (shortcut == null)
+                return;
+            if (shortcut.Group == RootKind.Favorites)
+                SessionShortcuts.RemoveFavorite(shortcut.Session.SessionId);
+            else
+                SessionShortcuts.RemoveRecent(shortcut.Session.SessionId);
+        }
+
+        /// <summary>Select a session's own node, in Saved or Private sessions, opening its folders</summary>
+        /// <param name="session">The session</param>
+        void ShowInTree(SessionData session)
+        {
+            TreeNode node = session == null ? null : FindSessionNode(session.SessionId);
+            if (node != null)
+            {
+                this.treeView1.SelectedNode = node;
+                node.EnsureVisible();
+                this.treeView1.Focus();
+            }
+        }
+
+        /// <summary>Redraw Favorites and Recent when their lists change</summary>
+        /// <param name="sender">Not used</param>
+        /// <param name="e">Not used</param>
+        void SessionShortcuts_Changed(object sender, EventArgs e)
+        {
+            ScheduleShortcutRebuild();
+        }
+
+        /// <summary>
+        /// Redraw Favorites and Recent once the current change is done. Several changes in a row (a reload adds
+        /// sessions one at a time) make one redraw.
+        /// </summary>
+        void ScheduleShortcutRebuild()
+        {
+            if (!this.IsHandleCreated)
+            {
+                // not shown yet: LoadSessions draws them when it is
+                return;
+            }
+            if (!this.shortcutRebuildPending)
+            {
+                this.shortcutRebuildPending = true;
+                this.BeginInvoke((MethodInvoker)delegate
+                {
+                    this.shortcutRebuildPending = false;
+                    this.BuildShortcutGroups();
+                });
+            }
+        }
+
+        /// <summary>
+        /// Fill the Favorites and Recent groups from <see cref="SessionShortcuts"/>, showing each only when it has a
+        /// session to show (and Recent only when Options says so). The search filter applies to them too.
+        /// </summary>
+        void BuildShortcutGroups()
+        {
+            if (this.nodeRoot == null)
+                return;
+            SessionShortcut selected = this.treeView1.SelectedNode?.Tag as SessionShortcut;
+            this.nodeFavorites = BuildShortcutGroup(this.nodeFavorites, RootKind.Favorites, "Favorites", ImageKeyFavorites,
+                SessionShortcuts.Favorites, true);
+            this.nodeRecent = BuildShortcutGroup(this.nodeRecent, RootKind.Recent, "Recent", ImageKeyRecent,
+                SessionShortcuts.Recent, SuperPuTTY.Settings.SessionsShowRecent);
+
+            // rebuilding drops the selection; keep it on the same entry (e.g. one just opened from Recent)
+            if (selected != null)
+            {
+                TreeNode group = selected.Group == RootKind.Favorites ? this.nodeFavorites : this.nodeRecent;
+                TreeNode same = group?.Nodes.Cast<TreeNode>().FirstOrDefault(n => ((SessionShortcut)n.Tag).Session == selected.Session);
+                if (same != null)
+                {
+                    this.treeView1.SelectedNode = same;
+                }
+            }
+        }
+
+        /// <summary>Fill one of the Favorites and Recent groups, adding or removing its node as needed</summary>
+        /// <param name="group">The group's node, or null if it isn't shown</param>
+        /// <param name="kind">Which group</param>
+        /// <param name="text">Its title</param>
+        /// <param name="imageKey">Its icon</param>
+        /// <param name="ids">The session IDs it lists, in order; IDs of sessions that no longer exist are skipped</param>
+        /// <param name="show">false to hide the group</param>
+        /// <returns>The group's node, or null if it's hidden</returns>
+        TreeNode BuildShortcutGroup(TreeNode group, RootKind kind, string text, string imageKey, IList<string> ids, bool show)
+        {
+            List<SessionData> sessions = !show ? new List<SessionData>() : ids
+                .Select(SuperPuTTY.GetSessionById)
+                .Where(session => session != null && (this.filter == null || this.filter(session)))
+                .ToList();
+            if (sessions.Count == 0)
+            {
+                group?.Remove();
+                return null;
+            }
+
+            bool expand = group == null || group.IsExpanded;
+            if (group == null)
+            {
+                string key = IsValidImage(imageKey) ? imageKey : ImageKeyFolder;
+                group = this.treeView1.Nodes.Add(kind.ToString(), text, key, key);
+                group.Tag = kind;
+                group.ContextMenuStrip = kind == RootKind.Recent ? this.contextMenuStripRecentGroup : null;
+            }
+            group.Nodes.Clear();
+            for (int i = 0; i < sessions.Count; i++)
+            {
+                SessionData session = sessions[i];
+                string key = IsValidImage(session.ImageKey) ? session.ImageKey : ImageKeySession;
+                TreeNode node = group.Nodes.Add(session.SessionId, session.SessionName, key, key);
+                node.Tag = new SessionShortcut { Session = session, Group = kind, Order = i };
+                node.ContextMenuStrip = this.contextMenuStripShortcut;
+                string folder = SessionData.GetSessionParentId(session.SessionId);
+                node.ToolTipText = (session.IsPrivate ? "Private sessions" : "Saved sessions") + (folder == null ? "" : "/" + folder)
+                    + Environment.NewLine + session.ToString();
+            }
+            if (expand)
+            {
+                group.Expand();
+            }
+            return group;
+        }
+
+        /// <summary>
+        /// Move a session or folder between Saved sessions and Private sessions, into the same folder path, creating
+        /// folders as needed; then save both files
+        /// </summary>
+        /// <param name="node">The session or folder</param>
+        void MoveToOtherRoot(TreeNode node)
+        {
+            if (node == null || node.Parent == null || IsQuickNode(node))
+                return;
+            TreeNode otherRoot = IsPrivateNode(node) ? this.nodeRoot : this.nodePrivate;
+            TreeNode target = FindOrCreateParentNode(otherRoot, SessionData.CombineSessionIds(FolderPath(node.Parent), node.Text));
+            if (target.Nodes.ContainsKey(node.Text))
+            {
+                Messenger.MessageBox("\"" + node.Text + "\" is already in " + otherRoot.Text + ". Rename one of them first.",
+                    "Move", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            TreeNode moved = this.MoveNode(node, target);
+            if (moved != null)
+            {
+                SuperPuTTY.SaveSessions();
+                this.treeView1.SelectedNode = moved;
+                moved.EnsureVisible();
+                SuperPuTTY.ReportStatus("Moved {0} to {1}", moved.Text, otherRoot.Text);
+            }
+        }
+
+        /// <summary>
+        /// Move a session or folder node into a folder, in either root: its sessions get IDs for their new place,
+        /// and become private or shared to match the root. Doesn't save.
+        /// </summary>
+        /// <param name="nodePayload">The session or folder to move</param>
+        /// <param name="target">The folder or root to move it into</param>
+        /// <returns>The node in its new place, or null if a session there would have the same ID as one elsewhere</returns>
+        TreeNode MoveNode(TreeNode nodePayload, TreeNode target)
+        {
+            string conflict = FindMoveConflict(nodePayload, target);
+            if (conflict != null)
+            {
+                Messenger.MessageBox("There is already a session " + conflict + ". Rename one of them first.",
+                    "Move", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return null;
+            }
+
+            TreeNode nodeNew = (TreeNode)nodePayload.Clone();
+            // If node was expanded before, ensure new node is also expanded when moved
+            if (nodePayload.IsExpanded)
+            {
+                nodeNew.Expand();
+            }
+            nodePayload.Remove();
+            target.Nodes.Add(nodeNew);
+
+            List<SessionData> sessions = new List<SessionData>();
+            if (IsSessionNode(nodeNew))
+                sessions.Add((SessionData)nodeNew.Tag);
+            else
+                GetAllSessions(nodeNew, sessions);
+            bool isPrivate = IsPrivateNode(target);
+            foreach (SessionData session in sessions)
+            {
+                session.IsPrivate = isPrivate;
+            }
+
+            if (IsSessionNode(nodeNew))
+            {
+                UpdateSessionId(nodeNew, (SessionData)nodeNew.Tag);
+            }
+            else
+            {
+                // every level below, not just the folder's own sessions, so sessions in subfolders follow too
+                UpdateSessionId(nodeNew);
+            }
+            target.Expand();
+            return nodeNew;
+        }
+
+        /// <summary>The ID a moved session would get that another session already has, if any</summary>
+        /// <param name="nodePayload">The session or folder being moved</param>
+        /// <param name="target">Where it's going</param>
+        /// <returns>The clashing ID, or null if there's none</returns>
+        string FindMoveConflict(TreeNode nodePayload, TreeNode target)
+        {
+            List<SessionData> sessions = new List<SessionData>();
+            if (IsSessionNode(nodePayload))
+                sessions.Add((SessionData)nodePayload.Tag);
+            else
+                GetAllSessions(nodePayload, sessions);
+            string oldPrefix = FolderPath(nodePayload.Parent);
+            string newPrefix = FolderPath(target);
+            foreach (SessionData session in sessions)
+            {
+                string relative = oldPrefix == null ? session.SessionId : session.SessionId.Substring(oldPrefix.Length + 1);
+                string newId = SessionData.CombineSessionIds(newPrefix, relative);
+                SessionData existing = SuperPuTTY.GetSessionById(newId);
+                if (existing != null && !sessions.Contains(existing))
+                {
+                    return newId;
+                }
+            }
+            return null;
+        }
+
+        #endregion
 
         #region Node helpers
 
@@ -752,9 +1309,65 @@ namespace SuperPutty
             return node != null && node.Tag is SessionData;
         }
 
+        /// <summary>Whether a node is a folder or one of the Saved and Private sessions roots</summary>
+        /// <param name="node">The node</param>
+        /// <returns>false for sessions, the Favorites and Recent groups and their entries</returns>
         bool IsFolderNode(TreeNode node)
         {
-            return !IsSessionNode(node);
+            return !IsSessionNode(node) && !IsQuickNode(node);
+        }
+
+        /// <summary>Whether a node is an entry in Favorites or Recent</summary>
+        /// <param name="node">The node</param>
+        /// <returns>true for shortcut entries</returns>
+        bool IsShortcutNode(TreeNode node)
+        {
+            return node != null && node.Tag is SessionShortcut;
+        }
+
+        /// <summary>Whether a node is the Favorites or Recent group, or an entry in one</summary>
+        /// <param name="node">The node</param>
+        /// <returns>true for those groups and their entries</returns>
+        bool IsQuickNode(TreeNode node)
+        {
+            if (node == null)
+                return false;
+            TreeNode root = RootOf(node);
+            return root == this.nodeFavorites || root == this.nodeRecent || IsShortcutNode(node);
+        }
+
+        /// <summary>The top-level node a node is under</summary>
+        /// <param name="node">The node</param>
+        /// <returns>Its root, or the node itself if it's a root</returns>
+        TreeNode RootOf(TreeNode node)
+        {
+            while (node != null && node.Parent != null)
+            {
+                node = node.Parent;
+            }
+            return node;
+        }
+
+        /// <summary>Whether a node is in Private sessions (or is that root)</summary>
+        /// <param name="node">The node</param>
+        /// <returns>true under Private sessions</returns>
+        bool IsPrivateNode(TreeNode node)
+        {
+            return node != null && RootOf(node) == this.nodePrivate;
+        }
+
+        /// <summary>A folder's path as used in session IDs, e.g. "Lab/Core"</summary>
+        /// <param name="folder">The folder, or a root</param>
+        /// <returns>The path, or null for a root</returns>
+        string FolderPath(TreeNode folder)
+        {
+            List<string> names = new List<string>();
+            for (TreeNode node = folder; node != null && node.Parent != null; node = node.Parent)
+            {
+                names.Add(node.Text);
+            }
+            names.Reverse();
+            return names.Count == 0 ? null : string.Join(SessionIdDelim, names);
         }
 
         private void UpdateSessionId(TreeNode parentNode)
@@ -788,10 +1401,14 @@ namespace SuperPutty
             //session.SaveToRegistry();
         }
 
-        TreeNode FindOrCreateParentNode(string sessionId)
+        /// <summary>The folder a session ID belongs in, under a root, creating folders that don't exist yet</summary>
+        /// <param name="root">Saved sessions or Private sessions</param>
+        /// <param name="sessionId">The session ID, e.g. "Lab/Core/sw1"</param>
+        /// <returns>The folder, e.g. Lab/Core; the root for an ID without a folder</returns>
+        TreeNode FindOrCreateParentNode(TreeNode root, string sessionId)
         {
             Log.DebugFormat("Finding Parent Node for sessionId ({0})", sessionId);
-            TreeNode nodeParent = this.nodeRoot;
+            TreeNode nodeParent = root;
 
             string[] parts = sessionId.Split(SessionIdDelim.ToCharArray());
             if (parts.Length > 1)
@@ -815,11 +1432,27 @@ namespace SuperPutty
             return nodeParent;
         }
 
+        /// <summary>A session's node, in Saved sessions or Private sessions</summary>
+        /// <param name="SessionId">The session's ID</param>
+        /// <returns>The node, or null if it isn't shown</returns>
         TreeNode FindSessionNode(String SessionId)
         {
+            return FindSessionNode(this.nodeRoot, SessionId) ?? FindSessionNode(this.nodePrivate, SessionId);
+        }
+
+        /// <summary>A session's node under one root</summary>
+        /// <param name="root">Saved sessions or Private sessions</param>
+        /// <param name="SessionId">The session's ID</param>
+        /// <returns>The node, or null if it isn't there</returns>
+        TreeNode FindSessionNode(TreeNode root, String SessionId)
+        {
             Log.DebugFormat("Finding Node for sessionId ({0})", SessionId);
-            TreeNode CurrentNode = this.nodeRoot;
+            TreeNode CurrentNode = root;
             TreeNode NodeToReturn = null;
+            if (root == null || SessionId == null)
+            {
+                return null;
+            }
 
             string[] Parts = SessionId.Split(SessionIdDelim.ToCharArray());
             if (Parts.Length > 0)
@@ -851,7 +1484,22 @@ namespace SuperPutty
         {
             TreeNode tx = x as TreeNode;
             TreeNode ty = y as TreeNode;
-            return CompareNodes(tx.Text, IsFolderNode(tx), ty.Text, IsFolderNode(ty), SuperPuTTY.Settings.SessiontreeShowFoldersFirst);
+            // the top level keeps a fixed order: Favorites, Recent, Saved sessions, Private sessions
+            if (tx.Tag is RootKind && ty.Tag is RootKind)
+            {
+                return ((RootKind)tx.Tag).CompareTo((RootKind)ty.Tag);
+            }
+            // Recent is most recent first, not by name
+            SessionShortcut sx = tx.Tag as SessionShortcut, sy = ty.Tag as SessionShortcut;
+            if (sx != null && sy != null && sx.Group == RootKind.Recent)
+            {
+                return sx.Order.CompareTo(sy.Order);
+            }
+            bool foldersFirst = SuperPuTTY.Settings.SessiontreeShowFoldersFirst;
+            int order = CompareNodes(tx.Text, IsFolderNode(tx), ty.Text, IsFolderNode(ty), foldersFirst);
+            // Z to A reverses names only; folders stay before sessions
+            bool byKind = foldersFirst && IsFolderNode(tx) != IsFolderNode(ty);
+            return this.sortDescending && !byKind ? -order : order;
         }
 
         /// <summary>
@@ -954,7 +1602,8 @@ namespace SuperPutty
 
             // Start the drag-and-drop operation with a cloned copy of the node.
             //if (node != null && IsSessionNode(node))
-            if (node != null && tree.Nodes[0] != node)
+            // the top-level nodes and the Favorites and Recent entries stay where they are
+            if (node != null && node.Parent != null && !IsQuickNode(node))
             {
                 this.treeView1.DoDragDrop(node, DragDropEffects.Copy);
             }
@@ -979,8 +1628,13 @@ namespace SuperPutty
                 pt = tree.PointToClient(pt);
 
                 TreeNode node = tree.GetNodeAt(pt);
+                // a session dropped on Favorites becomes a favourite
+                if (node != null && RootOf(node) == this.nodeFavorites && IsSessionNode(nodePayload))
+                {
+                    e.Effect = DragDropEffects.Copy;
+                }
                 // Is the mouse over a valid node?
-                if (node != null && node != nodePayload && nodePayload.Nodes.Find(node.Text, true).Length == 0)
+                else if (node != null && node != nodePayload && nodePayload.Nodes.Find(node.Text, true).Length == 0)
                 {
                     tree.SelectedNode = node;
                     // folder that is not the same parent and new node name is not already present
@@ -1006,39 +1660,20 @@ namespace SuperPutty
             // Get the node underneath the mouse.
             TreeNode node = tree.GetNodeAt(pt);
 
-            if (IsFolderNode(node))
+            TreeNode nodeDropped = (TreeNode)e.Data.GetData(typeof(TreeNode));
+            if (node != null && RootOf(node) == this.nodeFavorites && IsSessionNode(nodeDropped))
+            {
+                SessionShortcuts.AddFavorite(((SessionData)nodeDropped.Tag).SessionId);
+            }
+            else if (node != null && IsFolderNode(node))
             {
                 Log.DebugFormat("Drag drop");
 
-                TreeNode nodePayload = (TreeNode)e.Data.GetData(typeof(TreeNode));
-                TreeNode nodeNew = (TreeNode)nodePayload.Clone();
-
-                // If node was expanded before, ensure new node is also expanded when moved
-                if (nodePayload.IsExpanded)
+                // into another folder or root; dropping into Private sessions makes the sessions private
+                if (this.MoveNode(nodeDropped, node) == null)
                 {
-                    nodeNew.Expand();
+                    return;
                 }
-
-                // remove old
-                nodePayload.Remove();
-
-                // add new
-                node.Nodes.Add(nodeNew);
-                UpdateSessionId(nodeNew, (SessionData)nodeNew.Tag); //
-
-                // If this a folder, reset it's childrens sessionIds, at every level below, so sessions in subfolders
-                // follow too (resetFoldersChildrenPaths only did the folder's own sessions)
-                if (IsFolderNode(nodeNew))
-                {
-                    UpdateSessionId(nodeNew);
-                    
-                }
-
-                // remove old
-                nodePayload.Remove();
-
-                // Show the newly added node if it is not already visible.
-                node.Expand();
 
                 // auto save settings...use timer to prevent excessive saves while dragging and dropping nodes
                 timerDelayedSave.Stop();
@@ -1296,7 +1931,12 @@ namespace SuperPutty
         #region Key Handling
         private void treeView1_KeyPress(object sender, KeyPressEventArgs e)
         {
-            if (e.KeyChar == (char)13 && IsSessionNode(this.treeView1.SelectedNode))
+            if (e.KeyChar == (char)13 && IsShortcutNode(this.treeView1.SelectedNode))
+            {
+                treeView1_NodeMouseDoubleClick(null, null);
+                e.Handled = true;
+            }
+            else if (e.KeyChar == (char)13 && IsSessionNode(this.treeView1.SelectedNode))
             {
                 if (Control.ModifierKeys == Keys.None)
                 {
@@ -1313,7 +1953,18 @@ namespace SuperPutty
 
         private void treeView1_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Delete)
+            if (e.KeyCode == Keys.Delete && (treeView1.SelectedNode == null || treeView1.SelectedNode.Parent == null))
+            {
+                // the top-level nodes can't be deleted
+                e.Handled = true;
+            }
+            else if (e.KeyCode == Keys.Delete && IsShortcutNode(treeView1.SelectedNode))
+            {
+                // Delete on a Favorites or Recent entry removes the entry, not the session
+                RemoveShortcut(treeView1.SelectedNode);
+                e.Handled = true;
+            }
+            else if (e.KeyCode == Keys.Delete)
             {
                 if (IsFolderNode(treeView1.SelectedNode))
                 {

@@ -77,6 +77,8 @@ namespace SuperPutty.Gui
             AddGeneral("bolt", "Lightning", Color.FromArgb(0xF9, 0xA8, 0x25), PaintBolt);
             AddGeneral("tv", "Television", Color.FromArgb(0x60, 0x7D, 0x8B), PaintTv);
             AddGeneral("mobile", "Mobile device", Color.FromArgb(0x60, 0x7D, 0x8B), PaintMobile);
+            AddGeneral("star", "Star", Color.FromArgb(0xF9, 0xA8, 0x25), PaintStar);
+            AddGeneral("lock", "Padlock", Color.FromArgb(0x60, 0x7D, 0x8B), PaintLock);
 
             // toolbar glyphs: drawn the same way so they match and scale with the icons, but not offered for sessions
             AddGlyph("check", Color.FromArgb(0x2E, 0x9E, 0x44), PaintCheck);
@@ -87,6 +89,13 @@ namespace SuperPutty.Gui
             AddGlyph("stop", Color.FromArgb(0xD3, 0x2F, 0x2F), PaintStop);
             AddGlyph("script", Color.FromArgb(0x1E, 0x63, 0xB4), PaintScript);
             AddGlyph("selecttabs", Color.FromArgb(0x1E, 0x63, 0xB4), PaintSelectTabs);
+            AddGlyph("search", Color.FromArgb(0x1E, 0x63, 0xB4), PaintSearch);
+            AddGlyph("newsession", Color.FromArgb(0x2E, 0x9E, 0x44), PaintNewSession);
+            AddGlyph("newfolder", Color.FromArgb(0x2E, 0x9E, 0x44), PaintNewFolder);
+            AddGlyph("expandall", Color.FromArgb(0x60, 0x7D, 0x8B), (g, c) => PaintTreeBox(g, c, true));
+            AddGlyph("collapseall", Color.FromArgb(0x60, 0x7D, 0x8B), (g, c) => PaintTreeBox(g, c, false));
+            AddGlyph("sortaz", Color.FromArgb(0x1E, 0x63, 0xB4), (g, c) => PaintSort(g, c, "A", "Z"));
+            AddGlyph("sortza", Color.FromArgb(0x1E, 0x63, 0xB4), (g, c) => PaintSort(g, c, "Z", "A"));
         }
 
         /// <summary>Register a template</summary>
@@ -877,6 +886,43 @@ namespace SuperPutty.Gui
             }
         }
 
+        /// <summary>Star: a five-pointed star, the Sessions tree's Favorites</summary>
+        private static void PaintStar(Graphics g, Color body)
+        {
+            PointF[] points = new PointF[10];
+            for (int i = 0; i < 10; i++)
+            {
+                double a = -Math.PI / 2 + i * Math.PI / 5;
+                float r = i % 2 == 0 ? 0.47f : 0.2f;
+                points[i] = new PointF(0.5f + (float)Math.Cos(a) * r, 0.53f + (float)Math.Sin(a) * r);
+            }
+            using (GraphicsPath star = new GraphicsPath())
+            {
+                star.AddPolygon(points);
+                FillBody(g, star, body);
+            }
+        }
+
+        /// <summary>Padlock: a shackle over a coloured body with a keyhole, the Sessions tree's private sessions</summary>
+        private static void PaintLock(Graphics g, Color body)
+        {
+            using (Pen shackle = new Pen(Shade(body, -0.2f), 0.1f))
+            {
+                g.DrawArc(shackle, 0.29f, 0.1f, 0.42f, 0.5f, 180, 180);
+                g.DrawLine(shackle, 0.29f, 0.35f, 0.29f, 0.48f);
+                g.DrawLine(shackle, 0.71f, 0.35f, 0.71f, 0.48f);
+            }
+            using (GraphicsPath lockBody = RoundRect(new RectangleF(0.17f, 0.44f, 0.66f, 0.5f), 0.08f))
+            {
+                FillBody(g, lockBody, body);
+            }
+            using (Brush hole = new SolidBrush(Glyph))
+            {
+                g.FillEllipse(hole, 0.43f, 0.56f, 0.14f, 0.14f);
+                g.FillRectangle(hole, 0.47f, 0.64f, 0.06f, 0.16f);
+            }
+        }
+
         /// <summary>Help: a question mark on a disc</summary>
         private static void PaintHelp(Graphics g, Color body)
         {
@@ -1039,6 +1085,76 @@ namespace SuperPutty.Gui
             using (Brush bar = new SolidBrush(Glyph))
             {
                 g.FillRectangle(bar, 0.26f, 0.44f, 0.48f, 0.12f);
+            }
+        }
+
+        /// <summary>Search: a white magnifying glass on a disc</summary>
+        private static void PaintSearch(Graphics g, Color body)
+        {
+            Disc(g, body);
+            using (Pen glass = new Pen(Glyph, 0.08f))
+            using (Pen handle = new Pen(Glyph, 0.11f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                g.DrawEllipse(glass, 0.28f, 0.26f, 0.3f, 0.3f);
+                g.DrawLine(handle, 0.54f, 0.53f, 0.7f, 0.69f);
+            }
+        }
+
+        /// <summary>A small disc with a white plus in the bottom-right corner, for "new ..." buttons</summary>
+        private static void PlusBadge(Graphics g, Color body)
+        {
+            using (GraphicsPath path = new GraphicsPath())
+            {
+                path.AddEllipse(0.5f, 0.5f, 0.48f, 0.48f);
+                FillBody(g, path, body);
+            }
+            using (Pen plus = new Pen(Glyph, 0.08f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                g.DrawLine(plus, 0.74f, 0.62f, 0.74f, 0.86f);
+                g.DrawLine(plus, 0.62f, 0.74f, 0.86f, 0.74f);
+            }
+        }
+
+        /// <summary>New session: a grey workstation with a plus badge</summary>
+        private static void PaintNewSession(Graphics g, Color body)
+        {
+            PaintWorkstation(g, Color.FromArgb(0x60, 0x7D, 0x8B));
+            PlusBadge(g, body);
+        }
+
+        /// <summary>New folder: a folder with a plus badge</summary>
+        private static void PaintNewFolder(Graphics g, Color body)
+        {
+            PaintFolder(g, Color.FromArgb(0xF2, 0xB1, 0x34));
+            PlusBadge(g, body);
+        }
+
+        /// <summary>Expand all / collapse all: a tree's plus or minus box</summary>
+        private static void PaintTreeBox(Graphics g, Color body, bool plus)
+        {
+            using (GraphicsPath box = RoundRect(new RectangleF(0.12f, 0.12f, 0.76f, 0.76f), 0.12f))
+            {
+                FillBody(g, box, body);
+            }
+            using (Pen line = new Pen(Glyph, 0.1f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                g.DrawLine(line, 0.3f, 0.5f, 0.7f, 0.5f);
+                if (plus)
+                {
+                    g.DrawLine(line, 0.5f, 0.3f, 0.5f, 0.7f);
+                }
+            }
+        }
+
+        /// <summary>Sort: two letters, one above the other, beside a downward arrow, on a disc</summary>
+        private static void PaintSort(Graphics g, Color body, string top, string bottom)
+        {
+            Disc(g, body);
+            CentredText(g, top, new RectangleF(0.14f, 0.16f, 0.4f, 0.34f), 0.32f, Glyph);
+            CentredText(g, bottom, new RectangleF(0.14f, 0.48f, 0.4f, 0.34f), 0.32f, Glyph);
+            using (Brush arrow = new SolidBrush(Glyph))
+            {
+                Arrow(g, arrow, new PointF(0.66f, 0.22f), new PointF(0.66f, 0.8f), 0.08f, 0.16f);
             }
         }
 

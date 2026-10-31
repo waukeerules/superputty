@@ -1045,7 +1045,16 @@ namespace SuperPutty
                 {
                     // load new one
                     Log.DebugFormat("Loading layout: {0}", eventArgs.New.FilePath);
-                    this.DockPanel.LoadFromXml(eventArgs.New.FilePath, RestoreLayoutFromPersistString);
+                    try
+                    {
+                        // sessions a layout reopens aren't "recently opened" by the user
+                        SuperPuTTY.IsRestoringLayout = true;
+                        this.DockPanel.LoadFromXml(eventArgs.New.FilePath, RestoreLayoutFromPersistString);
+                    }
+                    finally
+                    {
+                        SuperPuTTY.IsRestoringLayout = false;
+                    }
                     toolStripStatusLabelLayout.Text = eventArgs.New.Name;
                     SuperPuTTY.ReportStatus("Loaded layout: {0}", eventArgs.New.FilePath);
                 }

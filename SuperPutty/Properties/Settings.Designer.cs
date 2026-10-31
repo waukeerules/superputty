@@ -724,6 +724,19 @@ namespace SuperPutty.Properties {
                 this["SessiontreeShowFoldersFirst"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool SessionsShowRecent {
+            get {
+                return ((bool)(this["SessionsShowRecent"]));
+            }
+            set {
+                this["SessionsShowRecent"] = value;
+            }
+        }
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]

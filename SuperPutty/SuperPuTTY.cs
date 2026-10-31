@@ -285,43 +285,112 @@ namespace SuperPutty
         /// <summary>Returns A string containing the path to the saved sessions database on disk</summary>
         private static string SessionsFileName { get { return Path.Combine(Settings.SettingsFolder, "Sessions.xml"); } }
 
-        /// <summary>Load sessions database from file into the application</summary>
+        /// <summary>
+        /// The folder holding this user's own files: SuperXPuTTY.settings, EnvironmentVariables.json,
+        /// SessionShortcuts.json and PrivateSessions.xml. Unlike <see cref="Settings"/>.SettingsFolder, it's never shared.
+        /// </summary>
+        public static string UserSettingsFolder
+        {
+            get
+            {
+                return Path.GetDirectoryName(Settings.SettingsFilePath ?? Path.Combine(Application.UserAppDataPath, "SuperXPuTTY.settings"));
+            }
+        }
+
+        /// <summary>
+        /// The user's private sessions: sessions kept out of the shared Sessions.xml, shown under "Private sessions"
+        /// in the tree (see <see cref="SessionData.IsPrivate"/>). Set it to read and write elsewhere (tests).
+        /// </summary>
+        public static string PrivateSessionsFileName
+        {
+            get { return privateSessionsFileName ?? Path.Combine(UserSettingsFolder, "PrivateSessions.xml"); }
+            set { privateSessionsFileName = value; }
+        }
+        private static string privateSessionsFileName;
+
+        /// <summary>True while frmSuperPutty is reopening a layout's sessions, so they aren't added to Recent</summary>
+        public static bool IsRestoringLayout { get; set; }
+
+        /// <summary>
+        /// Load the sessions from Sessions.xml and the user's PrivateSessions.xml into the application. A private
+        /// session whose ID is already taken by a shared one gets a new ID, since IDs must be unique.
+        /// </summary>
         public static void LoadSessions()
         {
             string fileName = SessionsFileName;
-            Log.InfoFormat($"Loading all sessions.  file={fileName}");
+            string privateFileName = PrivateSessionsFileName;
+            Log.InfoFormat($"Loading all sessions.  file={fileName}, private={privateFileName}");
 
+            List<SessionData> sessions = null;
+            List<SessionData> privateSessions = null;
             try
             {
                 if (File.Exists(fileName))
                 {
-                    List<SessionData> sessions = SessionData.LoadSessionsFromFile(fileName);
-                    // remove old
-                    sessionsMap.Clear();
-                    sessionsList.Clear();
-
-                    foreach (SessionData session in sessions)
-                    {
-                        AddSession(session);
-                    }
+                    sessions = SessionData.LoadSessionsFromFile(fileName);
                 }
                 else
                 {
                     Log.WarnFormat($"Sessions file does not exist, nothing loaded.  file={fileName}");
                 }
-
             }
             catch (Exception ex)
             {
                 Log.Error($"Error while loading sessions from {fileName}", ex);
             }
+            try
+            {
+                if (File.Exists(privateFileName))
+                {
+                    privateSessions = SessionData.LoadSessionsFromFile(privateFileName);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Error while loading private sessions from {privateFileName}", ex);
+            }
+
+            if (sessions == null && privateSessions == null)
+            {
+                return;
+            }
+
+            // remove old
+            sessionsMap.Clear();
+            sessionsList.Clear();
+
+            foreach (SessionData session in sessions ?? new List<SessionData>())
+            {
+                AddSession(session);
+            }
+            foreach (SessionData session in privateSessions ?? new List<SessionData>())
+            {
+                session.IsPrivate = true;
+                if (GetSessionById(session.SessionId) != null)
+                {
+                    string newId = MakeUniqueSessionId(session.SessionId);
+                    Log.WarnFormat($"Private session {session.SessionId} has the same ID as a shared one; renamed to {newId}");
+                    session.SessionId = newId;
+                    session.SessionName = SessionData.GetSessionNameFromId(newId);
+                }
+                AddSession(session);
+            }
         }
 
-        /// <summary>Save in-application Session Database to XML File</summary>
+        /// <summary>
+        /// Save the sessions: shared ones to Sessions.xml in the settings folder, private ones to the user's
+        /// PrivateSessions.xml. The private file is written only once there is, or was, a private session.
+        /// </summary>
         public static void SaveSessions()
         {
             Log.InfoFormat("Saving all sessions");
-            SessionData.SaveSessionsToFile(GetAllSessions(), SessionsFileName);
+            List<SessionData> all = GetAllSessions();
+            SessionData.SaveSessionsToFile(all.Where(s => !s.IsPrivate).ToList(), SessionsFileName);
+            List<SessionData> privateSessions = all.Where(s => s.IsPrivate).ToList();
+            if (privateSessions.Count > 0 || File.Exists(PrivateSessionsFileName))
+            {
+                SessionData.SaveSessionsToFile(privateSessions, PrivateSessionsFileName);
+            }
         }
 
         /// <summary>
@@ -479,6 +548,12 @@ namespace SuperPutty
                     // terminal on the first tab, and the server then wraps its output at that width.
                     panel.AppPanel.StartApplication("Opened");
                     ReportStatus($"Opened session: {session.SessionId} [{session.Proto}]");
+
+                    // only saved sessions the user opens go in Recent: not quick connections, nor a layout's sessions
+                    if (!IsRestoringLayout && GetSessionById(session.SessionId) == session)
+                    {
+                        SessionShortcuts.AddRecent(session.SessionId);
+                    }
 
                     if (!string.IsNullOrWhiteSpace(session.SPSLFileName))
                     {

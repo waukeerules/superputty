@@ -87,6 +87,15 @@ namespace SuperPutty.Data
         }
         internal string OldSessionId { get; set; }
 
+        /// <summary>
+        /// Whether this is one of the user's private sessions: kept in PrivateSessions.xml beside the user's settings
+        /// instead of the shared Sessions.xml, and shown under "Private sessions" in the tree. Not written to either
+        /// file; which file a session is in says it.
+        /// </summary>
+        [XmlIgnore]
+        [Browsable(false)]
+        public bool IsPrivate { get; set; }
+
         private string _OldName;
         [XmlIgnore]
         [Browsable(false)]

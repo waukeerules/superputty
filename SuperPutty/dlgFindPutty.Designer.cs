@@ -67,6 +67,7 @@
             this.checkSessionsShowSearch = new System.Windows.Forms.CheckBox();
             this.checkBoxCheckForUpdates = new System.Windows.Forms.CheckBox();
             this.checkSessionTreeFoldersFirst = new System.Windows.Forms.CheckBox();
+            this.checkSessionsShowRecent = new System.Windows.Forms.CheckBox();
             this.checkBoxPersistTsHistory = new System.Windows.Forms.CheckBox();
             this.numericUpDown1 = new System.Windows.Forms.NumericUpDown();
             this.checkFilterWhileTyping = new System.Windows.Forms.CheckBox();
@@ -622,6 +623,18 @@
             this.checkSessionTreeFoldersFirst.Text = "Show folders first";
             this.toolTip.SetToolTip(this.checkSessionTreeFoldersFirst, "List folders before sessions in the Sessions tree");
             this.checkSessionTreeFoldersFirst.UseVisualStyleBackColor = true;
+            // 
+            // checkSessionsShowRecent
+            // 
+            this.checkSessionsShowRecent.AutoSize = true;
+            this.checkSessionsShowRecent.Location = new System.Drawing.Point(260, 146);
+            this.checkSessionsShowRecent.Margin = new System.Windows.Forms.Padding(4);
+            this.checkSessionsShowRecent.Name = "checkSessionsShowRecent";
+            this.checkSessionsShowRecent.Size = new System.Drawing.Size(115, 24);
+            this.checkSessionsShowRecent.TabIndex = 45;
+            this.checkSessionsShowRecent.Text = "Show recent";
+            this.toolTip.SetToolTip(this.checkSessionsShowRecent, "Show the last 10 sessions you opened in a Recent group at the top of the Sessions tree");
+            this.checkSessionsShowRecent.UseVisualStyleBackColor = true;
             // 
             // checkBoxPersistTsHistory
             // 
@@ -1418,6 +1431,7 @@
             // 
             this.groupBox1.Controls.Add(this.checkFilterWhileTyping);
             this.groupBox1.Controls.Add(this.checkSessionTreeFoldersFirst);
+            this.groupBox1.Controls.Add(this.checkSessionsShowRecent);
             this.groupBox1.Controls.Add(this.checkSessionsShowSearch);
             this.groupBox1.Controls.Add(this.comboSearchMode);
             this.groupBox1.Controls.Add(this.buttonSearchFields);
@@ -2363,6 +2377,7 @@
         private System.Windows.Forms.TextBox textBoxRootDirPrefix;
         private System.Windows.Forms.Label label17;
         private System.Windows.Forms.CheckBox checkSessionTreeFoldersFirst;
+        private System.Windows.Forms.CheckBox checkSessionsShowRecent;
         private System.Windows.Forms.GroupBox groupBox8;
         private System.Windows.Forms.CheckBox checkBoxPersistTsHistory;
         private System.Windows.Forms.Label label20;
