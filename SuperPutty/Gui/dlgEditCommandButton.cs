@@ -90,7 +90,8 @@ namespace SuperPutty.Gui
             this.labelText.Text = isScript ? "&Script:" : "&Send:";
             // scripts get the same commands, saved scripts and check as the Script Editor, beside the script box
             this.ShowScriptHelp(isScript);
-            this.labelHelp.Text = (isScript ? SpslHelpText : SendStringParser.HelpText) + "  {key} placeholders are replaced too.";
+            this.labelHelp.Text = (isScript ? SpslHelpText : SendStringParser.HelpText) + "  {key} placeholders are replaced too."
+                + "  {prompt:Name} asks for a value when clicked ({prompt:Name=default}; {secret:Name} masked).";
         }
 
         /// <summary>

@@ -440,6 +440,10 @@ namespace SuperPutty.Gui
             if (!SessionVariables.EnsureDefined(command.Text, $"Button \"{command.Label}\"", this.FindForm()))
                 return;
             string text = SessionVariables.Substitute(command.Text, SessionVariables.Load());
+            // {prompt:Interface} and the like are asked for now; cancelling sends nothing
+            text = SnippetPrompts.Resolve(text, this.FindForm(), $"Button \"{command.Label}\"");
+            if (text == null)
+                return;
 
             if (command.Action == CommandButtonAction.SpslScript)
             {

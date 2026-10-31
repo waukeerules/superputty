@@ -1040,6 +1040,37 @@ When `Sessions.xml` is changed by something other than this copy of SuperXPuTTY,
 - **With the setting off,** an outside edit wasn't reloaded.
 - **Not checked:** a network share (where only the 30 s poll may notice), and two running copies sharing a folder.
 
+## Snippets that ask for values: {prompt:Interface}
+
+A button bar button (or a command typed in Send Commands) can ask for values when it's used, so one "shut / no shut" button works for any port (`Utils/SnippetPrompts.cs`):
+
+```
+conf t\rinterface {prompt:Interface}\rswitchport access vlan {prompt:VLAN=10}\rend\r
+```
+
+- **Asking:** clicking it opens a small form with a box per name (Interface, VLAN), titled with the button's name. **Send** fills them in and sends; **Cancel** sends nothing.
+- **`{prompt:Name=default}`** fills the box with the default.
+- **`{secret:Name}`** is typed masked, and is never remembered or logged.
+- **Each name is asked once,** however often it appears, whatever its case.
+- **The last value** given for a name is offered next time, for this run of SuperXPuTTY.
+- **Order:** `{key}` placeholders (Environment Variables) are filled first. Their names have no colon, so the two never mix. Then the prompts, then the escape codes (`\r`, `\p`, ...). SPSL script buttons get the prompts filled into the script text too.
+- **Send Commands:** typing `{prompt:...}` there works the same way, and the history keeps the text as typed, so a recalled command asks again. Nothing is asked when no tab would receive it.
+- **The button editor's help line** mentions the syntax.
+
+| File | Change |
+|---|---|
+| `Utils/SnippetPrompts.cs` | New. Finding the names, the form, filling in, remembering |
+| `Gui/ButtonBarStrip.cs` | `RunButton` asks before sending |
+| `frmSuperPutty.cs` | `SendToolbarText`: Send Commands asks before sending; its history keeps the text as typed |
+| `Gui/dlgEditCommandButton.cs` | The help line |
+
+**Checked** (a test program running the app's code, with the form answered by a timer; 7 checks, all passed):
+- **Finding:** Interface, VLAN (default 10) and Key (secret) were found; `{prompt:interface}` later in the text was the same name; `{user}` wasn't taken for a prompt.
+- **Filling:** every use of a name got its value whatever its case, and text without prompts went through without asking.
+- **The form:** it asked for Interface, VLAN and Key (masked), offering "", "10" and nothing; the result was `interface Gi1/0/5\rswitchport access vlan 10\rkey s3cret\r`, three lines to send. The next time it offered Gi1/0/5 and 10, but not the secret. Cancel returned nothing to send.
+- **Screenshot** of the form, dark theme.
+- **Not checked:** a real button click sending into a PuTTY tab, and the Send Commands box.
+
 ## Edit many sessions at once
 
 Right-click a folder (or Saved, Private or Database sessions) → **Edit sessions...** (`Gui/dlgBulkEdit.cs`, `Data/SessionBulkEdit.cs`), e.g. to give every device at a site a new username.
@@ -1291,6 +1322,7 @@ Favorites, Recent and private sessions:
 15. File → Export sessions to CSV..., open it in Excel: one row per session, Extra args like `-L ...` shown as text, `-pw` passwords as `********`. Change a host and add a row with Folder, Name and Host, save as CSV, then File → Import sessions → From CSV file...: the summary says 1 new and the rest updated; Yes, and the host is changed and the new session is in its folder. A session with `-pw` still connects with its password.
 16. Make a folder named Prod with a session in it and open it: its tab has a red stripe and the terminal a red frame, and Prod is red in the tree. Right-click another folder → Colour → Green: its sessions' tabs turn green. Right-click a session in it → Colour → Blue: that one turns blue. Rename and drag the green folder: it stays green. Tools → Environment colours..., add `Lab*` purple: folders named Lab... turn purple. Do the same under Database sessions (after Create / upgrade schema): a second copy of SuperXPuTTY shows the folder's colour within 30 seconds.
 17. Right-click a folder → Edit sessions...: untick one session, tick Username and type `{user}`, tick Port and set 2222, Change: every ticked session has the new username and port, the unticked one doesn't. Under Database sessions, lock `username` on one row (`locked_fields = '{username}'`) and repeat: it's listed as left alone.
+18. Add a button with `interface {prompt:Interface}\rshow this\r`, open a session on a switch and click it: it asks for Interface, then types both lines. Click it again: the last interface is offered. Cancel: nothing is typed. Type `show interface {prompt:Port}` in Send Commands and press Enter: it asks, sends, and the history keeps `{prompt:Port}`.
 
 Database sessions:
 

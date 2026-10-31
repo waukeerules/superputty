@@ -1388,7 +1388,7 @@ namespace SuperPutty
             else if (e.KeyCode == Keys.Enter)
             {
                 // send commands
-                TrySendCommandsFromToolbar(new CommandData(this.tsSendCommandCombo.Text, new KeyEventArgs(Keys.Enter)), !this.tbBtnMaskText.Checked);
+                this.SendToolbarText();
                 e.Handled = true;
                 e.SuppressKeyPress = true;
             }
@@ -1404,7 +1404,21 @@ namespace SuperPutty
 
         private void tbBtnSendCommand_Click(object sender, EventArgs e)
         {
-            TrySendCommandsFromToolbar(new CommandData(this.tsSendCommandCombo.Text, new KeyEventArgs(Keys.Enter)), !this.tbBtnMaskText.Checked);
+            this.SendToolbarText();
+        }
+
+        /// <summary>
+        /// Send the Send Commands box's text with Enter, asking first for any {prompt:...} values in it. The history
+        /// keeps the text as typed, so a command recalled from it asks again.
+        /// </summary>
+        private void SendToolbarText()
+        {
+            string typed = this.tsSendCommandCombo.Text;
+            // nothing to send to: don't ask for values first
+            string text = this.GetSelectedPuttyPanels().Count == 0 ? typed : SnippetPrompts.Resolve(typed, this, "Send command");
+            if (text == null)
+                return;
+            TrySendCommandsFromToolbar(new CommandData(text, new KeyEventArgs(Keys.Enter)), !this.tbBtnMaskText.Checked, typed);
         }
 
         private void toggleCommandMaskToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1548,9 +1562,11 @@ namespace SuperPutty
         /// <param name="command">The <seealso cref="CommandData"/> object containing text and or keyboard commands</param>
         /// <param name="saveHistory">If True, save the history in the command toolbar combobox</param>
         /// <returns>The number terminals commands have been sent to</returns>
-        private int TrySendCommandsFromToolbar(CommandData command, bool saveHistory)
+        private int TrySendCommandsFromToolbar(CommandData command, bool saveHistory, string historyText = null)
         {
             int sent = 0;
+            // what goes in the history: the text as typed, e.g. with {prompt:...} rather than the values given
+            historyText = historyText ?? command?.Command;
 
             if(this.DockPanel.Contents.Count > 0)
             {
@@ -1567,18 +1583,18 @@ namespace SuperPutty
                 if (sent > 0)
                 {
                     // success...clear text and save in mru                    
-                    if (command != null && !string.IsNullOrEmpty(command.Command) && saveHistory)
+                    if (command != null && !string.IsNullOrEmpty(historyText) && saveHistory)
                     {
                         if (this.InvokeRequired)
                         {
                             this.BeginInvoke((MethodInvoker)delegate {
-                                tsCommandHistory.Insert(0, new HistoryEntry() { Command = command.Command });
+                                tsCommandHistory.Insert(0, new HistoryEntry() { Command = historyText });
                             });
                         }
                         else
-                        {                            
-                            tsCommandHistory.Insert(0, new HistoryEntry() { Command = command.Command });
-                        }                       
+                        {
+                            tsCommandHistory.Insert(0, new HistoryEntry() { Command = historyText });
+                        }
                     }
 
                     if (this.InvokeRequired)
