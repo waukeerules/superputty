@@ -130,6 +130,9 @@ namespace SuperPutty
         /// <summary>The Colour submenus of a session's and a folder's menu (environment colours, filled as they open)</summary>
         ToolStripMenuItem colorSessionToolStripMenuItem, colorFolderToolStripMenuItem;
 
+        /// <summary>A folder's "Edit sessions...": change fields on all its sessions at once</summary>
+        ToolStripMenuItem editSessionsToolStripMenuItem;
+
         /// <summary>Items of <see cref="contextMenuStripShortcut"/> whose text or visibility depends on the entry</summary>
         ToolStripMenuItem shortcutFavoriteToolStripMenuItem, shortcutRemoveToolStripMenuItem;
 
@@ -1205,6 +1208,26 @@ namespace SuperPutty
             // roots aren't coloured: a colour belongs to a folder and what's under it
             this.colorFolderToolStripMenuItem.Visible = isRootNode;
             this.colorFolderToolStripMenuItem.Enabled = !locked;
+            this.editSessionsToolStripMenuItem.Enabled = !locked;
+        }
+
+        /// <summary>Change fields on all the sessions in a folder (and its subfolders) at once</summary>
+        /// <param name="node">The folder or root</param>
+        private void BulkEditFolder(TreeNode node)
+        {
+            if (node == null || IsSessionNode(node))
+                return;
+            List<SessionData> sessions = new List<SessionData>();
+            GetAllSessions(node, sessions);
+            if (sessions.Count == 0)
+            {
+                Messenger.MessageBox("\"" + node.Text + "\" has no sessions.", "Edit sessions", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            using (dlgBulkEdit dialog = new dlgBulkEdit(node.Text, sessions))
+            {
+                dialog.ShowDialog(this);
+            }
         }
 
         private void contextMenuStripAddTreeItem_Opening(object sender, CancelEventArgs e)
@@ -2012,6 +2035,8 @@ namespace SuperPutty
             this.colorFolderToolStripMenuItem.DropDownItems.Add("-");
             this.colorFolderToolStripMenuItem.DropDownOpening += (s, e) => this.FillFolderColorMenu(this.treeView1.SelectedNode);
             this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.renameToolStripMenuItem) + 1, this.colorFolderToolStripMenuItem);
+            this.editSessionsToolStripMenuItem = new ToolStripMenuItem("Edit sessions...", null, (s, e) => this.BulkEditFolder(this.treeView1.SelectedNode));
+            this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.colorFolderToolStripMenuItem) + 1, this.editSessionsToolStripMenuItem);
             this.colorSessionToolStripMenuItem = new ToolStripMenuItem("Colour");
             this.colorSessionToolStripMenuItem.DropDownItems.Add("-");
             this.colorSessionToolStripMenuItem.DropDownOpening += (s, e) => this.FillSessionColorMenu(this.SelectedSession);

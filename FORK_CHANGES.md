@@ -1040,6 +1040,29 @@ When `Sessions.xml` is changed by something other than this copy of SuperXPuTTY,
 - **With the setting off,** an outside edit wasn't reloaded.
 - **Not checked:** a network share (where only the 30 s poll may notice), and two running copies sharing a folder.
 
+## Edit many sessions at once
+
+Right-click a folder (or Saved, Private or Database sessions) → **Edit sessions...** (`Gui/dlgBulkEdit.cs`, `Data/SessionBulkEdit.cs`), e.g. to give every device at a site a new username.
+- **The sessions:** every session in the folder and its subfolders, listed by path and host, all ticked; untick any to leave them out (All / None).
+- **The fields:** Username, PuTTY profile, Port, Protocol, Icon, Colour and Extra args. Only ticked fields change; editing a field ticks it. The rest keep each session's own value.
+- **Saved and Private sessions** are changed in place, and Sessions.xml (and PrivateSessions.xml) are saved once.
+- **Database sessions** go to the table as one batch (`DatabaseSessions.SubmitBatch`): written one by one, then read back once. Offline, or behind queued changes, they're queued like any change.
+- **Locked fields** are respected: a session with a changed field locked in the database (or locked entirely) is left alone, and the dialog lists them, e.g. "locked-one: username is locked in the database". A refusal from the table is listed the same way, and the others still change.
+- **Disabled** under Database sessions while the table can't be written.
+
+| File | Change |
+|---|---|
+| `Data/SessionBulkEdit.cs` | New. The change (only the fields set), lock checks, and applying it |
+| `Gui/dlgBulkEdit.cs` | New. The dialog |
+| `Data/DatabaseSessions.cs` | `SubmitBatch`: many changes, one read back |
+| `SessionTreeview.cs` | Edit sessions... on the folder menu |
+
+**Checked** (a test program running the app's code against a throwaway database; 9 checks, all passed):
+- **Saved:** two of three sessions ticked got the new username, port and colour, keeping their host and `-pw` arguments; the third was untouched; Sessions.xml was saved.
+- **Database:** four sessions, one with `username` in `locked_fields`: three were changed in the table, the locked one was left alone and listed, the table was read back once for the whole batch, and the tree showed the new values.
+- **The dialog** (screenshot, dark theme): typing a username ticked its box.
+- **Not checked:** the dialog clicked through to the end, and a batch while offline.
+
 ## Environment colours: production in red
 
 A session can have a colour (e.g. red for production), so you notice before typing into the wrong device.
@@ -1267,6 +1290,7 @@ Favorites, Recent and private sessions:
 14. With an SSH tab open, switch to another program, then click straight into the toolbar's Host box and type: the text goes into the box, not the terminal. Do the same with the Sessions search box. Switch away and come back with Alt+Tab: the terminal has the focus.
 15. File → Export sessions to CSV..., open it in Excel: one row per session, Extra args like `-L ...` shown as text, `-pw` passwords as `********`. Change a host and add a row with Folder, Name and Host, save as CSV, then File → Import sessions → From CSV file...: the summary says 1 new and the rest updated; Yes, and the host is changed and the new session is in its folder. A session with `-pw` still connects with its password.
 16. Make a folder named Prod with a session in it and open it: its tab has a red stripe and the terminal a red frame, and Prod is red in the tree. Right-click another folder → Colour → Green: its sessions' tabs turn green. Right-click a session in it → Colour → Blue: that one turns blue. Rename and drag the green folder: it stays green. Tools → Environment colours..., add `Lab*` purple: folders named Lab... turn purple. Do the same under Database sessions (after Create / upgrade schema): a second copy of SuperXPuTTY shows the folder's colour within 30 seconds.
+17. Right-click a folder → Edit sessions...: untick one session, tick Username and type `{user}`, tick Port and set 2222, Change: every ticked session has the new username and port, the unticked one doesn't. Under Database sessions, lock `username` on one row (`locked_fields = '{username}'`) and repeat: it's listed as left alone.
 
 Database sessions:
 

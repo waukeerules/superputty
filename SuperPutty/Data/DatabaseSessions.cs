@@ -1549,6 +1549,64 @@ namespace SuperPutty.Data
         }
 
         /// <summary>
+        /// Make several changes from the tree at once (Edit sessions on a folder): online with nothing queued, each is
+        /// written, and the table is read again once at the end; offline, or behind queued changes, they're all queued.
+        /// One refused change doesn't stop the others.
+        /// </summary>
+        /// <param name="changes">The changes</param>
+        /// <param name="errors">Why each refused one was refused, e.g. "core-sw1: Host is locked in the database"</param>
+        /// <returns>How many were saved or queued</returns>
+        public static int SubmitBatch(List<DatabaseOutbox.PendingChange> changes, out List<string> errors)
+        {
+            errors = new List<string>();
+            Connection c = FromSettings();
+            if (c.ReadOnly)
+            {
+                errors.Add("The database connection is read-only.");
+                return 0;
+            }
+            string source = c.ToString();
+            int failed;
+            bool direct = State == SyncState.Online && DatabaseOutbox.Count(source, out failed) == 0 && failed == 0;
+            int done = 0;
+            HashSet<string> touched = new HashSet<string>();
+            foreach (DatabaseOutbox.PendingChange change in changes)
+            {
+                // a session still waiting to be added can only be changed in the queue
+                bool pendingRow = change.Session?.DatabaseId != null && change.Session.DatabaseId.StartsWith("pending:", StringComparison.Ordinal);
+                if (direct && !pendingRow)
+                {
+                    try
+                    {
+                        ApplyChange(c, change, touched);
+                        done++;
+                        continue;
+                    }
+                    catch (DatabaseUnavailableException ex)
+                    {
+                        // the rest are queued, in order, after this one
+                        Log.WarnFormat("The database dropped during a batch of changes; queuing the rest: {0}", ex.Message);
+                        direct = false;
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        errors.Add((change.Session?.SessionName ?? change.From) + ": " + ex.Message);
+                        continue;
+                    }
+                }
+                change.QueuedAt = DateTime.Now;
+                DatabaseOutbox.Add(source, change);
+                done++;
+            }
+            RefreshPending();
+            if (State != SyncState.Offline)
+            {
+                BeginSync();
+            }
+            return done;
+        }
+
+        /// <summary>
         /// Send one change to the table. Rows this sync already changed (e.g. moved by a queued folder rename) are
         /// updated without the version check: the version they were read at is older than our own change.
         /// </summary>
