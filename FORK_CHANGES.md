@@ -599,6 +599,25 @@ The Sessions tree now has four top-level groups, always in this order: **Favorit
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
 
+## Fix: WinSCP (external) didn't use the session's SSH key
+
+**Symptom:** right-click a session → WinSCP (external) failed with "No supported authentication methods available (server sent: publickey)", although the same session logged in fine in PuTTY with a key.
+
+**Cause:** PuTTY gets the key from the saved session profile it loads (`-load`, whose `PublicKeyFile` names it) or from `-i` in Extra arguments. WinSCP was started with only `sftp://user@host:port/`. WinSCP doesn't read PuTTY's saved sessions, so it had no key (it only tries Pageant).
+
+**Fix:** `ExternalApplications.openWinSCP` passes `-privatekey="<file>"`. The key comes from `-i` in the session's extra arguments, or else from the profile's `PublicKeyFile`, read by `PuttyDataHelper.GetProfileValue` (the registry, or KiTTY's session files). It's skipped, with a log line, if the file doesn't exist. While there:
+- **Username:** the session's username is used if it has one, otherwise the profile's Auto-login username (`UserName`), so a user kept only in the PuTTY profile reaches WinSCP too, instead of WinSCP asking (`ExternalApplications.UsernameFor`).
+- **Placeholders:** `{key}` placeholders are filled in, as for PuTTY (they were passed to WinSCP literally).
+- **Port 0** uses the protocol's usual port.
+- **Remote path:** a remote path already ending in `/` no longer gets a second one. The old check, `rp.Substring(rp.Length)`, was always empty.
+
+FileZilla can't be given a key file on its command line, so it still needs the key in Pageant or in FileZilla's own settings.
+
+**Checked:**
+- **Key lookup:** for a session using the profile `ssh_key`, and for one with `-i "...ssh_key.ppk"`, it found that profile's `ssh_key.ppk`. For Default Settings, and for a missing file, it found none.
+- **Username:** a session with no username using the profile `root` (Auto-login username root, key `ssh_key.ppk`) gave user `root` and that key. With its own username `admin`, `admin` won. With Default Settings and no username there was none, and WinSCP asks.
+- **Real login** with WinSCP.com to the same server: without the key, "Authentication failed". As now built, `sftp://root@192.168.3.2:22/` with `-privatekey`, "Session started", in `/root`.
+
 ## Fix: sessions with port 0 connected with -P 0
 
 **Symptom:** a session saved without a port (port 0, e.g. imported, or a row a script wrote) started PuTTY with `-P 0`, which fails.
@@ -945,6 +964,7 @@ Favorites, Recent and private sessions:
 8. Create new session: type the host first, then the name. **Save** is enabled without clicking elsewhere. Type an existing name: the error shows at once.
 9. Hints: the empty search box says "Search... (press Enter)", or "Type to search..." with "Filter while typing" on. Create new session shows grey examples in Session name, Host address and Login username; each goes when you type. The toolbar's Host and Login boxes show theirs too.
 10. Open a session: its icon in the Sessions tree gets a green dot (in Favorites and Recent too). Let it drop (e.g. 192.168.3.2 left at the login prompt): the dot turns red, and green again once it reconnects. Close the tab: the dot goes.
+11. A session whose PuTTY profile (or `-i`) uses a key: right-click → WinSCP (external) logs in with the key. Clear the session's username, with the user only in the PuTTY profile's Auto-login username: WinSCP still logs in as that user. A session with `{user}` as its username opens WinSCP as your user, not "{user}".
 
 Database sessions:
 

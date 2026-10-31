@@ -122,6 +122,54 @@ namespace SuperPutty.Data
             }
         }
 
+        /// <summary>
+        /// One setting of a PuTTY or KiTTY saved session, e.g. its PublicKeyFile: from KiTTY's session file when it
+        /// saves to files, otherwise from the registry. Used where another program has to be told what PuTTY would
+        /// read itself, such as the key for WinSCP (ExternalApplications.openWinSCP).
+        /// </summary>
+        /// <param name="profile">The saved session's name; empty means "Default Settings", as PuTTY loads it</param>
+        /// <param name="name">The setting, e.g. "PublicKeyFile"</param>
+        /// <returns>Its value, or null if the session or setting isn't there</returns>
+        public static string GetProfileValue(string profile, string name)
+        {
+            if (string.IsNullOrEmpty(profile))
+            {
+                profile = SessionDefaultSettings;
+            }
+            try
+            {
+                if (KittySessionFolder != null)
+                {
+                    foreach (KeyValuePair<string, string> session in GetKittySessionFiles())
+                    {
+                        if (session.Key != profile)
+                            continue;
+                        // KiTTY's session files hold one "Name\Value\" per line
+                        string prefix = name + "\\";
+                        string line = File.ReadAllLines(session.Value).FirstOrDefault(l => l.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+                        return line == null ? null : line.Substring(prefix.Length).TrimEnd('\\');
+                    }
+                    return null;
+                }
+                using (RegistryKey root = RootAppKey)
+                {
+                    // registry key names are escaped (%20 for a space); '+' isn't, so it's not decoded as a space
+                    string keyName = root?.GetSubKeyNames().FirstOrDefault(k => Uri.UnescapeDataString(k) == profile);
+                    if (keyName == null)
+                        return null;
+                    using (RegistryKey session = root.OpenSubKey(keyName))
+                    {
+                        return session?.GetValue(name) as string;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Could not read " + name + " of the saved session " + profile, ex);
+                return null;
+            }
+        }
+
         /// <summary>Where saved sessions are read from, for messages: KiTTY's sessions folder, or the registry key</summary>
         public static string SessionStoreDescription
         {
