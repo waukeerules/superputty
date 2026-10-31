@@ -118,6 +118,7 @@
     <Compile Include="Gui\BaseViewModel.cs" />
     <Compile Include="Gui\DataGridViewProgressColumn.cs" />
     <Compile Include="Gui\DpiUtils.cs" />
+    <Compile Include="Gui\HintText.cs" />
     <Compile Include="Gui\ImageListPopup.cs">
       <SubType>Form</SubType>
     </Compile>

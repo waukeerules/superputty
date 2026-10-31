@@ -213,6 +213,8 @@ namespace SuperPutty
             this.treeView1.ShowLines = SuperPuTTY.Settings.SessionsTreeShowLines;
             this.treeView1.Font = SuperPuTTY.Settings.SessionsTreeFont;
             this.panelSearch.Visible = SuperPuTTY.Settings.SessionsShowSearch;
+            // without "Filter while typing", the search only runs on Enter (or the search button), so say so
+            HintText.Set(this.txtSearch, SuperPuTTY.Settings.FilterSessionsOnChange ? "Type to search..." : "Search... (press Enter)");
             this.ApplySearchBarSize();
             this.BuildShortcutGroups();
             this.ResortNodes();

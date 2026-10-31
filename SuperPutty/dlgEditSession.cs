@@ -60,6 +60,11 @@ namespace SuperPutty
             InitializeComponent();
             placeholderValues = SessionVariables.Load(true);
 
+            // grey examples in the empty fields, gone as soon as something is typed
+            HintText.Set(this.textBoxSessionName, "e.g. core-sw1");
+            HintText.Set(this.textBoxHostname, "e.g. 192.168.0.5");
+            HintText.Set(this.textBoxUsername, "e.g. admin, or {user}");
+
             // draw the profile list ourselves so a profile that isn't saved in PuTTY/KiTTY shows in red; the dark
             // theme draws a drop-down list's text in its own colour, ignoring ForeColor
             comboBoxPuttyProfile.DrawMode = DrawMode.OwnerDrawFixed;

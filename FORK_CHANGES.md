@@ -599,6 +599,17 @@ The Sessions tree now has four top-level groups, always in this order: **Favorit
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
 
+## Hints in empty text boxes
+
+Empty boxes now show a grey example of what goes in them, gone as soon as you type (`Gui/HintText.cs`, using Windows' own cue banner, so it's never part of the text):
+- **Sessions search box:** "Search... (press Enter)", or "Type to search..." when Options → "Filter while typing" is on, since then there's no Enter to press.
+- **Create / Edit session:** Session name "e.g. core-sw1", Host address "e.g. 192.168.0.5", Login username "e.g. admin, or {user}". The last one also shows that a placeholder works there.
+- **Quick-connect toolbar:** Host "e.g. 192.168.0.5" and Login "e.g. admin".
+
+The hint stays visible while the box has focus, so the session name box shows its hint even though it has the cursor when the dialog opens.
+
+**Checked:** Create new session rendered in the dark theme, and the search box in the light theme, at 150% scaling, with the hints showing in grey in the empty boxes (including the focused name box).
+
 ## Fix: installing a newer build didn't replace the installed program; version 2.1.2
 
 **Symptom:** running a freshly built MSI over an installed SuperXPuTTY seemed to work, but the old program kept running.
@@ -715,6 +726,7 @@ Favorites, Recent and private sessions:
 6. Change Options → Icon size to 32 and back to 16: the search box, its buttons and the toolbar follow (after a restart, as for the other icons). Check the dark theme.
 7. Toolbar: select a session, click **New session**: it's created in that session's folder. **New folder**, **Expand all**, **Collapse all**. **Sort** twice: Z to A, then A to Z; restart: A to Z.
 8. Create new session: type the host first, then the name. **Save** is enabled without clicking elsewhere. Type an existing name: the error shows at once.
+9. Hints: the empty search box says "Search... (press Enter)", or "Type to search..." with "Filter while typing" on. Create new session shows grey examples in Session name, Host address and Login username; each goes when you type. The toolbar's Host and Login boxes show theirs too.
 
 Dropped sessions:
 

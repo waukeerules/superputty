@@ -269,6 +269,9 @@ namespace SuperPutty
             this.tsCommands.ImageList = SuperPuTTY.ImagesWithStop;
             this.toolStripButtonChooseIconGroup.ImageKey = "stop";
             this.ApplyToolbarIcons();
+            // grey examples in the empty quick-connect boxes, as in Edit Session
+            HintText.Set(this.tbTxtBoxHost.TextBox, "e.g. 192.168.0.5");
+            HintText.Set(this.tbTxtBoxLogin.TextBox, "e.g. admin");
 
             puTTYConfigurationToolStripMenuItem.Text = "&" + SuperPuTTY.PuTTYAppName + " configuration";
             aboutSuperPuTTYToolStripMenuItem.Text = "About " + System.Reflection.Assembly.GetExecutingAssembly().GetName().Name;
