@@ -1017,6 +1017,17 @@ namespace SuperPutty
             }
         }
 
+        /// <summary>Export a folder's sessions, with those in its subfolders, to a CSV file</summary>
+        /// <param name="node">The folder, or a root such as Saved sessions</param>
+        private void ExportFolderToCsv(TreeNode node)
+        {
+            if (node == null || IsSessionNode(node))
+                return;
+            List<SessionData> sessions = new List<SessionData>();
+            GetAllSessions(node, sessions);
+            SessionCsv.ExportWithDialog(this, sessions, node.Text + ".csv");
+        }
+
         private void contextMenuStripFolder_Opening(object sender, CancelEventArgs e)
         {
             bool isRootNode = this.treeView1.SelectedNode != null && this.treeView1.SelectedNode.Parent != null;
@@ -1830,6 +1841,8 @@ namespace SuperPutty
             this.contextMenuStripAddTreeItem.Items.Insert(this.contextMenuStripAddTreeItem.Items.IndexOf(this.deleteToolStripMenuItem) + 1, this.moveSessionToolStripMenuItem);
             this.moveFolderToolStripMenuItem = new ToolStripMenuItem("Move to Private sessions", null, (s, e) => this.MoveToOtherRoot(this.treeView1.SelectedNode));
             this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.renameToolStripMenuItem) + 1, this.moveFolderToolStripMenuItem);
+            this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.connectAllToolStripMenuItem) + 1,
+                new ToolStripMenuItem("Export to CSV...", null, (s, e) => this.ExportFolderToCsv(this.treeView1.SelectedNode)));
 
             ToolStripMenuItem connect = new ToolStripMenuItem("Connect", null, (s, e) => this.treeView1_NodeMouseDoubleClick(null, null));
             connect.Font = this.connectToolStripMenuItem.Font;

@@ -41,7 +41,9 @@ namespace SuperPutty
             this.fromPuTTYCMExportToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.fromWinRDPRegToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.fromMobaXtermToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.fromCsvToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
+            this.exportCsvToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItem7 = new System.Windows.Forms.ToolStripSeparator();
             this.openSessionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.switchSessionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -151,6 +153,7 @@ namespace SuperPutty
             this.fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.importSettingsToolStripMenuItem,
             this.toolStripMenuItem1,
+            this.exportCsvToolStripMenuItem,
             this.toolStripMenuItem7,
             this.openSessionToolStripMenuItem,
             this.switchSessionToolStripMenuItem,
@@ -174,7 +177,8 @@ namespace SuperPutty
             this.fromPuTTYPortableSettingsToolStripMenuItem,
             this.fromPuTTYCMExportToolStripMenuItem,
             this.fromWinRDPRegToolStripMenuItem,
-            this.fromMobaXtermToolStripMenuItem});
+            this.fromMobaXtermToolStripMenuItem,
+            this.fromCsvToolStripMenuItem});
             this.importSettingsToolStripMenuItem.Name = "importSettingsToolStripMenuItem";
             this.importSettingsToolStripMenuItem.Size = new System.Drawing.Size(252, 26);
             this.importSettingsToolStripMenuItem.Text = "&Import sessions";
@@ -220,6 +224,13 @@ namespace SuperPutty
             this.fromMobaXtermToolStripMenuItem.Size = new System.Drawing.Size(293, 26);
             this.fromMobaXtermToolStripMenuItem.Text = "From &MobaXterm file...";
             this.fromMobaXtermToolStripMenuItem.Click += new System.EventHandler(this.fromMobaXtermToolStripMenuItem_Click);
+            //
+            // fromCsvToolStripMenuItem
+            //
+            this.fromCsvToolStripMenuItem.Name = "fromCsvToolStripMenuItem";
+            this.fromCsvToolStripMenuItem.Size = new System.Drawing.Size(293, 26);
+            this.fromCsvToolStripMenuItem.Text = "From C&SV file...";
+            this.fromCsvToolStripMenuItem.Click += new System.EventHandler(this.fromCsvToolStripMenuItem_Click);
             // 
             // toolStripMenuItem1
             // 
@@ -227,6 +238,13 @@ namespace SuperPutty
             this.toolStripMenuItem1.Size = new System.Drawing.Size(252, 26);
             this.toolStripMenuItem1.Text = "&Export sessions...";
             this.toolStripMenuItem1.Click += new System.EventHandler(this.toolStripMenuItem1_Click);
+            //
+            // exportCsvToolStripMenuItem
+            //
+            this.exportCsvToolStripMenuItem.Name = "exportCsvToolStripMenuItem";
+            this.exportCsvToolStripMenuItem.Size = new System.Drawing.Size(252, 26);
+            this.exportCsvToolStripMenuItem.Text = "Export sessions to &CSV...";
+            this.exportCsvToolStripMenuItem.Click += new System.EventHandler(this.exportCsvToolStripMenuItem_Click);
             // 
             // toolStripMenuItem7
             // 
@@ -1030,6 +1048,8 @@ namespace SuperPutty
         private System.Windows.Forms.ToolStripMenuItem sessionDetailToolStripMenuItem;
         internal WeifenLuo.WinFormsUI.Docking.DockPanel DockPanel;
         private System.Windows.Forms.ToolStripMenuItem fromMobaXtermToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem fromCsvToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem exportCsvToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem XorgToolStripMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripMenuItem12;
         private System.Windows.Forms.ToolStripMenuItem checkForPuTTYPlusUpdatesToolStripMenuItem;

@@ -637,6 +637,22 @@ namespace SuperPutty
             }
         }
 
+        /// <summary>File -> Import sessions -> From CSV file: add and update Saved and Private sessions from a spreadsheet</summary>
+        /// <param name="sender">Not used</param>
+        /// <param name="e">Not used</param>
+        private void fromCsvToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            SessionCsv.ImportWithDialog(this);
+        }
+
+        /// <summary>File -> Export sessions to CSV: every session (Saved, Private and Database), for audits and spreadsheets</summary>
+        /// <param name="sender">Not used</param>
+        /// <param name="e">Not used</param>
+        private void exportCsvToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            SessionCsv.ExportWithDialog(this, SuperPuTTY.GetAllSessions(), "Sessions.csv");
+        }
+
         private void openSessionToolStripMenuItem_Click(object sender, EventArgs e)
         {
             QuickSelector q = new QuickSelector();

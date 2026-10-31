@@ -1040,6 +1040,40 @@ When `Sessions.xml` is changed by something other than this copy of SuperXPuTTY,
 - **With the setting off,** an outside edit wasn't reloaded.
 - **Not checked:** a network share (where only the 30 s poll may notice), and two running copies sharing a folder.
 
+## Sessions as CSV: export and import
+
+For audits, and for teams that keep their device lists in a spreadsheet (`Data/SessionCsv.cs`).
+
+**Export:**
+- **File → Export sessions to CSV...** writes every session (Saved, Private and Database).
+- **Right-click a folder or root → Export to CSV...** writes that folder and its subfolders.
+- **Columns:** `Source` (Saved, Private or Database), `Folder`, `Name`, `Protocol`, `Host`, `Port`, `Username`, `PuTTY profile`, `Extra args`, `Icon`, `Notes`, `SPSL script`, `RDP options`, `Local path`, `Remote path`. The file is UTF-8 with a byte order mark, so Excel shows accents and symbols right.
+- **Passwords:** a `-pw` password in Extra args is written as `********`, and the status bar says how many were.
+- **Spreadsheet formulas:** a value starting with `=`, `+`, `-` or `@` (common in Extra args, e.g. `-L 8080:...`) is written with a leading `'`, so a spreadsheet shows it as text instead of running it as a formula. Import removes the `'` again.
+- **Name** is the last part of the session's ID, which is what places it in the tree (a hand-edited Sessions.xml can have a different display name).
+
+**Import:** File → Import sessions → **From CSV file...**
+- **Matching:** each row is matched by Source, Folder and Name. An existing Saved or Private session there is updated with the file's values; otherwise a session is added in that folder. Nothing is renamed.
+- **Only the file's columns change.** A sheet with just `Folder,Name,Host` updates hosts and leaves everything else alone; columns a sheet adds (e.g. `Owner`) are ignored and listed.
+- **Before anything changes,** a summary asks to go ahead: "1 new session, 1 updated, 7 skipped", with the first skipped lines and why. Sessions.xml is saved once at the end.
+- **Passwords survive a round trip:** a masked `-pw ********` keeps the session's real password, and is dropped for a new session rather than setting the password to asterisks.
+- **Headers** are matched loosely (case, spaces, `_` and `-` don't matter, and a few other names work, e.g. `putty_profile`, `hostname`, `user`), so a table exported from Postgres imports too. The separator is taken from the header line: a comma, or the `;` or tab some spreadsheets save with.
+- **Skipped rows:** no name or a name with `/`, an unknown protocol, a port outside 0 to 65535, an odd Source, the same session twice, a session that's already Private when the row says Saved (or the other way round), and **Database** rows: the table is changed in the tree or with SQL. A file without a Name column is refused.
+
+| File | Change |
+|---|---|
+| `Data/SessionCsv.cs` | New. Export (`ToCsv`, `Export`), reading (`ParseRows`), the import plan (`Plan`, `Apply`) and the dialogs (`ExportWithDialog`, `ImportWithDialog`) |
+| `frmSuperPutty.cs` / `.Designer.cs` | File → Export sessions to CSV..., File → Import sessions → From CSV file... |
+| `SessionTreeview.cs` | Export to CSV... on the folder menu (`ExportFolderToCsv`) |
+
+**Checked** with a test program running the app's code (21 checks, all passed):
+- **Export:** every column; the `-pw` password left out; `'-L 8080:...` and `'=SUM(...)` kept as text; a note with a comma, quotes and a line break read back as one value; the private session marked Private.
+- **Importing its own export** updated all 4 sessions and left every field as it was, including `-pw s3cret!`. Into an empty list it added all 4, with the masked `-pw` left out.
+- **A `;` separated sheet** with `putty_profile`-style headers, columns in another order and an extra `Owner` column: added one session and updated another's host only, keeping its username, arguments (with the password) and notes. Sessions.xml was saved.
+- **Bad rows:** 7 skipped with the reasons listed above, the good row imported, a blank line ignored; a file without a Name column, and an empty file, refused.
+- **10,000 sessions:** exported in 0.1 s (1.1 MB); the re-import planned in 0.2 s as 10,001 updates. It found the hand-edited session whose display name differs from its ID, which is why Name comes from the ID.
+- **Not checked:** the menus and dialogs clicked through, and opening the file in Excel itself.
+
 ## The update check offers this fork's releases
 
 **Before:** Help → Check for updates (and the check at start-up) asked `SilverGreen93/superputty` for its latest release. Someone running this fork would be offered upstream's build, and installing it would lose the fork's changes.
@@ -1173,6 +1207,7 @@ Favorites, Recent and private sessions:
 12. With two copies of SuperXPuTTY on one settings folder (or a text editor), change a session in one: the other reloads within a few seconds ("Sessions.xml was changed outside SuperXPuTTY") and shows the change. Save in the first again: it doesn't reload itself. Untick Options → GUI → Reload when changed: changes are no longer picked up until File → Reload sessions.
 13. Open View → Log Viewer, then point the settings folder at a large Sessions.xml: the window stays responsive. Close SuperXPuTTY: no error.
 14. With an SSH tab open, switch to another program, then click straight into the toolbar's Host box and type: the text goes into the box, not the terminal. Do the same with the Sessions search box. Switch away and come back with Alt+Tab: the terminal has the focus.
+15. File → Export sessions to CSV..., open it in Excel: one row per session, Extra args like `-L ...` shown as text, `-pw` passwords as `********`. Change a host and add a row with Folder, Name and Host, save as CSV, then File → Import sessions → From CSV file...: the summary says 1 new and the rest updated; Yes, and the host is changed and the new session is in its folder. A session with `-pw` still connects with its password.
 
 Database sessions:
 
