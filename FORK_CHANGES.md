@@ -697,7 +697,7 @@ Sessions can be shared through a Postgres table. They show under a third root, *
   - A folder is renamed to its new path, with everything under it.
   - It's saved at once, or queued while offline, like any other change.
   - It's refused if a session involved has `folder` locked, and a folder can't be dropped inside itself.
-- **Not yet:** dragging between Database sessions and Saved or Private sessions, and Move to.
+- **Between Database sessions and Saved or Private sessions:** see "Copying and moving sessions into and out of Database sessions".
 - **Safe from Sessions.xml:** their IDs start with `@db/` (e.g. `@db/Lab/Core/sw1`), so they can't clash with Sessions.xml, and they're never written to Sessions.xml or PrivateSessions.xml.
 
 **For an inventory system**, three more columns:
@@ -1039,6 +1039,29 @@ When `Sessions.xml` is changed by something other than this copy of SuperXPuTTY,
 - **An outside edit while a dialog was open** wasn't reloaded during the 3.5 s the dialog stayed open, and was reloaded 1.7 s after it closed.
 - **With the setting off,** an outside edit wasn't reloaded.
 - **Not checked:** a network share (where only the 30 s poll may notice), and two running copies sharing a folder.
+
+## Copying and moving sessions into and out of Database sessions
+
+Sessions can now cross between Saved or Private sessions and Database sessions, e.g. to fill the table from an existing Sessions.xml without writing SQL (`SessionTreeview.Transfer`).
+- **Menus:** a session's and a folder's menus have **Move to ▸** and **Copy to ▸**, listing the other roots (Saved, Private and, when it's on, Database sessions). They replace the single "Move to Private / Saved sessions" item. The same folder path is kept in the other root, with subfolders. Database sessions can be chosen only while the table can be written, and moving out of it likewise.
+- **Dragging** a session or folder across that boundary **copies** it into the folder it's dropped on. Moving deletes from one side, which for the table means for everyone, so it's only on the menu.
+- **Into Database sessions:** one batch of inserts (`DatabaseSessions.SubmitBatch`, which now also says which changes were refused), read back once. For a move, only the sessions that arrived (or were queued while offline) leave Sessions.xml, and their Favorites and Recent entries follow them.
+- **Out of Database sessions:** plain copies are added to Sessions.xml or PrivateSessions.xml, without the row's id, version, locks, owner or pending state. A move first asks: "Move 3 sessions out of Database sessions into Saved sessions? They're deleted from the table, for everyone who uses it." Then one batch of deletes runs. Locked rows can't be deleted from here, so they're copied and stay in the table too.
+- **Left where they were, and listed:** a name already in that folder on the other side (in the table, perhaps hidden by `deleted_at`), and anything the table refuses.
+- **Between Saved and Private sessions,** Move to works as before (the node moves).
+- **Not copied:** the folders' own settings (colours, defaults).
+
+| File | Change |
+|---|---|
+| `SessionTreeview.cs` | Move to / Copy to submenus (`TransferMenu`, `FillTransferMenu`, `TransferToRoot`), `Transfer`, `PlainCopy`, dragging across the boundary |
+| `Data/DatabaseSessions.cs` | `SubmitBatch` reports the refused changes |
+
+**Checked** (a test program driving the real Sessions tree against a throwaway database; 12 checks, all passed):
+- **Into the table:** Saved folder Lab/Core was copied in; `a` and `Sub/c` were inserted in the same folders, with their username and colour; `b`, already in that folder in the table, was listed; the Saved originals stayed.
+- **A move into the table:** `Lab/single` was inserted and removed from Sessions.xml, and its favourite followed it.
+- **A copy out:** Database folder DC copied to Private sessions gave plain private copies (no database id or locks), and the table kept all three.
+- **A move out:** it asked first; `dc-sw1` and `dc-sw2` were deleted from the table, the locked `dc-locked` wasn't; all three were in Saved sessions, and the locked one was listed.
+- **Not checked:** dragging with the mouse (the drop runs the same code), and moves while offline.
 
 ## Jump hosts (bastions)
 
@@ -1386,6 +1409,7 @@ Favorites, Recent and private sessions:
 18. Add a button with `interface {prompt:Interface}\rshow this\r`, open a session on a switch and click it: it asks for Interface, then types both lines. Click it again: the last interface is offered. Cancel: nothing is typed. Type `show interface {prompt:Port}` in Send Commands and press Enter: it asks, sends, and the history keeps `{prompt:Port}`.
 19. Right-click a folder → Folder settings...: Username `netops`, Port 2222. A session in a subfolder with no username and port 0 connects as netops on 2222; Edit Session shows "netops (from ...)" in the empty Username box. A session with its own username keeps it.
 20. With Pageant holding a key the bastion accepts, make a session `Bastions/bastion1` for it, then set a device's Jump host to `Bastions/bastion1` (or a folder's, in Folder settings...): the device connects through it. Set the jump host to `nosuch`: it connects directly and the status bar says why.
+21. Right-click a Saved folder → Copy to → Database sessions: its sessions appear under Database sessions in the same folders (check the table), and the Saved ones stay. Drag a Database session onto a Saved folder: it's copied there. Right-click a Database folder → Move to → Saved sessions: it asks, then the rows are deleted from the table and the sessions are in Saved sessions.
 
 Database sessions:
 

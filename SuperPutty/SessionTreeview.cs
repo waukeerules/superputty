@@ -136,6 +136,9 @@ namespace SuperPutty
         /// <summary>A folder's "Folder settings...": its colour and the defaults its sessions inherit</summary>
         ToolStripMenuItem folderSettingsToolStripMenuItem;
 
+        /// <summary>A folder's "Copy to" submenu (other roots)</summary>
+        ToolStripMenuItem copyFolderToolStripMenuItem;
+
         /// <summary>Items of <see cref="contextMenuStripShortcut"/> whose text or visibility depends on the entry</summary>
         ToolStripMenuItem shortcutFavoriteToolStripMenuItem, shortcutRemoveToolStripMenuItem;
 
@@ -1235,7 +1238,7 @@ namespace SuperPutty
             this.newFolderToolStripMenuItem.Enabled = !locked;
             this.renameToolStripMenuItem.Enabled &= !locked;
             this.removeFolderToolStripMenuItem.Enabled &= !locked;
-            this.moveFolderToolStripMenuItem.Visible &= !IsDatabaseNode(this.treeView1.SelectedNode);
+            this.copyFolderToolStripMenuItem.Visible = isRootNode;
             // roots aren't coloured: a colour belongs to a folder and what's under it
             this.colorFolderToolStripMenuItem.Visible = isRootNode;
             this.colorFolderToolStripMenuItem.Enabled = !locked;
@@ -1283,16 +1286,237 @@ namespace SuperPutty
             this.settingsToolStripMenuItem.Enabled = !locked;
             this.deleteToolStripMenuItem.Enabled = !locked;
             this.colorSessionToolStripMenuItem.Enabled = !locked && (session == null || !session.IsDatabaseFieldLocked("color"));
-            this.moveSessionToolStripMenuItem.Visible = !IsDatabaseNode(this.treeView1.SelectedNode);
         }
 
-        /// <summary>The text of the menu item that moves a node to the other root</summary>
+        /// <summary>The text of the menu item that moves a node to another root (now a submenu listing them)</summary>
         /// <param name="node">The session or folder</param>
-        /// <returns>"Move to Private sessions" or "Move to Saved sessions"</returns>
+        /// <returns>"Move to"</returns>
         string MoveMenuText(TreeNode node)
         {
-            return IsPrivateNode(node) ? "Move to Saved sessions" : "Move to Private sessions";
+            return "Move to";
         }
+
+        #region Copying and moving between roots
+
+        /// <summary>Which root a node is under</summary>
+        /// <param name="node">A node</param>
+        /// <returns>Its root's kind</returns>
+        RootKind KindOf(TreeNode node)
+        {
+            object tag = RootOf(node)?.Tag;
+            return tag is RootKind ? (RootKind)tag : RootKind.Shared;
+        }
+
+        /// <summary>A root's name, as in the tree</summary>
+        /// <param name="kind">Shared, Private or Database</param>
+        /// <returns>e.g. "Saved sessions"</returns>
+        static string RootName(RootKind kind)
+        {
+            return kind == RootKind.Private ? "Private sessions" : kind == RootKind.Database ? "Database sessions" : "Saved sessions";
+        }
+
+        /// <summary>A Move to or Copy to submenu, filled with the other roots as it opens</summary>
+        /// <param name="text">"Move to" or "Copy to"</param>
+        /// <param name="move">Move rather than copy</param>
+        /// <returns>The menu item</returns>
+        ToolStripMenuItem TransferMenu(string text, bool move)
+        {
+            ToolStripMenuItem menu = new ToolStripMenuItem(text);
+            menu.DropDownItems.Add("-");
+            menu.DropDownOpening += (s, e) => this.FillTransferMenu(menu, this.treeView1.SelectedNode, move);
+            return menu;
+        }
+
+        /// <summary>
+        /// Fill a Copy to or Move to submenu with the other roots: Saved, Private and (when it's on) Database sessions.
+        /// Database sessions can be chosen only while the table can be written, and moving out of it likewise.
+        /// </summary>
+        /// <param name="menu">The submenu</param>
+        /// <param name="node">The session or folder</param>
+        /// <param name="move">Move rather than copy</param>
+        void FillTransferMenu(ToolStripMenuItem menu, TreeNode node, bool move)
+        {
+            menu.DropDownItems.Clear();
+            if (node == null)
+                return;
+            RootKind from = KindOf(node);
+            foreach (RootKind kind in new[] { RootKind.Shared, RootKind.Private, RootKind.Database })
+            {
+                if (kind == from || (kind == RootKind.Database && this.nodeDatabase == null))
+                    continue;
+                RootKind target = kind;
+                bool enabled = (target != RootKind.Database || DatabaseSessions.Writable) && !(move && from == RootKind.Database && DatabaseLocked(node));
+                menu.DropDownItems.Add(new ToolStripMenuItem(RootName(target), null, (s, e) => this.TransferToRoot(node, target, move)) { Enabled = enabled });
+            }
+        }
+
+        /// <summary>Copy or move a session or folder to the same folder path in another root</summary>
+        /// <param name="node">The session or folder</param>
+        /// <param name="kind">The root</param>
+        /// <param name="move">Move rather than copy</param>
+        void TransferToRoot(TreeNode node, RootKind kind, bool move)
+        {
+            if (move && !IsDatabaseNode(node) && kind != RootKind.Database)
+            {
+                // between Saved and Private sessions: the node itself moves, as before
+                this.MoveToOtherRoot(node);
+                return;
+            }
+            this.Transfer(node, kind, NodePath(node.Parent), move);
+        }
+
+        /// <summary>A copy of a session for another root: without the database's id, version, locks and owner</summary>
+        /// <param name="session">The session</param>
+        /// <returns>The copy</returns>
+        static SessionData PlainCopy(SessionData session)
+        {
+            SessionData copy = (SessionData)session.Clone();
+            copy.DatabaseId = null;
+            copy.DatabaseVersion = null;
+            copy.DatabaseLocked = false;
+            copy.DatabaseLockedFields = null;
+            copy.DatabaseManagedBy = null;
+            copy.DatabaseUpdatedBy = null;
+            copy.DatabasePending = false;
+            copy.DatabasePendingNote = null;
+            copy.IsPrivate = false;
+            return copy;
+        }
+
+        /// <summary>
+        /// Copy or move a session, or a folder with everything under it, into a folder of another root, keeping the
+        /// subfolders. Into Database sessions they're inserted as one batch; out of it they're added to Sessions.xml or
+        /// PrivateSessions.xml, and for a move then deleted from the table as one batch. Sessions whose name is
+        /// taken there, or that the table refuses (a lock, a name clash), are left where they were and listed.
+        /// </summary>
+        /// <param name="payload">The session or folder</param>
+        /// <param name="kind">The root to copy or move into</param>
+        /// <param name="targetFolder">The folder path there, "" for the top</param>
+        /// <param name="move">Remove the originals once copied</param>
+        void Transfer(TreeNode payload, RootKind kind, string targetFolder, bool move)
+        {
+            this.FillSubtree(payload);
+            List<SessionData> sessions = new List<SessionData>();
+            if (IsSessionNode(payload))
+                sessions.Add((SessionData)payload.Tag);
+            else
+                GetAllSessions(payload, sessions);
+            if (sessions.Count == 0)
+            {
+                Messenger.MessageBox("\"" + payload.Text + "\" has no sessions to copy.", "Copy", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            bool fromDatabase = IsDatabaseNode(payload);
+            string verb = move ? "Move" : "Copy";
+            if (move && fromDatabase && DialogResult.Yes != Messenger.MessageBox(
+                string.Format("Move {0} session{1} out of Database sessions into {2}?\n\nThey're deleted from the table, for everyone who uses it.",
+                    sessions.Count, sessions.Count == 1 ? "" : "s", RootName(kind)), verb, MessageBoxButtons.YesNo, MessageBoxIcon.Question))
+                return;
+            if (kind == RootKind.Database && !DatabaseSessions.Writable)
+            {
+                Messenger.MessageBox("Database sessions can't be written now (read-only, no permission, or not read yet).", verb, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // each session keeps its place below the payload: its folder relative to the payload's parent
+            string basePath = NodePath(payload.Parent);
+            Func<SessionData, string> newFolder = s =>
+            {
+                string folder = FolderOf(s);
+                string relative = basePath.Length == 0 ? folder : folder.Length <= basePath.Length ? string.Empty : folder.Substring(basePath.Length + 1);
+                return SessionData.CombineSessionIds(NullIfEmpty(targetFolder), NullIfEmpty(relative)) ?? string.Empty;
+            };
+            Func<SessionData, string> nameOf = s => SessionData.GetSessionNameFromId(fromDatabase ? DatabaseSessions.TreePath(s.SessionId) : s.SessionId);
+            List<string> problems = new List<string>();
+            List<KeyValuePair<SessionData, string>> arrived = new List<KeyValuePair<SessionData, string>>();
+
+            Cursor previous = Cursor.Current;
+            Cursor.Current = Cursors.WaitCursor;
+            try
+            {
+                if (kind == RootKind.Database)
+                {
+                    List<DatabaseOutbox.PendingChange> inserts = new List<DatabaseOutbox.PendingChange>();
+                    foreach (SessionData session in sessions)
+                    {
+                        SessionData copy = PlainCopy(session);
+                        copy.SessionName = nameOf(session);
+                        inserts.Add(new DatabaseOutbox.PendingChange { Kind = DatabaseOutbox.ChangeKind.Insert, Session = copy, Folder = newFolder(session) });
+                    }
+                    List<string> errors;
+                    HashSet<int> refused;
+                    DatabaseSessions.SubmitBatch(inserts, out errors, out refused);
+                    problems.AddRange(errors);
+                    for (int i = 0; i < sessions.Count; i++)
+                    {
+                        if (!refused.Contains(i))
+                            arrived.Add(new KeyValuePair<SessionData, string>(sessions[i], DatabaseSessions.MakeSessionId(inserts[i].Folder, inserts[i].Session.SessionName)));
+                    }
+                    if (move)
+                    {
+                        // out of Saved or Private sessions: what arrived (or is queued) leaves here
+                        foreach (KeyValuePair<SessionData, string> moved in arrived)
+                        {
+                            this.FindSessionNode(moved.Key.SessionId)?.Remove();
+                            SuperPuTTY.RemoveSession(moved.Key.SessionId);
+                            SessionShortcuts.Rename(moved.Key.SessionId, moved.Value);
+                        }
+                        SuperPuTTY.SaveSessions();
+                    }
+                }
+                else
+                {
+                    foreach (SessionData session in sessions)
+                    {
+                        string newId = SessionData.CombineSessionIds(NullIfEmpty(newFolder(session)), nameOf(session));
+                        SessionData existing = SuperPuTTY.GetSessionById(newId);
+                        if (existing != null)
+                        {
+                            problems.Add(newId + ": already in " + RootName(existing.IsPrivate ? RootKind.Private : RootKind.Shared));
+                            continue;
+                        }
+                        SessionData copy = PlainCopy(session);
+                        copy.SessionId = newId;
+                        copy.SessionName = nameOf(session);
+                        copy.IsPrivate = kind == RootKind.Private;
+                        SuperPuTTY.AddSession(copy);
+                        arrived.Add(new KeyValuePair<SessionData, string>(session, newId));
+                    }
+                    SuperPuTTY.SaveSessions();
+                    if (move && fromDatabase && arrived.Count > 0)
+                    {
+                        // out of the table: locked rows can't be deleted from here, so they stay there too
+                        List<KeyValuePair<SessionData, string>> deletable = arrived.Where(a => !a.Key.DatabaseLocked).ToList();
+                        problems.AddRange(arrived.Where(a => a.Key.DatabaseLocked).Select(a => a.Key.SessionName + ": locked in the database, so it was copied and stays there too"));
+                        List<DatabaseOutbox.PendingChange> deletes = deletable.Select(a => new DatabaseOutbox.PendingChange { Kind = DatabaseOutbox.ChangeKind.Delete, Session = a.Key }).ToList();
+                        List<string> errors;
+                        HashSet<int> refused;
+                        DatabaseSessions.SubmitBatch(deletes, out errors, out refused);
+                        problems.AddRange(errors.Select(err => err + " (copied, but it stays in the database too)"));
+                        for (int i = 0; i < deletable.Count; i++)
+                        {
+                            if (!refused.Contains(i))
+                                SessionShortcuts.Rename(deletable[i].Key.SessionId, deletable[i].Value);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                Cursor.Current = previous;
+            }
+
+            string done = string.Format("{0} {1} session{2} to {3}", move ? "Moved" : "Copied", arrived.Count, arrived.Count == 1 ? "" : "s", RootName(kind));
+            Log.InfoFormat("{0}; {1} left where they were", done, problems.Count);
+            SuperPuTTY.ReportStatus(done + (problems.Count > 0 ? string.Format(" ({0} left where they were)", problems.Count) : ""));
+            if (problems.Count > 0)
+            {
+                Messenger.MessageBox(done + ". These were left where they were:\n\n" + string.Join("\n", problems.Take(15))
+                    + (problems.Count > 15 ? "\n... and " + (problems.Count - 15) + " more" : ""), verb, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        #endregion
 
         #region Database sessions
 
@@ -2057,10 +2281,15 @@ namespace SuperPutty
         {
             this.favoriteToolStripMenuItem = new ToolStripMenuItem("Add to Favorites", null, (s, e) => this.ToggleFavorite(this.SelectedSession));
             this.contextMenuStripAddTreeItem.Items.Insert(this.contextMenuStripAddTreeItem.Items.IndexOf(this.toolStripSeparator1), this.favoriteToolStripMenuItem);
-            this.moveSessionToolStripMenuItem = new ToolStripMenuItem("Move to Private sessions", null, (s, e) => this.MoveToOtherRoot(this.treeView1.SelectedNode));
+            // Move to and Copy to: submenus of the other roots (Saved, Private, Database sessions), filled as they open;
+            // a placeholder item so the submenu arrow shows before then
+            this.moveSessionToolStripMenuItem = this.TransferMenu("Move to", true);
             this.contextMenuStripAddTreeItem.Items.Insert(this.contextMenuStripAddTreeItem.Items.IndexOf(this.deleteToolStripMenuItem) + 1, this.moveSessionToolStripMenuItem);
-            this.moveFolderToolStripMenuItem = new ToolStripMenuItem("Move to Private sessions", null, (s, e) => this.MoveToOtherRoot(this.treeView1.SelectedNode));
+            this.contextMenuStripAddTreeItem.Items.Insert(this.contextMenuStripAddTreeItem.Items.IndexOf(this.moveSessionToolStripMenuItem) + 1, this.TransferMenu("Copy to", false));
+            this.moveFolderToolStripMenuItem = this.TransferMenu("Move to", true);
             this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.renameToolStripMenuItem) + 1, this.moveFolderToolStripMenuItem);
+            this.copyFolderToolStripMenuItem = this.TransferMenu("Copy to", false);
+            this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.moveFolderToolStripMenuItem) + 1, this.copyFolderToolStripMenuItem);
             this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.connectAllToolStripMenuItem) + 1,
                 new ToolStripMenuItem("Export to CSV...", null, (s, e) => this.ExportFolderToCsv(this.treeView1.SelectedNode)));
             // environment colours; a placeholder item so the submenu arrow shows before it's filled
@@ -2878,6 +3107,13 @@ namespace SuperPutty
                         e.Effect = DragDropEffects.Copy;
                     }
                 }
+                // into or out of Database sessions: copied (moving is on the menu, as it deletes from one side)
+                else if (node != null && IsDatabaseNode(node) != IsDatabaseNode(nodePayload) && IsFolderNode(node) && !IsQuickNode(node)
+                    && !(IsDatabaseNode(node) && DatabaseLocked(node)))
+                {
+                    tree.SelectedNode = node;
+                    e.Effect = DragDropEffects.Copy;
+                }
                 // Is the mouse over a valid node?
                 else if (node != null && node != nodePayload && nodePayload.Nodes.Find(node.Text, true).Length == 0)
                 {
@@ -2917,6 +3153,10 @@ namespace SuperPutty
                 {
                     this.MoveInDatabase(nodeDropped, node);
                 }
+            }
+            else if (node != null && IsDatabaseNode(node) != IsDatabaseNode(nodeDropped) && IsFolderNode(node) && !IsQuickNode(node))
+            {
+                this.Transfer(nodeDropped, KindOf(node), NodePath(node), false);
             }
             else if (node != null && IsFolderNode(node) && !IsDatabaseNode(node) && !IsDatabaseNode(nodeDropped))
             {

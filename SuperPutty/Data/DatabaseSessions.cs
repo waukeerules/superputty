@@ -1620,11 +1620,27 @@ namespace SuperPutty.Data
         /// <returns>How many were saved or queued</returns>
         public static int SubmitBatch(List<DatabaseOutbox.PendingChange> changes, out List<string> errors)
         {
+            HashSet<int> refused;
+            return SubmitBatch(changes, out errors, out refused);
+        }
+
+        /// <summary>
+        /// Make several changes at once (see <see cref="SubmitBatch(List{DatabaseOutbox.PendingChange}, out List{string})"/>),
+        /// saying which were refused, so a move removes only the originals that arrived
+        /// </summary>
+        /// <param name="changes">The changes</param>
+        /// <param name="errors">Why each refused one was refused</param>
+        /// <param name="refused">The positions in <paramref name="changes"/> of those refused</param>
+        /// <returns>How many were saved or queued</returns>
+        public static int SubmitBatch(List<DatabaseOutbox.PendingChange> changes, out List<string> errors, out HashSet<int> refused)
+        {
             errors = new List<string>();
+            refused = new HashSet<int>();
             Connection c = FromSettings();
             if (c.ReadOnly)
             {
                 errors.Add("The database connection is read-only.");
+                refused.UnionWith(Enumerable.Range(0, changes.Count));
                 return 0;
             }
             string source = c.ToString();
@@ -1632,8 +1648,9 @@ namespace SuperPutty.Data
             bool direct = State == SyncState.Online && DatabaseOutbox.Count(source, out failed) == 0 && failed == 0;
             int done = 0;
             HashSet<string> touched = new HashSet<string>();
-            foreach (DatabaseOutbox.PendingChange change in changes)
+            for (int i = 0; i < changes.Count; i++)
             {
+                DatabaseOutbox.PendingChange change = changes[i];
                 // a session still waiting to be added can only be changed in the queue
                 bool pendingRow = change.Session?.DatabaseId != null && change.Session.DatabaseId.StartsWith("pending:", StringComparison.Ordinal);
                 if (direct && !pendingRow)
@@ -1653,6 +1670,7 @@ namespace SuperPutty.Data
                     catch (InvalidOperationException ex)
                     {
                         errors.Add((change.Session?.SessionName ?? change.From) + ": " + ex.Message);
+                        refused.Add(i);
                         continue;
                     }
                 }
