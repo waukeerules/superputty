@@ -39,8 +39,14 @@ namespace SuperPutty.Gui
         /// <summary>Password, or a {key} placeholder</summary>
         private readonly TextBox textPassword = new TextBox();
 
+        /// <summary>Who this user is in the table's updated_by; required, since a team often shares one login</summary>
+        private readonly TextBox textNickname = new TextBox();
+
         /// <summary>SSL mode</summary>
         private readonly ComboBox comboSsl = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+
+        /// <summary>How often to check the table for changes made by others, in seconds; 0 never</summary>
+        private readonly NumericUpDown numericCheck = new NumericUpDown { Minimum = 0, Maximum = 3600, Value = 30 };
 
         /// <summary>Never create or change anything</summary>
         private readonly CheckBox checkReadOnly = new CheckBox { Text = "Read only: never create or change anything in the database", AutoSize = true };
@@ -98,11 +104,12 @@ namespace SuperPutty.Gui
             this.comboSsl.Items.AddRange(SslModes);
             // sizes are given for 100% and converted for the monitor: a form built in code isn't scaled by WinForms,
             // and at 150% fixed pixel sizes (the 88 x 23 OK button) were too small for their text
-            foreach (TextBox box in new[] { this.textHost, this.textDatabase, this.textSchema, this.textTable, this.textUser, this.textPassword })
+            foreach (TextBox box in new[] { this.textHost, this.textDatabase, this.textSchema, this.textTable, this.textUser, this.textPassword, this.textNickname })
             {
                 box.Width = this.LogicalToDeviceUnits(300);
             }
             this.numericPort.Width = this.LogicalToDeviceUnits(80);
+            this.numericCheck.Width = this.LogicalToDeviceUnits(80);
             this.comboSsl.Width = this.LogicalToDeviceUnits(140);
             this.labelResult.MaximumSize = new Size(this.LogicalToDeviceUnits(460), 0);
             foreach (Button button in new[] { this.buttonOK, this.buttonCancel })
@@ -118,7 +125,12 @@ namespace SuperPutty.Gui
             AddRow(grid, "Table:", this.textTable);
             AddRow(grid, "Username:", this.textUser);
             AddRow(grid, "Password:", this.textPassword);
+            AddRow(grid, "Nickname:", this.textNickname);
             AddRow(grid, "SSL:", this.comboSsl);
+            FlowLayoutPanel check = new FlowLayoutPanel { AutoSize = true, Margin = Padding.Empty, WrapContents = false };
+            check.Controls.Add(this.numericCheck);
+            check.Controls.Add(new Label { Text = "seconds (0 = never)", AutoSize = true, Margin = new Padding(4, 6, 0, 0) });
+            AddRow(grid, "Check every:", check);
             AddRow(grid, null, this.checkReadOnly);
             FlowLayoutPanel actions = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 8, 0, 4) };
             actions.Controls.AddRange(new Control[] { this.buttonTest, this.buttonSchema });
@@ -148,8 +160,11 @@ namespace SuperPutty.Gui
             tips.SetToolTip(this.textPassword, "Saved encrypted for your Windows user. Or type a {key} placeholder from Tools > Environment Variables.");
             tips.SetToolTip(this.buttonSchema, "Creates the database, schema and table if they're missing, and adds missing columns and the change triggers. Safe to run again.");
             tips.SetToolTip(this.textSchema, "The table's schema; created with the table if missing");
+            tips.SetToolTip(this.textNickname, "Shown as who last changed a session, so people sharing one database login can be told apart");
+            tips.SetToolTip(this.numericCheck, "How often to ask the table whether someone else (or a script) changed it; the sessions are only read again when it did");
             HintText.Set(this.textHost, "e.g. 192.168.3.2");
             HintText.Set(this.textUser, "e.g. postgres");
+            HintText.Set(this.textNickname, "e.g. Tim (required)");
 
             this.checkEnabled.Checked = SuperPuTTY.Settings.DatabaseEnabled;
             this.textHost.Text = SuperPuTTY.Settings.DatabaseHost;
@@ -172,6 +187,8 @@ namespace SuperPutty.Gui
             this.ShowPasswordMasked();
             this.comboSsl.SelectedItem = Array.Find(SslModes, m => string.Equals(m, SuperPuTTY.Settings.DatabaseSslMode, StringComparison.OrdinalIgnoreCase)) ?? "Prefer";
             this.checkReadOnly.Checked = SuperPuTTY.Settings.DatabaseReadOnly;
+            this.textNickname.Text = SuperPuTTY.Settings.DatabaseNickname;
+            this.numericCheck.Value = Math.Max(0, Math.Min(3600, SuperPuTTY.Settings.DatabaseCheckSeconds));
 
             this.textPassword.TextChanged += (s, e) => { this.passwordChanged = true; this.ShowPasswordMasked(); };
             this.checkReadOnly.CheckedChanged += (s, e) => this.buttonSchema.Enabled = false;
@@ -271,7 +288,8 @@ namespace SuperPutty.Gui
                 User = this.textUser.Text.Trim(),
                 StoredPassword = this.passwordChanged ? DatabaseSessions.ProtectPassword(this.textPassword.Text) : this.storedPassword,
                 SslMode = (string)this.comboSsl.SelectedItem,
-                ReadOnly = this.checkReadOnly.Checked
+                ReadOnly = this.checkReadOnly.Checked,
+                Nickname = this.textNickname.Text.Trim()
             };
         }
 
@@ -371,9 +389,17 @@ namespace SuperPutty.Gui
         {
             DatabaseSessions.Connection c = this.Current();
             string problem = this.checkEnabled.Checked ? Problem(c) : null;
+            if (problem == null && this.checkEnabled.Checked && string.IsNullOrEmpty(c.Nickname))
+            {
+                problem = "Enter a nickname: it shows who changed a session, even when several people share one database login.";
+            }
             if (problem != null)
             {
                 this.ShowResult(problem, true);
+                if (string.IsNullOrEmpty(c.Nickname))
+                {
+                    this.textNickname.Focus();
+                }
                 return;
             }
             SuperPuTTY.Settings.DatabaseEnabled = this.checkEnabled.Checked;
@@ -386,6 +412,8 @@ namespace SuperPutty.Gui
             SuperPuTTY.Settings.DatabasePassword = c.StoredPassword;
             SuperPuTTY.Settings.DatabaseSslMode = c.SslMode;
             SuperPuTTY.Settings.DatabaseReadOnly = c.ReadOnly;
+            SuperPuTTY.Settings.DatabaseNickname = c.Nickname;
+            SuperPuTTY.Settings.DatabaseCheckSeconds = (int)this.numericCheck.Value;
             SuperPuTTY.Settings.Save();
             DatabaseSessions.Start();
             this.DialogResult = DialogResult.OK;

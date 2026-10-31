@@ -62,8 +62,15 @@ namespace SuperPutty.Data
             new[] { "external_id", "text" },
             new[] { "created_at", "timestamptz NOT NULL DEFAULT now()" },
             new[] { "updated_at", "timestamptz NOT NULL DEFAULT now()" },
-            new[] { "updated_by", "text NOT NULL DEFAULT current_user" }
+            new[] { "updated_by", "text NOT NULL DEFAULT current_user" },
+            new[] { "deleted_at", "timestamptz" }
         };
+
+        /// <summary>
+        /// Who is making a change, for updated_by: the Nickname SuperPuTTY sets on each connection (several people
+        /// often share one database login), or the database login for other programs
+        /// </summary>
+        private const string ChangedBy = "coalesce(nullif(current_setting('superputty.nickname', true), ''), current_user)";
 
         /// <summary>
         /// The columns locked_fields may name, which Edit Session greys out (dlgEditSession.LockedFields). The guard
@@ -116,10 +123,22 @@ namespace SuperPutty.Data
             /// <summary>Never create or change anything in the database</summary>
             public bool ReadOnly { get; set; }
 
+            /// <summary>Who this user is in updated_by, e.g. "Tim"; told to Postgres on every connection</summary>
+            public string Nickname { get; set; }
+
             /// <summary>The table's quoted, schema-qualified name for SQL</summary>
             public string QualifiedTable
             {
                 get { return Quote(this.Schema) + "." + Quote(this.Table); }
+            }
+
+            /// <summary>
+            /// The quoted name of the one-row table whose version the change trigger raises on every change, e.g.
+            /// "superputty"."sessions_version", so a change can be noticed without reading the sessions
+            /// </summary>
+            public string QualifiedVersionTable
+            {
+                get { return Quote(this.Schema) + "." + Quote(this.Table + "_version"); }
             }
 
             /// <summary>Where the sessions come from, for status text and to tell whether the cache matches the settings</summary>
@@ -150,7 +169,9 @@ namespace SuperPutty.Data
                 User = SuperPuTTY.Settings.DatabaseUser,
                 StoredPassword = SuperPuTTY.Settings.DatabasePassword,
                 SslMode = SuperPuTTY.Settings.DatabaseSslMode,
-                ReadOnly = SuperPuTTY.Settings.DatabaseReadOnly
+                ReadOnly = SuperPuTTY.Settings.DatabaseReadOnly,
+                // set up before Nickname was required: the Windows user still tells people apart
+                Nickname = string.IsNullOrWhiteSpace(SuperPuTTY.Settings.DatabaseNickname) ? Environment.UserName : SuperPuTTY.Settings.DatabaseNickname.Trim()
             };
         }
 
@@ -256,6 +277,19 @@ namespace SuperPutty.Data
         {
             NpgsqlConnection connection = new NpgsqlConnection(ConnectionString(c, database));
             connection.Open();
+            if (!string.IsNullOrWhiteSpace(c.Nickname))
+            {
+                try
+                {
+                    // read by the touch trigger for updated_by; a plain setting, so any login may set it
+                    Scalar(connection, "SELECT set_config('superputty.nickname', @n, false)", "n", c.Nickname.Trim());
+                }
+                catch
+                {
+                    connection.Dispose();
+                    throw;
+                }
+            }
             return connection;
         }
 
@@ -287,6 +321,9 @@ namespace SuperPutty.Data
             /// <summary>The change trigger exists</summary>
             public bool TriggerExists { get; set; }
 
+            /// <summary>The version table, which the change trigger raises so SuperPuTTY notices changes, exists</summary>
+            public bool ChangeCounterExists { get; set; }
+
             /// <summary>The user may add and change rows</summary>
             public bool CanWrite { get; set; }
 
@@ -299,7 +336,7 @@ namespace SuperPutty.Data
             /// <summary>Whether "Create / upgrade schema" has something to do</summary>
             public bool NeedsSchema
             {
-                get { return this.Connected && (!this.DatabaseExists || !this.TableExists || this.MissingColumns.Count > 0 || !this.TriggerExists); }
+                get { return this.Connected && (!this.DatabaseExists || !this.TableExists || this.MissingColumns.Count > 0 || !this.TriggerExists || !this.ChangeCounterExists); }
             }
 
             /// <summary>Whether the table can be read as it is</summary>
@@ -328,7 +365,7 @@ namespace SuperPutty.Data
                     text.AppendFormat(" The table has {0} session{1}{2}.", this.Rows, this.Rows == 1 ? "" : "s", this.CanWrite ? "" : " (you can only read it)");
                     if (this.MissingColumns.Count > 0)
                         text.Append(" Missing columns: " + string.Join(", ", this.MissingColumns) + "; Create / upgrade schema adds them.");
-                    else if (!this.TriggerExists)
+                    else if (!this.TriggerExists || !this.ChangeCounterExists)
                         text.Append(" Its triggers are missing or out of date; Create / upgrade schema adds them.");
                 }
                 return text.ToString();
@@ -384,6 +421,10 @@ namespace SuperPutty.Data
                     result.TriggerExists = Convert.ToInt64(Scalar(connection,
                         "SELECT count(*) FROM pg_trigger WHERE tgrelid = to_regclass(@t) AND tgname = ANY(@n)", "t", qualified,
                         "n", new[] { TriggerName(c), c.Table + "_touch", c.Table + "_guard" })) == 3;
+                    // the trigger function must raise it too: an older SuperPuTTY's Create / upgrade puts back one that doesn't
+                    result.ChangeCounterExists = Scalar(connection, "SELECT to_regclass(@v) IS NOT NULL AND EXISTS (SELECT 1 FROM pg_proc p "
+                        + "JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = @s AND p.proname = @f AND strpos(p.prosrc, @t) > 0)",
+                        "v", c.QualifiedVersionTable, "s", c.Schema, "f", c.Table + "_notify", "t", c.Table + "_version") as bool? == true;
                     result.CanWrite = Scalar(connection, "SELECT has_table_privilege(@t, 'INSERT') AND has_table_privilege(@t, 'UPDATE')", "t", qualified) as bool? == true;
                     result.Rows = Convert.ToInt64(Scalar(connection, "SELECT count(*) FROM " + qualified));
                 }
@@ -456,11 +497,24 @@ namespace SuperPutty.Data
                     + " (managed_by, external_id) WHERE external_id IS NOT NULL");
                 string function = Quote(c.Schema) + "." + Quote(c.Table + "_touch");
                 Execute(connection, "CREATE OR REPLACE FUNCTION " + function + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN "
-                    + "IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN NEW.updated_at := now(); NEW.updated_by := current_user; RETURN NEW; END IF; "
+                    + "IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN NEW.updated_at := now(); NEW.updated_by := " + ChangedBy + "; RETURN NEW; END IF; "
                     + "RETURN OLD; END $$");
+                // one row whose version goes up with every change, so each SuperPuTTY can check for changes every few
+                // seconds without reading the sessions; anyone may read it
+                string versions = c.QualifiedVersionTable;
+                bool newCounter = !before.ChangeCounterExists;
+                Execute(connection, "CREATE TABLE IF NOT EXISTS " + versions + " (version bigint NOT NULL, changed_at timestamptz NOT NULL DEFAULT now())");
+                Execute(connection, "INSERT INTO " + versions + " (version) SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM " + versions + ")");
+                Execute(connection, "GRANT SELECT ON " + versions + " TO PUBLIC");
+                Execute(connection, "COMMENT ON TABLE " + versions + " IS 'Raised on every change to " + c.Table + "; SuperPuTTY reads it to notice changes'");
+                // SECURITY DEFINER: logins that may change sessions needn't be granted the version table too
                 string notify = Quote(c.Schema) + "." + Quote(c.Table + "_notify");
-                Execute(connection, "CREATE OR REPLACE FUNCTION " + notify + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN "
+                Execute(connection, "CREATE OR REPLACE FUNCTION " + notify + "() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER "
+                    + "SET search_path = pg_catalog, pg_temp AS $$ BEGIN "
+                    + "UPDATE " + versions + " SET version = version + 1, changed_at = now(); "
                     + "PERFORM pg_notify('" + NotifyChannel + "', TG_TABLE_SCHEMA || '.' || TG_TABLE_NAME); RETURN NULL; END $$");
+                if (newCounter)
+                    done.Add("added the change counter " + c.Table + "_version");
                 Execute(connection, "DROP TRIGGER IF EXISTS " + Quote(c.Table + "_touch") + " ON " + table);
                 Execute(connection, "CREATE TRIGGER " + Quote(c.Table + "_touch") + " BEFORE INSERT OR UPDATE ON " + table
                     + " FOR EACH ROW EXECUTE FUNCTION " + function + "()");
@@ -563,9 +617,27 @@ namespace SuperPutty.Data
         /// <returns>The sessions</returns>
         public static List<SessionData> FetchAll(Connection c, Action<int> progress, out bool writable, out bool hasLocks)
         {
+            string changeToken;
+            return FetchAll(c, progress, out writable, out hasLocks, out changeToken);
+        }
+
+        /// <summary>
+        /// Read every row that isn't hidden by deleted_at (see <see cref="FetchAll(Connection, Action{int})"/>), whether
+        /// the login may change them, and the table's change token as it was before reading, for <see cref="CheckForChanges"/>
+        /// </summary>
+        /// <param name="c">The connection</param>
+        /// <param name="progress">Told the number read so far after each page; may be null</param>
+        /// <param name="writable">Whether the connection isn't read-only and the login may add, change and remove rows</param>
+        /// <param name="hasLocks">Whether the table has the lock and inventory columns; a table made before them reads as unlocked until upgraded</param>
+        /// <param name="changeToken">What <see cref="ReadChangeToken"/> returned just before the rows were read</param>
+        /// <returns>The sessions</returns>
+        public static List<SessionData> FetchAll(Connection c, Action<int> progress, out bool writable, out bool hasLocks, out string changeToken)
+        {
             List<SessionData> sessions = new List<SessionData>();
             using (NpgsqlConnection connection = Open(c))
             {
+                // taken first: a change made while the pages are read then shows up at the next check
+                changeToken = ReadChangeToken(connection, c);
                 writable = !c.ReadOnly && HasWritePrivilege(connection, c);
                 HashSet<string> present = new HashSet<string>();
                 using (NpgsqlCommand columns = new NpgsqlCommand(
@@ -583,7 +655,10 @@ namespace SuperPutty.Data
                 hasLocks = present.Contains("locked") && present.Contains("locked_fields") && present.Contains("managed_by");
                 string locks = (present.Contains("locked") ? "locked" : "false")
                     + ", " + (present.Contains("locked_fields") ? "locked_fields" : "'{}'::text[]")
-                    + ", " + (present.Contains("managed_by") ? "managed_by" : "NULL::text");
+                    + ", " + (present.Contains("managed_by") ? "managed_by" : "NULL::text")
+                    + ", " + (present.Contains("updated_by") ? "updated_by" : "NULL::text");
+                // rows given a deleted_at (by the scripts that manage the table) are hidden, not removed
+                string visible = present.Contains("deleted_at") ? "deleted_at IS NULL" : null;
                 string lastFolder = null, lastName = null;
                 Guid lastId = Guid.Empty;
                 while (true)
@@ -592,7 +667,7 @@ namespace SuperPutty.Data
                     using (NpgsqlCommand command = new NpgsqlCommand(
                         "SELECT id, folder, name, protocol, host, port, username, putty_profile, extra_args, icon, notes, spsl_script, "
                         + "rdp_options, local_path, remote_path, updated_at, " + locks + " FROM " + c.QualifiedTable
-                        + (lastName == null ? "" : " WHERE (folder, name, id) > (@f, @n, @i)")
+                        + Where(lastName == null ? null : "(folder, name, id) > (@f, @n, @i)", visible)
                         + " ORDER BY folder, name, id LIMIT @limit", connection))
                     {
                         if (lastName != null)
@@ -653,10 +728,46 @@ namespace SuperPutty.Data
                 DatabaseVersion = reader.GetDateTime(15).Ticks.ToString(),
                 DatabaseLocked = reader.GetBoolean(16),
                 DatabaseLockedFields = string.Join(",", reader.GetFieldValue<string[]>(17)),
-                DatabaseManagedBy = Text(reader, 18)
+                DatabaseManagedBy = Text(reader, 18),
+                DatabaseUpdatedBy = Text(reader, 19)
             };
             session.SessionId = MakeSessionId(folder, name);
             return session;
+        }
+
+        /// <summary>A WHERE clause from the conditions given</summary>
+        /// <param name="conditions">SQL conditions; null ones are left out</param>
+        /// <returns>" WHERE a AND b", or "" if there are none</returns>
+        private static string Where(params string[] conditions)
+        {
+            string[] used = conditions.Where(x => x != null).ToArray();
+            return used.Length == 0 ? string.Empty : " WHERE " + string.Join(" AND ", used);
+        }
+
+        /// <summary>
+        /// Something that changes whenever the table does, cheap enough to ask for every few seconds: the version
+        /// the change trigger raises, or, for a table not yet upgraded (or a login that can't read the version
+        /// table), the row count and latest updated_at, which catch nearly every change
+        /// </summary>
+        /// <param name="connection">An open connection</param>
+        /// <param name="c">The connection settings</param>
+        /// <returns>e.g. "v:1234", or "c:3214/638660000000000000"</returns>
+        public static string ReadChangeToken(NpgsqlConnection connection, Connection c)
+        {
+            try
+            {
+                return "v:" + Scalar(connection, "SELECT version FROM " + c.QualifiedVersionTable + " LIMIT 1");
+            }
+            catch (PostgresException ex) when (ex.SqlState == "42P01" || ex.SqlState == "42501")
+            {
+                // no version table yet, or no right to read it
+            }
+            using (NpgsqlCommand command = new NpgsqlCommand("SELECT count(*), max(updated_at) FROM " + c.QualifiedTable, connection))
+            using (NpgsqlDataReader reader = command.ExecuteReader())
+            {
+                reader.Read();
+                return "c:" + reader.GetInt64(0) + "/" + (reader.IsDBNull(1) ? 0 : reader.GetDateTime(1).Ticks);
+            }
         }
 
         /// <summary>A nullable text column</summary>
@@ -777,7 +888,8 @@ namespace SuperPutty.Data
             }
             catch (PostgresException ex) when (ex.SqlState == "23505")
             {
-                throw new InvalidOperationException("A session with that name is already in that folder in the database.", ex);
+                throw new InvalidOperationException("A session with that name is already in that folder in the database"
+                    + " (perhaps hidden there by its deleted_at).", ex);
             }
             catch (PostgresException ex) when (ex.SqlState == "23514")
             {
@@ -897,7 +1009,10 @@ namespace SuperPutty.Data
             });
         }
 
-        /// <summary>Remove a folder: every session in it and in folders under it</summary>
+        /// <summary>
+        /// Remove a folder: every session in it and in folders under it that's shown. Rows hidden by deleted_at are
+        /// left for the scripts that hid them; they weren't on screen to be chosen.
+        /// </summary>
         /// <param name="c">The connection</param>
         /// <param name="folder">The folder's path</param>
         /// <returns>How many sessions were removed</returns>
@@ -906,7 +1021,9 @@ namespace SuperPutty.Data
         {
             return Write(c, connection =>
             {
-                using (NpgsqlCommand command = new NpgsqlCommand("DELETE FROM " + c.QualifiedTable + " WHERE " + InFolder, connection))
+                // to_jsonb, so this works before Create / upgrade schema has added deleted_at
+                using (NpgsqlCommand command = new NpgsqlCommand("DELETE FROM " + c.QualifiedTable + " t WHERE " + InFolder
+                    + " AND (to_jsonb(t) ->> 'deleted_at') IS NULL", connection))
                 {
                     command.Parameters.AddWithValue("from", folder.Trim('/'));
                     return command.ExecuteNonQuery();
@@ -1060,6 +1177,8 @@ namespace SuperPutty.Data
         {
             CaptureUiThread();
             StopRetrying();
+            StopChecking();
+            changeToken = null;
             Writable = false;
             NeedsUpgrade = false;
             if (!Enabled)
@@ -1107,7 +1226,8 @@ namespace SuperPutty.Data
                         Flush(c);
                     }
                     bool writable, hasLocks;
-                    List<SessionData> sessions = FetchAll(c, n => Post(() => { LoadedSoFar = n; StatusChanged?.Invoke(null, EventArgs.Empty); }), out writable, out hasLocks);
+                    string token;
+                    List<SessionData> sessions = FetchAll(c, n => Post(() => { LoadedSoFar = n; StatusChanged?.Invoke(null, EventArgs.Empty); }), out writable, out hasLocks, out token);
                     CacheFile cache = new CacheFile { Source = c.ToString(), SyncedAt = DateTime.Now, Sessions = sessions, Writable = writable };
                     try
                     {
@@ -1122,6 +1242,8 @@ namespace SuperPutty.Data
                         syncing = false;
                         Writable = writable;
                         NeedsUpgrade = !hasLocks;
+                        changeToken = token;
+                        StartChecking();
                         serverSessions = sessions;
                         ShowSessions(c);
                         SetStatus(SyncState.Online, null, cache.SyncedAt, sessions.Count);
@@ -1348,6 +1470,90 @@ namespace SuperPutty.Data
         private static void StopRetrying()
         {
             retryTimer?.Stop();
+        }
+
+        /// <summary>Checks the table for changes every Settings.DatabaseCheckSeconds while online</summary>
+        private static System.Windows.Forms.Timer checkTimer;
+
+        /// <summary>The table's change token when it was last read (<see cref="ReadChangeToken"/>); null before the first read</summary>
+        private static string changeToken;
+
+        /// <summary>Whether a check is running</summary>
+        private static bool checking;
+
+        /// <summary>
+        /// Start (or restart) checking for changes made by others: people on other computers, or the scripts that
+        /// maintain the table. Called after each successful read; does nothing when the interval is 0.
+        /// </summary>
+        private static void StartChecking()
+        {
+            int seconds = SuperPuTTY.Settings.DatabaseCheckSeconds;
+            if (ui == null || seconds <= 0)
+            {
+                StopChecking();
+                return;
+            }
+            if (checkTimer == null)
+            {
+                checkTimer = new System.Windows.Forms.Timer();
+                checkTimer.Tick += (s, e) => CheckForChanges();
+            }
+            checkTimer.Interval = seconds * 1000;
+            checkTimer.Start();
+        }
+
+        /// <summary>Stop checking for changes</summary>
+        private static void StopChecking()
+        {
+            checkTimer?.Stop();
+        }
+
+        /// <summary>
+        /// Ask the table, in the background, whether it changed since it was read, and read it again if it did. Only
+        /// one small query: the sessions are read only after a change. Skipped while reading, offline (the retry
+        /// takes over) and while a dialog is open, so a session being edited isn't replaced under it.
+        /// </summary>
+        public static void CheckForChanges()
+        {
+            if (checking || syncing || State != SyncState.Online || !Enabled || changeToken == null)
+                return;
+            if (System.Windows.Forms.Application.OpenForms.Cast<System.Windows.Forms.Form>().Any(f => f.Modal))
+                return;
+            checking = true;
+            Connection c = FromSettings();
+            string known = changeToken;
+            Task.Run(() =>
+            {
+                string token = null;
+                Exception failure = null;
+                try
+                {
+                    using (NpgsqlConnection connection = Open(c))
+                    {
+                        token = ReadChangeToken(connection, c);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                }
+                Post(() =>
+                {
+                    checking = false;
+                    if (failure != null)
+                    {
+                        // a full read reports offline and starts retrying
+                        Log.WarnFormat("Could not check the database sessions for changes: {0}", Describe(failure));
+                        BeginSync();
+                    }
+                    else if (token != known && known == changeToken)
+                    {
+                        Log.InfoFormat("The database sessions in {0} changed; reading them again", c);
+                        SuperPuTTY.ReportStatus("Database sessions changed; reading them again");
+                        BeginSync();
+                    }
+                });
+            });
         }
 
         /// <summary>A one-line status for the tree's root, e.g. "3,214" or "offline, cached 09:41"</summary>

@@ -200,6 +200,12 @@
     <Setting Name="DatabaseReadOnly" Provider="SuperPutty.Utils.PortableSettingsProvider" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
+    <Setting Name="DatabaseNickname" Provider="SuperPutty.Utils.PortableSettingsProvider" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="DatabaseCheckSeconds" Provider="SuperPutty.Utils.PortableSettingsProvider" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">30</Value>
+    </Setting>
     <Setting Name="ReloadSessionsWhenChanged" Provider="SuperPutty.Utils.PortableSettingsProvider" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>

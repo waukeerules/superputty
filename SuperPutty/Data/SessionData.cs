@@ -141,6 +141,14 @@ namespace SuperPutty.Data
         [Browsable(false)]
         public string DatabaseManagedBy { get; set; }
 
+        /// <summary>
+        /// For database sessions: the row's updated_by, who made the last change: the Nickname set in their Database
+        /// sessions settings, or the database login for other programs. Shown in the tree's tooltip.
+        /// </summary>
+        [XmlAttribute]
+        [Browsable(false)]
+        public string DatabaseUpdatedBy { get; set; }
+
         /// <summary>Whether a database column is locked for this session, by the whole row or by locked_fields</summary>
         /// <param name="column">A column name, e.g. "host"</param>
         /// <returns>true if SuperPuTTY may not change it</returns>

@@ -665,11 +665,12 @@ Sessions can be shared through a Postgres table. They show under a third root, *
 | `folder` | The tree path, e.g. `Lab/Core`, or `''` at the top |
 | `name` | No `/`; unique together with `folder` |
 | `protocol`, `host`, `port`, `username`, `putty_profile`, `extra_args`, `icon`, `notes`, `spsl_script`, `rdp_options`, `local_path`, `remote_path` | The session |
-| `updated_at`, `updated_by` | Kept current by a trigger |
+| `updated_at`, `updated_by` | Kept current by a trigger; `updated_by` is the user's nickname |
+| `deleted_at` | When set, the session is hidden (a soft delete for scripts) |
 
 - **No passwords:** use `{key}` placeholders so each user's credentials stay their own.
 - **Written by scripts:** plain `INSERT`s and `UPDATE`s work, and the protocol is matched case-insensitively.
-- **Change notice:** a second trigger announces every change on the `superputty_sessions` channel, ready for live updates. Today the table is re-read on Refresh, at start-up and when settings change.
+- **Change notice:** a second trigger raises a version in `<table>_version` after every change, which SuperXPuTTY checks every 30 seconds (see "Database sessions: changes noticed every 30 seconds, deleted_at, and Nickname"). It also announces the change on the `superputty_sessions` channel, which nothing listens to yet.
 
 **Reading and offline** (`Data/DatabaseSessions.cs`):
 - **Reading:** rows are read in pages of 500 by `(folder, name, id)` on a background thread, with the root showing "loading 1,500...".
@@ -779,7 +780,7 @@ Measured against a generated table of 10,000 sessions in 900 folders, 5 levels d
 | `SuperPuTTY.cs` | `ReplaceDatabaseSessions` swaps them in one go; `SaveSessions` leaves them out; `LoadSessions` (Reload) keeps them |
 | `SessionTreeview.cs` | The Database sessions root, its status and menu; adding, editing and removing sessions and folders there (`SaveToDatabase`, `WriteDatabase`), and the guards for when it can't be written (`DatabaseLocked`) |
 | `frmSuperPutty.cs` / `.Designer.cs` | Tools → Database sessions...; `DatabaseSessions.Start()` on load |
-| `Properties/Settings.*`, `App.config` | `DatabaseEnabled`, `DatabaseHost`, `DatabasePort`, `DatabaseName`, `DatabaseSchema`, `DatabaseTable`, `DatabaseUser`, `DatabasePassword`, `DatabaseSslMode`, `DatabaseReadOnly` |
+| `Properties/Settings.*`, `App.config` | `DatabaseEnabled`, `DatabaseHost`, `DatabasePort`, `DatabaseName`, `DatabaseSchema`, `DatabaseTable`, `DatabaseUser`, `DatabasePassword`, `DatabaseSslMode`, `DatabaseReadOnly`, `DatabaseNickname`, `DatabaseCheckSeconds` |
 | `SuperPutty.csproj` | Npgsql 8.0.5, `AutoGenerateBindingRedirects` |
 | `SuperPuttyInstaller/Product.wxs` | Npgsql and its 15 support libraries |
 
@@ -835,6 +836,57 @@ Measured against a generated table of 10,000 sessions in 900 folders, 5 levels d
 - **10,000 sessions:** see the table above. Lazy filling was checked by finding a session 5 levels deep (found, filling 58 nodes), Connect all's list for an unopened region (2,000 sessions), and the read finishing ("Database sessions (10,000)").
 - **Dialog fit:** shown, its OK button fit. Shrunk by 45 px, as a DPI change can do, it was clipped; refit, it fit again.
 - **Not checked:** the running app with your settings (the dialogs themselves weren't clicked through), a real move between monitors, SSL modes other than Prefer, and very large tables.
+
+## Database sessions: changes noticed every 30 seconds, deleted_at, and Nickname
+
+**Changes made by others show up on their own.** Before, the table was only read again at start-up, on Refresh, after your own changes and while retrying offline, so a teammate's change or a sync script's run went unseen until then.
+- **The change counter:** Create / upgrade schema adds a one-row table, `<table>_version`. The existing statement-level change trigger now raises its `version` after every `INSERT`, `UPDATE`, `DELETE` and `TRUNCATE`, whoever makes it.
+  - The trigger function runs as the table's owner (`SECURITY DEFINER`, with a fixed `search_path`), so logins that may change sessions needn't be granted the version table.
+  - The version table is readable by everyone.
+- **The check** (`DatabaseSessions.CheckForChanges`): every **Check every** seconds (30 by default; 0 turns it off), each SuperXPuTTY reads that one number in the background and reads the whole table again only when it moved.
+  - The number is taken just before each full read, so a change made during a read is caught by the next check, and your own changes, read back at once, aren't read a second time.
+  - It's skipped while a read is running, while offline (the 2-minute retry takes over) and while a dialog is open, so a session being edited isn't replaced under you.
+  - The status bar says "Database sessions changed; reading them again".
+- **Tables not yet upgraded:** the check falls back to `count(*)` and `max(updated_at)`, which catches nearly every change.
+- **Mixed versions:** an older SuperXPuTTY's Create / upgrade schema would put back a trigger that doesn't raise the version. Test connection notices that (the function's source doesn't mention the version table) and offers the upgrade.
+- **Not LISTEN/NOTIFY:** that would need a connection held open by every copy, survive drops and poolers, and still need a poll for what's missed while disconnected. The `NOTIFY` is still sent, for later.
+
+**`deleted_at`, a soft delete for scripts:** a row with `deleted_at` set isn't shown; clearing it shows the row again.
+- Deleting still deletes: SuperXPuTTY's Delete and Remove folder remove rows for good.
+- **Remove folder** deletes only the rows it showed, leaving hidden ones (`to_jsonb(t) ->> 'deleted_at'`, so it also works before the upgrade).
+- **Rename folder** moves hidden rows too.
+- A hidden row still holds its name, so adding the same name in that folder is refused with "... (perhaps hidden there by its deleted_at)".
+
+**Nickname** (required in the Database sessions dialog): several people often share one database login, so `updated_by` couldn't tell them apart.
+- **On every connection,** SuperXPuTTY runs `set_config('superputty.nickname', ...)`. The touch trigger writes `coalesce(nullif(current_setting('superputty.nickname', true), ''), current_user)` to `updated_by`, so scripts that don't set it still show their login.
+- **The tree's tooltip** says "Last changed by Tim" (`SessionData.DatabaseUpdatedBy`, read with the row).
+- **OK refuses an empty nickname,** with "Enter a nickname: it shows who changed a session...". Someone who set up Database sessions before this, and hasn't opened the dialog since, is recorded under their Windows user name.
+
+**The dialog** has two new rows: **Nickname** (between Password and SSL) and **Check every [30] seconds (0 = never)**.
+
+| File | Change |
+|---|---|
+| `Data/DatabaseSessions.cs` | `deleted_at` column; `ChangedBy`; the version table and counter in Create / upgrade; `ChangeCounterExists` in Probe; Nickname set on each connection; `ReadChangeToken`; hidden rows left out of reads and Remove folder; `updated_by` read; the check timer (`StartChecking`, `CheckForChanges`) |
+| `Data/SessionData.cs` | `DatabaseUpdatedBy` |
+| `SessionTreeview.cs` | "Last changed by" in the tooltip |
+| `Gui/dlgDatabaseSettings.cs` | Nickname (required) and Check every |
+| `Properties/Settings.*`, `App.config` | `DatabaseNickname`, `DatabaseCheckSeconds` (30) |
+| `docs/DatabaseSessions.md` | Noticing changes, Nickname, `deleted_at` and hiding sessions, the version table, scripts that disable triggers, upgrading |
+
+**Checked against PostgreSQL 17.5** at 192.168.3.2, in a throwaway `superputty_test` database (dropped afterwards), with a test program running the app's code (29 checks, all passed):
+- **A table from before** (no `deleted_at`, no version table, the old trigger function): Test connection offered the upgrade, the check fell back to count and latest change and noticed an update, and the table still read.
+- **The upgrade** added `deleted_at` and the counter, and Test connection then had nothing left to do.
+- **The version** moved for an `INSERT`, `UPDATE`, `DELETE`, and a script's `TRUNCATE` and reload, and stayed put when nothing changed. One check (connect plus the one-row query) took 31 ms on average.
+- **A login granted only the sessions table** could still save, the version moved, and it could read the version.
+- **Nickname:** a session added from SuperXPuTTY had `updated_by` "Tim"; a script's change had its login, "postgres"; "Tim" was read back for the tooltip.
+- **`deleted_at`:** a hidden row wasn't shown but stayed in the table; adding its name gave the new message; Remove folder removed the 2 shown sessions and left the hidden one; clearing `deleted_at` showed it again.
+- **The check, in a message loop with Check every at 2 s:**
+  - a script's insert showed up on its own after 2.1 s, and a soft delete hid it after 2.0 s;
+  - 7 s with no changes: no full reads;
+  - our own change was read back once and not again by the check;
+  - a change made while a dialog was open waited until it closed, then showed 1.9 s later.
+- **The dialog** (screenshot, 150%): both new rows fit. OK with an empty nickname showed the message in red and stayed open.
+- **Not checked:** the running app clicked through with your settings, a pooled or very slow connection, and many users checking at once.
 
 ## Fix: a tab dragged into a split lost its icon
 
@@ -1124,6 +1176,8 @@ Database sessions:
 5c. Dragging: right-click Database sessions → New folder "Moved". Drag a session onto it: it moves there, in the table too. Drag a folder onto it: the folder and everything in it move.
 5b. Offline: stop Postgres (or block the port), Refresh, then add a session and edit another: they show in italics, the root says "2 pending". Start Postgres, Refresh: they're in the table, and the italics go. Repeat, but change the edited session by SQL before reconnecting: it stays "not saved"; Database sessions → Pending changes → Overwrite theirs saves it.
 6. Move the Database sessions dialog to a monitor with another scaling: OK and Cancel stay fully visible.
+7. Clear Nickname and press OK: it asks for one and stays open. Enter one, run **Create / upgrade schema** (it adds `deleted_at` and the change counter), OK. Edit a session: `SELECT name, updated_by FROM superputty.sessions` shows your nickname, and the session's tooltip says "Last changed by ...".
+8. With SuperXPuTTY open, add a row with SQL: within about 30 seconds it appears on its own, and the status bar says "Database sessions changed; reading them again". `UPDATE ... SET deleted_at = now()` on it: it disappears within 30 seconds; set it back to NULL: it returns. With Edit Session open, the change waits until the dialog is closed.
 
 Dropped sessions:
 

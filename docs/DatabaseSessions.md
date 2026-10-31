@@ -5,7 +5,9 @@ SuperXPuTTY can show sessions from a PostgreSQL table, under **Database sessions
 ## How SuperXPuTTY uses the table
 
 - **Setup:** Tools → **Database sessions...** sets the connection (host, port, database, schema, table, user, password, SSL). **Create / upgrade schema** creates the database, schema and table, or adds whatever is missing. It never runs on its own, and never when **Read only** is ticked. Run it again after updating SuperXPuTTY, to add new columns.
-- **Reading:** the whole table, in pages of 500, at start-up, on **Refresh** (right-click Database sessions), when the settings change, after each change made in SuperXPuTTY, and every 2 minutes while the database can't be reached. Changes your script makes show up at the next of those; there's no live update yet.
+- **Reading:** the whole table, in pages of 500, at start-up, on **Refresh** (right-click Database sessions), when the settings change, after each change made in SuperXPuTTY, and every 2 minutes while the database can't be reached. Rows with `deleted_at` set are left out (see [Hiding sessions](#hiding-sessions-soft-delete)).
+- **Noticing changes:** every 30 seconds (the dialog's **Check every**; 0 turns it off) each SuperXPuTTY reads one number, the version in `<table>_version`, which the change trigger raises on every insert, update, delete and truncate. Only when it has moved is the table read again. So changes by other people and by your scripts show up within about 30 seconds, and an idle check costs one connection and a one-row query (about 30 ms here). No check runs while a dialog is open in SuperXPuTTY, so a session being edited isn't replaced under the user.
+- **Nickname:** each user enters a nickname in the dialog (required). SuperXPuTTY tells Postgres on every connection (`set_config('superputty.nickname', ...)`), and the touch trigger writes it to `updated_by`. People sharing one database login can then still be told apart, and the tree's tooltip says who last changed a session.
 - **Offline:** the last read is cached beside each user's settings, so the sessions still open when the database is down. Changes made in SuperXPuTTY while it's down are queued and sent when it's back.
 - **Writing:** a user can add, edit, move and delete sessions in the tree if their login has INSERT, UPDATE and DELETE on the table and Read only isn't ticked. Each save of an edit checks `updated_at`, so one person's change isn't silently overwritten by another's (or by your script's).
 - **The connection's application name is `SuperPuTTY`.** The guard trigger uses it to tell SuperXPuTTY from your scripts (see [Locks](#locks)). Give your scripts their own application name.
@@ -36,7 +38,8 @@ Default name: `superputty.sessions` (database `superputty`). All three names can
 | `external_id` | text | NULL | The owning system's own key for it, e.g. the inventory's device ID. Unique per `managed_by` |
 | `created_at` | timestamptz | `now()` | When the row was added |
 | `updated_at` | timestamptz | `now()` | Last change; kept current by a trigger |
-| `updated_by` | text | `current_user` | Database login that made the last change; kept current by a trigger |
+| `updated_by` | text | `current_user` | Who made the last change: the user's SuperXPuTTY nickname, or for other programs `superputty.nickname` if they set it, else the database login. Kept current by a trigger |
+| `deleted_at` | timestamptz | NULL | When set, the session is hidden from SuperXPuTTY but stays in the table (a soft delete); set it back to NULL to show it again |
 
 **Passwords never go in the table.** Use `{key}` placeholders. Each user sets the values in Tools → Environment Variables (secret values are encrypted for their Windows login), and SuperXPuTTY fills them in when the session opens.
 
@@ -51,7 +54,8 @@ Create / upgrade schema adds these; they're named after the table.
 | Index `<table>_external_id` | Unique `(managed_by, external_id)` where `external_id` is set: the key for upserts |
 | Trigger `<table>_touch` | Sets `updated_at` and `updated_by` on every insert and update |
 | Trigger `<table>_guard` | Enforces locks, but only for connections named `SuperPuTTY` |
-| Trigger `<table>_changed` | `NOTIFY superputty_sessions` after every change (for live updates later) |
+| Trigger `<table>_changed` | After every statement that changes the table (including `TRUNCATE`), raises the version in `<table>_version` and sends `NOTIFY superputty_sessions` |
+| Table `<table>_version` | One row: `version` (raised on every change) and `changed_at`. Readable by everyone. Its trigger function runs as the table's owner (`SECURITY DEFINER`), so logins that may change sessions needn't be granted it |
 
 ## Locks
 
@@ -66,6 +70,20 @@ Locks are for sessions something else owns. They stop SuperXPuTTY changing what 
 - **Columns SuperXPuTTY never changes:** `locked`, `locked_fields`, `managed_by`, `external_id` and `created_at`. The guard trigger refuses that too.
 - **Enforcement:** the guard trigger refuses SuperXPuTTY's changes to locked rows and fields, so even an older copy of the app can't get round them. Users see e.g. *Host of "core-sw1" is locked in the database*.
 - **Your scripts aren't affected,** because they connect under another application name. If a user's own login also runs scripts, those scripts aren't affected either. The lock is about the program, not the login: use [roles](#roles-and-permissions) for that.
+
+## Hiding sessions (soft delete)
+
+Set `deleted_at` to hide a session from SuperXPuTTY without removing the row, e.g. for a device the inventory marks as decommissioned but may bring back:
+
+```sql
+UPDATE superputty.sessions SET deleted_at = now()  WHERE managed_by = 'inventory' AND external_id = 'dev-1002';  -- hide
+UPDATE superputty.sessions SET deleted_at = NULL   WHERE managed_by = 'inventory' AND external_id = 'dev-1002';  -- show again
+```
+
+- **Deleting still works.** Sessions deleted in SuperXPuTTY, and rows your script `DELETE`s, are removed for good. `deleted_at` is only for code that wants to keep the row.
+- **A hidden row keeps its name.** `UNIQUE (folder, name)` still applies, so a user can't add a session with the same name in that folder; they're told it may be hidden by `deleted_at`.
+- **Deleting a folder in SuperXPuTTY** removes only the sessions it showed. Hidden rows in that folder stay.
+- **Renaming a folder** moves its hidden rows too, so they come back in the right place.
 
 ## Icons
 
@@ -101,9 +119,10 @@ For an inventory system that creates and updates sessions:
 3. **Only update the columns you own.** Leave `notes` and `icon` out of the update, so people can annotate and recolour sessions.
 4. **Lock what you own** with `locked_fields`, so a user's edit isn't silently undone at the next sync.
 5. **Skip updates that change nothing.** `updated_at` then means something, and SuperXPuTTY users editing a session aren't told someone else changed it when nothing did.
-6. **Delete your stale rows:** those with your `managed_by` whose `external_id` is no longer in the inventory. Guard against an empty or failed inventory read first; otherwise the delete removes every session you own.
-7. **Use your own application name,** e.g. `application_name=inventory-sync`, so the lock trigger doesn't apply to you.
-8. **Handle name clashes.** If someone made a session by hand with the same folder and name, the insert fails with a unique violation on `(folder, name)`. Skip it and report it; don't delete their row.
+6. **Delete your stale rows:** those with your `managed_by` whose `external_id` is no longer in the inventory. Guard against an empty or failed inventory read first; otherwise the delete removes every session you own. Or hide them by setting `deleted_at` (see [Hiding sessions](#hiding-sessions-soft-delete)), and clear it if they come back.
+7. **Use your own application name,** e.g. `application_name=inventory-sync`, so the lock trigger doesn't apply to you. To show a name of your own in `updated_by`, run `SELECT set_config('superputty.nickname', 'inventory-sync', false)` after connecting.
+8. **Keep the triggers on.** SuperXPuTTY notices changes through the version the change trigger raises. If your script turns triggers off for a bulk load (`SET session_replication_role = replica`), finish with `UPDATE superputty.sessions_version SET version = version + 1, changed_at = now()` (as the table's owner), or users only see the load at their next Refresh.
+9. **Handle name clashes.** If someone made a session by hand with the same folder and name, the insert fails with a unique violation on `(folder, name)`. Skip it and report it; don't delete their row.
 
 ### The SQL
 
@@ -228,7 +247,7 @@ if __name__ == "__main__":
     sync()
 ```
 
-Run it from a scheduled task or cron job. SuperXPuTTY users see the changes at their next Refresh or start-up.
+Run it from a scheduled task or cron job. SuperXPuTTY users see the changes within about 30 seconds (their **Check every** setting), or at their next Refresh or start-up if they turned the check off.
 
 ### Other useful SQL
 
@@ -238,6 +257,12 @@ SELECT coalesce(managed_by, '(by hand)') AS owner, count(*) FROM superputty.sess
 
 -- who changed what recently
 SELECT folder, name, updated_by, updated_at FROM superputty.sessions ORDER BY updated_at DESC LIMIT 20;
+
+-- sessions hidden by deleted_at
+SELECT folder, name, deleted_at, updated_by FROM superputty.sessions WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC;
+
+-- has anything changed? (what SuperXPuTTY checks every 30 seconds)
+SELECT version, changed_at FROM superputty.sessions_version;
 
 -- lock a whole folder against changes from SuperXPuTTY, and unlock it
 UPDATE superputty.sessions SET locked = true  WHERE folder = 'HQ/Core' OR folder LIKE 'HQ/Core/%';
@@ -275,3 +300,6 @@ CREATE ROLE alice LOGIN PASSWORD 'change-me' IN ROLE superputty_edit;
 ## Upgrading
 
 New versions of SuperXPuTTY may add columns. Until **Create / upgrade schema** has been run, the table still works: missing columns read as their defaults, and the Database sessions tooltip says an upgrade is due. The upgrade only adds what's missing, and (re)creates the triggers and the index. It never drops or rewrites data.
+
+- **Without `<table>_version`** (a table made by an older SuperXPuTTY), the 30-second check falls back to `count(*)` and `max(updated_at)`. That catches nearly every change but reads the whole table each time, so run the upgrade.
+- **Mixed versions:** an older SuperXPuTTY's Create / upgrade schema puts back a change trigger that doesn't raise the version. Test connection in a newer one then says the triggers are out of date; run Create / upgrade schema from the newer one again.

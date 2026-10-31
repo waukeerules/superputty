@@ -2163,6 +2163,10 @@ namespace SuperPutty
                     addedNode.NodeFont = new Font(this.treeView1.Font, FontStyle.Italic);
                     addedNode.ToolTipText = session.DatabasePendingNote + Environment.NewLine + addedNode.ToolTipText;
                 }
+                if (!string.IsNullOrEmpty(session.DatabaseUpdatedBy))
+                {
+                    addedNode.ToolTipText = "Last changed by " + session.DatabaseUpdatedBy + Environment.NewLine + addedNode.ToolTipText;
+                }
                 if (!string.IsNullOrEmpty(session.DatabaseManagedBy))
                 {
                     addedNode.ToolTipText = "Managed by " + session.DatabaseManagedBy + Environment.NewLine + addedNode.ToolTipText;
