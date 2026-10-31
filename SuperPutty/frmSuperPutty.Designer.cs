@@ -584,6 +584,8 @@ namespace SuperPutty
             this.DockPanel.Size = new System.Drawing.Size(1260, 779);
             this.DockPanel.TabIndex = 3;
             this.DockPanel.ActiveDocumentChanged += new System.EventHandler(this.dockPanel1_ActiveDocumentChanged);
+            this.DockPanel.ActivePaneChanged += new System.EventHandler(this.dockPanel1_PanesChanged);
+            this.DockPanel.DocumentDragged += new System.EventHandler(this.dockPanel1_PanesChanged);
             // 
             // toolStripContainer1
             // 

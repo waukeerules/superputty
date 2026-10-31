@@ -599,6 +599,18 @@ The Sessions tree now has four top-level groups, always in this order: **Favorit
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
 
+## Fix: a tab dragged into a split lost its icon
+
+**Symptom:** dragging the current tab to the side to split the tab area left it with a blank space where its icon goes; the other pane's tabs kept theirs.
+
+**Cause:** tab icons are drawn by `TabIcons` on each pane's tab strip once `DocumentTabs.MarkCurrentTabInLists` has hooked it, and that ran only when a tab was added or the active tab changed. Dragging the current tab raises "active tab changed" when the drag starts, before the new pane exists, and nothing after the drop, so the new pane's strip was never hooked.
+
+**Fix:** `frmSuperPutty` also hooks strips when a tab drag finishes (`DockPanel.DocumentDragged`) and when the active pane changes (`ActivePaneChanged`), so panes made by splitting or floating a tab are hooked.
+
+**Checked against the compiled assembly**, with a real mouse drag of the current tab onto a pane's split-right guide:
+- **Old wiring (tab added, active tab changed):** the events were ActivePaneChanged, ActiveDocumentChanged, DocumentDragged, and the new pane's strip wasn't hooked.
+- **With the fix:** it was hooked, and the split-off tab showed its icon.
+
 ## Open sessions marked in the Sessions tree
 
 A session with a tab open shows a dot on its icon in the Sessions tree, and in Favorites and Recent. The icon itself stays, so you can still tell a switch from a router.

@@ -468,6 +468,18 @@ namespace SuperPutty
         }
 
         /// <summary>
+        /// Hook a pane made by dragging a tab into a split or a floating window. When the tab dragged is already the
+        /// active one, the active document doesn't change, so without this the new pane's strip was never hooked and
+        /// its tab showed a blank space where the icon goes.
+        /// </summary>
+        /// <param name="sender">The dock panel</param>
+        /// <param name="e">Not used</param>
+        private void dockPanel1_PanesChanged(object sender, EventArgs e)
+        {
+            DocumentTabs.MarkCurrentTabInLists(this.DockPanel);
+        }
+
+        /// <summary>
         /// Handles focusing on tabs/windows which host PuTTY
         /// </summary>
         /// <param name="sender"></param>
