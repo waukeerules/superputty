@@ -66,6 +66,10 @@ namespace SuperPutty
             // left empty, the session uses its folder's default username (Folder settings), so say which
             string inherited = string.IsNullOrEmpty(session.SessionId) ? null : FolderSettings.Describe(session, "Username");
             HintText.Set(this.textBoxUsername, inherited ?? "e.g. admin, or {user}");
+            string inheritedJump = string.IsNullOrEmpty(session.SessionId) ? null : FolderSettings.Describe(session, "JumpHost");
+            HintText.Set(this.textBoxJumpHost, inheritedJump ?? "none; or a session, e.g. Bastions/bastion1, or admin@10.0.0.1:22");
+            this.toolTip.SetToolTip(this.textBoxJumpHost, "Connect through this SSH server (SSH, Telnet, Rlogin, Raw): a saved session's path, or user@host:port. "
+                + "Uses plink beside PuTTY; the jump host must accept a key (Pageant, or a key in its PuTTY profile).");
 
             // draw the profile list ourselves so a profile that isn't saved in PuTTY/KiTTY shows in red; the dark
             // theme draws a drop-down list's text in its own colour, ignoring ForeColor
@@ -85,6 +89,7 @@ namespace SuperPutty
                 this.textBoxHostname.Text = Session.Host;
                 this.textBoxPort.Text = Session.Port.ToString();
                 this.textBoxExtraArgs.Text = Session.ExtraArgs;
+                this.textBoxJumpHost.Text = Session.JumpHost;
                 this.textBoxUsername.Text = Session.Username;
                 this.textBoxSPSLScriptFile.Text = Session.SPSLFileName;
                 this.textBoxRemotePathSesion.Text = Session.RemotePath;
@@ -266,6 +271,7 @@ namespace SuperPutty
                 { "username", new Control[] { this.textBoxUsername } },
                 { "putty_profile", new Control[] { this.comboBoxPuttyProfile } },
                 { "extra_args", new Control[] { this.textBoxExtraArgs } },
+                { "jump_host", new Control[] { this.textBoxJumpHost } },
                 { "icon", new Control[] { this.buttonImageSelect } },
                 { "notes", new Control[] { this.textBoxNote } },
                 { "spsl_script", new Control[] { this.textBoxSPSLScriptFile, this.buttonBrowse, this.buttonClearSPSLFile } },
@@ -396,6 +402,7 @@ namespace SuperPutty
             Session.PuttySession = comboBoxPuttyProfile.Text.Trim();
             Session.Host         = textBoxHostname.Text.Trim();
             Session.ExtraArgs    = textBoxExtraArgs.Text.Trim();
+            Session.JumpHost     = textBoxJumpHost.Text.Trim();
             if (!Int32.TryParse(this.textBoxPort.Text, out val))
                 Session.Port     = 0;
             else

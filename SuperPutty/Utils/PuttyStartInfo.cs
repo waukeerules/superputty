@@ -100,8 +100,10 @@ namespace SuperPutty.Utils
                 // SuperPuTTY sees the output, e.g. for SPSL's WAITFOR. The name is unique, so PuTTY never asks to overwrite.
                 this.SessionLogPath = SessionLog.NewLogPath(session);
                 string logArgs = "-sessionlog \"" + this.SessionLogPath + "\" -logoverwrite ";
-                this.Args = logArgs + MakeArgs(session, true);
-                argsToLog = logArgs + MakeArgs(session, false);
+                // through a bastion when the session (or its folder) names one
+                string jumpArgs = JumpHosts.ArgsFor(session);
+                this.Args = logArgs + MakeArgs(session, true, jumpArgs);
+                argsToLog = logArgs + MakeArgs(session, false, jumpArgs);
             }
 
             // Windows 11 hands console programs to the default terminal (usually Windows Terminal), whose window
@@ -157,7 +159,7 @@ namespace SuperPutty.Utils
                 && File.Exists(ConsoleHostPath);
         }
 
-        static string MakeArgs(SessionData session, bool includePassword)
+        static string MakeArgs(SessionData session, bool includePassword, string jumpArgs = "")
         {
             if (!String.IsNullOrEmpty(session.Password) && includePassword && !SuperPuTTY.Settings.AllowPlainTextPuttyPasswordArg)
                 Log.Warn("SuperPuTTY is set to NOT allow the use of the -pw <password> argument, this can be overriden in Tools -> Options -> GUI");
@@ -169,6 +171,7 @@ namespace SuperPutty.Utils
             // port 0 (not set) means the protocol's usual port; kept as 0 in the session, so saving it changes nothing
             args += "-P " + (session.Port != 0 ? session.Port : SessionData.DefaultPort(session.Proto)) + " ";
             args += !String.IsNullOrEmpty(session.PuttySession) ? "-load \"" + session.PuttySession + "\" " : "";
+            args += jumpArgs ?? "";
 
             args += !String.IsNullOrEmpty(SuperPuTTY.Settings.PuttyDefaultParameters) ? SuperPuTTY.Settings.PuttyDefaultParameters + " " : "";
 

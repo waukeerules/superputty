@@ -31,6 +31,8 @@ namespace SuperPutty
             this.components = new System.ComponentModel.Container();
             this.comboBoxProto = new System.Windows.Forms.ComboBox();
             this.textBoxExtraArgs = new System.Windows.Forms.TextBox();
+            this.textBoxJumpHost = new System.Windows.Forms.TextBox();
+            this.labelJumpHost = new System.Windows.Forms.Label();
             this.buttonRdpOptions = new System.Windows.Forms.Button();
             this.label6 = new System.Windows.Forms.Label();
             this.buttonSave = new System.Windows.Forms.Button();
@@ -94,6 +96,25 @@ namespace SuperPutty
             this.textBoxExtraArgs.TextChanged += new System.EventHandler(this.placeholderField_TextChanged);
             this.textBoxExtraArgs.Validated += new System.EventHandler(this.textBoxExtraArgs_Validated);
             //
+            // textBoxJumpHost
+            //
+            this.textBoxJumpHost.Location = new System.Drawing.Point(151, 264);
+            this.textBoxJumpHost.Margin = new System.Windows.Forms.Padding(5);
+            this.textBoxJumpHost.Name = "textBoxJumpHost";
+            this.textBoxJumpHost.Size = new System.Drawing.Size(486, 27);
+            this.textBoxJumpHost.TabIndex = 7;
+            this.textBoxJumpHost.TextChanged += new System.EventHandler(this.placeholderField_TextChanged);
+            //
+            // labelJumpHost
+            //
+            this.labelJumpHost.AutoSize = true;
+            this.labelJumpHost.Location = new System.Drawing.Point(20, 268);
+            this.labelJumpHost.Margin = new System.Windows.Forms.Padding(5, 0, 5, 0);
+            this.labelJumpHost.Name = "labelJumpHost";
+            this.labelJumpHost.Size = new System.Drawing.Size(79, 20);
+            this.labelJumpHost.TabIndex = 32;
+            this.labelJumpHost.Text = "Jump host:";
+            //
             // buttonRdpOptions
             //
             this.buttonRdpOptions.Location = new System.Drawing.Point(497, 214);
@@ -119,7 +140,7 @@ namespace SuperPutty
             // 
             // buttonSave
             // 
-            this.buttonSave.Location = new System.Drawing.Point(450, 619);
+            this.buttonSave.Location = new System.Drawing.Point(450, 667);
             this.buttonSave.Margin = new System.Windows.Forms.Padding(5);
             this.buttonSave.Name = "buttonSave";
             this.buttonSave.Size = new System.Drawing.Size(110, 38);
@@ -132,7 +153,7 @@ namespace SuperPutty
             // 
             this.buttonCancel.CausesValidation = false;
             this.buttonCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.buttonCancel.Location = new System.Drawing.Point(569, 619);
+            this.buttonCancel.Location = new System.Drawing.Point(569, 667);
             this.buttonCancel.Margin = new System.Windows.Forms.Padding(5);
             this.buttonCancel.Name = "buttonCancel";
             this.buttonCancel.Size = new System.Drawing.Size(110, 38);
@@ -224,7 +245,7 @@ namespace SuperPutty
             // 
             // buttonBrowse
             // 
-            this.buttonBrowse.Location = new System.Drawing.Point(529, 264);
+            this.buttonBrowse.Location = new System.Drawing.Point(529, 312);
             this.buttonBrowse.Margin = new System.Windows.Forms.Padding(5);
             this.buttonBrowse.Name = "buttonBrowse";
             this.buttonBrowse.Size = new System.Drawing.Size(110, 29);
@@ -235,7 +256,7 @@ namespace SuperPutty
             // 
             // textBoxSPSLScriptFile
             // 
-            this.textBoxSPSLScriptFile.Location = new System.Drawing.Point(151, 264);
+            this.textBoxSPSLScriptFile.Location = new System.Drawing.Point(151, 312);
             this.textBoxSPSLScriptFile.Margin = new System.Windows.Forms.Padding(5);
             this.textBoxSPSLScriptFile.Name = "textBoxSPSLScriptFile";
             this.textBoxSPSLScriptFile.Size = new System.Drawing.Size(246, 27);
@@ -244,7 +265,7 @@ namespace SuperPutty
             // label7
             // 
             this.label7.AutoSize = true;
-            this.label7.Location = new System.Drawing.Point(20, 269);
+            this.label7.Location = new System.Drawing.Point(20, 317);
             this.label7.Margin = new System.Windows.Forms.Padding(5, 0, 5, 0);
             this.label7.Name = "label7";
             this.label7.Size = new System.Drawing.Size(83, 20);
@@ -259,7 +280,7 @@ namespace SuperPutty
             // 
             // buttonClearSPSLFile
             // 
-            this.buttonClearSPSLFile.Location = new System.Drawing.Point(409, 264);
+            this.buttonClearSPSLFile.Location = new System.Drawing.Point(409, 312);
             this.buttonClearSPSLFile.Margin = new System.Windows.Forms.Padding(5);
             this.buttonClearSPSLFile.Name = "buttonClearSPSLFile";
             this.buttonClearSPSLFile.Size = new System.Drawing.Size(110, 29);
@@ -276,7 +297,7 @@ namespace SuperPutty
             this.groupBoxFileTransferOptions.Controls.Add(this.textBoxLocalPathSesion);
             this.groupBoxFileTransferOptions.Controls.Add(this.lbLocalPath);
             this.groupBoxFileTransferOptions.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.groupBoxFileTransferOptions.Location = new System.Drawing.Point(15, 480);
+            this.groupBoxFileTransferOptions.Location = new System.Drawing.Point(15, 528);
             this.groupBoxFileTransferOptions.Margin = new System.Windows.Forms.Padding(5);
             this.groupBoxFileTransferOptions.Name = "groupBoxFileTransferOptions";
             this.groupBoxFileTransferOptions.Padding = new System.Windows.Forms.Padding(5);
@@ -341,7 +362,7 @@ namespace SuperPutty
             // 
             this.label8.AutoSize = true;
             this.label8.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label8.Location = new System.Drawing.Point(20, 302);
+            this.label8.Location = new System.Drawing.Point(20, 350);
             this.label8.Margin = new System.Windows.Forms.Padding(5, 0, 5, 0);
             this.label8.Name = "label8";
             this.label8.Size = new System.Drawing.Size(51, 20);
@@ -351,7 +372,7 @@ namespace SuperPutty
             // textBoxNote
             // 
             this.textBoxNote.AcceptsReturn = true;
-            this.textBoxNote.Location = new System.Drawing.Point(24, 326);
+            this.textBoxNote.Location = new System.Drawing.Point(24, 374);
             this.textBoxNote.Margin = new System.Windows.Forms.Padding(5);
             this.textBoxNote.Multiline = true;
             this.textBoxNote.Name = "textBoxNote";
@@ -455,6 +476,8 @@ namespace SuperPutty
             this.groupBox1.Controls.Add(this.label6);
             this.groupBox1.Controls.Add(this.comboBoxProto);
             this.groupBox1.Controls.Add(this.textBoxExtraArgs);
+            this.groupBox1.Controls.Add(this.textBoxJumpHost);
+            this.groupBox1.Controls.Add(this.labelJumpHost);
             this.groupBox1.Controls.Add(this.buttonRdpOptions);
             this.groupBox1.Controls.Add(this.buttonBrowse);
             this.groupBox1.Controls.Add(this.textBoxUsername);
@@ -475,7 +498,7 @@ namespace SuperPutty
             this.groupBox1.Margin = new System.Windows.Forms.Padding(4);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Padding = new System.Windows.Forms.Padding(4);
-            this.groupBox1.Size = new System.Drawing.Size(664, 456);
+            this.groupBox1.Size = new System.Drawing.Size(664, 504);
             this.groupBox1.TabIndex = 30;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Connection details";
@@ -487,7 +510,7 @@ namespace SuperPutty
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
             this.AutoValidate = System.Windows.Forms.AutoValidate.EnableAllowFocusChange;
             this.CancelButton = this.buttonCancel;
-            this.ClientSize = new System.Drawing.Size(695, 670);
+            this.ClientSize = new System.Drawing.Size(695, 718);
             this.Controls.Add(this.groupBox1);
             this.Controls.Add(this.groupBoxFileTransferOptions);
             this.Controls.Add(this.buttonCancel);
@@ -525,6 +548,8 @@ namespace SuperPutty
         private System.Windows.Forms.Label labelProfileMissing;
         private System.Windows.Forms.Label label6;
         private System.Windows.Forms.TextBox textBoxExtraArgs;
+        private System.Windows.Forms.TextBox textBoxJumpHost;
+        private System.Windows.Forms.Label labelJumpHost;
         private System.Windows.Forms.Button buttonRdpOptions;
         private System.Windows.Forms.Button buttonImageSelect;
         private System.Windows.Forms.ToolTip toolTip;

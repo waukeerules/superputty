@@ -162,6 +162,27 @@ namespace SuperPutty.Data
             set { UpdateField(ref _Color, value, "Color"); }
         }
 
+        private string _JumpHost;
+        /// <summary>
+        /// The bastion to connect through (SSH, Telnet, Rlogin, Raw): a saved session's path, e.g. "Bastions/bastion1",
+        /// or "user@host:port"; empty for none, or to take its folder's (Data.FolderSettings). PuTTY reaches the host
+        /// with plink through it (Utils.JumpHosts).
+        /// </summary>
+        [XmlAttribute]
+        [Browsable(false)]
+        public string JumpHost
+        {
+            get { return _JumpHost; }
+            set { UpdateField(ref _JumpHost, value, "JumpHost"); }
+        }
+
+        /// <summary>XmlSerializer: write JumpHost only when it's set</summary>
+        /// <returns>true to write <see cref="JumpHost"/></returns>
+        public bool ShouldSerializeJumpHost()
+        {
+            return !string.IsNullOrEmpty(this.JumpHost);
+        }
+
         /// <summary>XmlSerializer: write Color only when it's set, so Sessions.xml stays as it was for other sessions</summary>
         /// <returns>true to write <see cref="Color"/></returns>
         public bool ShouldSerializeColor()

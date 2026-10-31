@@ -91,6 +91,7 @@ namespace SuperPutty.Utils
             resolved.Username = Substitute(resolved.Username, variables);
             resolved.Password = Substitute(resolved.Password, variables);
             resolved.ExtraArgs = Substitute(resolved.ExtraArgs, variables);
+            resolved.JumpHost = Substitute(resolved.JumpHost, variables);
             return resolved;
         }
 

@@ -32,6 +32,7 @@ Default name: `superputty.sessions` (database `superputty`). All three names can
 | `spsl_script` | text | NULL | Path or URL of an SPSL script run when the session opens |
 | `rdp_options` | text | NULL | For RDP: overrides of Tools → Options → RDP, as `Key=Value;Key=Value` (see [RDP options](#rdp-options)) |
 | `local_path`, `remote_path` | text | NULL | Starting folders for the SCP file browser |
+| `jump_host` | text | NULL | Connect through this bastion: a saved session's path, e.g. `Bastions/bastion1`, or `user@host:port`. PuTTY reaches the host with plink through it, so the bastion must accept a key (Pageant). NULL takes its folder's |
 | `color` | text | NULL | The session's environment colour, `#RRGGBB` (e.g. `#C62828` for production): a stripe on its tab and a frame round its terminal. NULL takes its folder's (see [Folder colours](#folder-colours)) or a user's name rule |
 | `locked` | boolean | `false` | Lock the whole session against changes from SuperXPuTTY |
 | `locked_fields` | text[] | `'{}'` | Lock only these columns, e.g. `'{host,port}'` |
@@ -68,7 +69,7 @@ Locks are for sessions something else owns. They stop SuperXPuTTY changing what 
 | `locked = true` | Opens and connects it, but won't edit, delete, rename or move it, or rename or remove a folder holding it. This is "lock everything" |
 | `locked_fields = '{host,port}'` | Shows those fields greyed and read-only in Edit Session. The other fields (notes, icon, ...) can still be changed, and the session can still be deleted. Include `folder` to stop it being moved, and `name` to stop it being renamed |
 
-- **Field names:** `locked_fields` takes column names: `folder`, `name`, `protocol`, `host`, `port`, `username`, `putty_profile`, `extra_args`, `icon`, `notes`, `spsl_script`, `rdp_options`, `local_path`, `remote_path`, `color`.
+- **Field names:** `locked_fields` takes column names: `folder`, `name`, `protocol`, `host`, `port`, `username`, `putty_profile`, `extra_args`, `icon`, `notes`, `spsl_script`, `rdp_options`, `local_path`, `remote_path`, `color`, `jump_host`.
 - **Columns SuperXPuTTY never changes:** `locked`, `locked_fields`, `managed_by`, `external_id` and `created_at`. The guard trigger refuses that too.
 - **Enforcement:** the guard trigger refuses SuperXPuTTY's changes to locked rows and fields, so even an older copy of the app can't get round them. Users see e.g. *Host of "core-sw1" is locked in the database*.
 - **Your scripts aren't affected,** because they connect under another application name. If a user's own login also runs scripts, those scripts aren't affected either. The lock is about the program, not the login: use [roles](#roles-and-permissions) for that.
@@ -98,6 +99,7 @@ UPDATE superputty.sessions SET deleted_at = NULL   WHERE managed_by = 'inventory
 | `username` | text | Login for sessions below with an empty `username`, e.g. `{user}` or `netops` |
 | `putty_profile` | text | PuTTY profile for sessions below with none or `Default Settings` |
 | `port` | integer | Port for sessions below with port `0` |
+| `jump_host` | text | Jump host for sessions below with none |
 | `updated_at`, `updated_by` | | Kept current by the touch trigger (`updated_by` is the user's nickname) |
 
 ```sql

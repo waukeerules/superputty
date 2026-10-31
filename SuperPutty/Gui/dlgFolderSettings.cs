@@ -24,6 +24,7 @@ namespace SuperPutty.Gui
         private readonly TextBox textUsername = new TextBox();
         private readonly ComboBox comboProfile = new ComboBox { DropDownStyle = ComboBoxStyle.DropDown };
         private readonly NumericUpDown numericPort = new NumericUpDown { Minimum = 0, Maximum = 65535 };
+        private readonly TextBox textJumpHost = new TextBox();
 
         /// <summary>The settings as edited, read after OK</summary>
         public FolderSetting Setting { get; private set; }
@@ -56,8 +57,10 @@ namespace SuperPutty.Gui
             this.textUsername.Text = this.Setting.Username ?? string.Empty;
             this.comboProfile.Text = this.Setting.PuttyProfile ?? string.Empty;
             this.numericPort.Value = Math.Max(0, Math.Min(65535, this.Setting.Port));
+            this.textJumpHost.Text = this.Setting.JumpHost ?? string.Empty;
             HintText.Set(this.textUsername, "e.g. netops, or {user}");
-            foreach (Control box in new Control[] { this.comboColor, this.textUsername, this.comboProfile })
+            HintText.Set(this.textJumpHost, "e.g. Bastions/bastion1, or admin@10.0.0.1:22");
+            foreach (Control box in new Control[] { this.comboColor, this.textUsername, this.comboProfile, this.textJumpHost })
             {
                 box.Width = this.LogicalToDeviceUnits(300);
             }
@@ -66,8 +69,8 @@ namespace SuperPutty.Gui
             TableLayoutPanel grid = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, Dock = DockStyle.Fill };
             Label intro = new Label
             {
-                Text = "Sessions in this folder and its subfolders use these when they have none of their own (an empty username, port 0, "
-                    + "or no PuTTY profile / Default Settings). A nearer folder's value wins.",
+                Text = "Sessions in this folder and its subfolders use these when they have none of their own (an empty username or jump host, "
+                    + "port 0, or no PuTTY profile / Default Settings). A nearer folder's value wins.",
                 AutoSize = true,
                 MaximumSize = new Size(this.LogicalToDeviceUnits(420), 0),
                 Margin = new Padding(0, 0, 0, this.LogicalToDeviceUnits(8))
@@ -78,6 +81,7 @@ namespace SuperPutty.Gui
             AddRow(grid, 2, "Username:", this.textUsername);
             AddRow(grid, 3, "PuTTY profile:", this.comboProfile);
             AddRow(grid, 4, "Port (0 = none):", this.numericPort);
+            AddRow(grid, 5, "Jump host:", this.textJumpHost);
 
             FlowLayoutPanel close = new FlowLayoutPanel { Dock = DockStyle.Bottom, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, Padding = new Padding(0, this.LogicalToDeviceUnits(8), 0, 0) };
             Button cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true, MinimumSize = new Size(this.LogicalToDeviceUnits(88), 0) };
@@ -117,6 +121,7 @@ namespace SuperPutty.Gui
             this.Setting.Username = this.textUsername.Text.Trim();
             this.Setting.PuttyProfile = this.comboProfile.Text.Trim();
             this.Setting.Port = (int)this.numericPort.Value;
+            this.Setting.JumpHost = this.textJumpHost.Text.Trim();
         }
     }
 }

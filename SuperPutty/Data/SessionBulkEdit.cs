@@ -39,6 +39,9 @@ namespace SuperPutty.Data
             /// <summary>Extra PuTTY arguments</summary>
             public string ExtraArgs { get; set; }
 
+            /// <summary>Jump host: a session's path or "user@host:port"; "" for none</summary>
+            public string JumpHost { get; set; }
+
             /// <summary>The table's column names of the fields being changed, to check against locked_fields</summary>
             /// <returns>e.g. "username", "port"</returns>
             public List<string> Columns()
@@ -51,6 +54,7 @@ namespace SuperPutty.Data
                 if (this.Icon != null) columns.Add("icon");
                 if (this.Color != null) columns.Add("color");
                 if (this.ExtraArgs != null) columns.Add("extra_args");
+                if (this.JumpHost != null) columns.Add("jump_host");
                 return columns;
             }
 
@@ -65,6 +69,7 @@ namespace SuperPutty.Data
                 if (this.Icon != null) session.ImageKey = this.Icon;
                 if (this.Color != null) session.Color = this.Color;
                 if (this.ExtraArgs != null) session.ExtraArgs = this.ExtraArgs;
+                if (this.JumpHost != null) session.JumpHost = this.JumpHost;
             }
         }
 

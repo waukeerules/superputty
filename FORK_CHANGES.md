@@ -1040,6 +1040,38 @@ When `Sessions.xml` is changed by something other than this copy of SuperXPuTTY,
 - **With the setting off,** an outside edit wasn't reloaded.
 - **Not checked:** a network share (where only the 30 s poll may notice), and two running copies sharing a folder.
 
+## Jump hosts (bastions)
+
+A session can connect through a bastion without its own PuTTY profile: Edit Session → **Jump host** (between Extra arguments and SPSL script), or a folder's **Folder settings... → Jump host** for every session below it (`Utils/JumpHosts.cs`).
+- **What to enter:** a saved session's path, e.g. `Bastions/bastion1` (Saved, Private or Database), whose host, port, username and PuTTY profile are used, with its own folder defaults and placeholders resolved; or `user@host:port` (`host` alone means port 22 and PuTTY's own user). Placeholders such as `{user}@jump.example.net` work.
+- **How:** PuTTY's command line has no jump-host option, so SSH, Telnet, Rlogin and Raw sessions get `-proxycmd` running **plink.exe** (beside the PuTTY set in Options) as `plink -batch -ssh -P <port> [-load <profile>] [-l <user>] <bastion> -nc %host:%port`; PuTTY fills in `%host:%port`. Other protocols ignore it.
+- **The bastion must accept a key:** plink runs as a hidden proxy with `-batch`, so it can't ask for a password. Use Pageant, or a key set in the bastion session's PuTTY profile. A bastion that needs a password needs a PuTTY profile with PuTTY's own SSH proxy settings instead.
+- **Quoting:** PuTTY reads backslashes in a proxy command as escapes, so they're doubled, and the whole command is one argument with its quotes escaped. plink's path (`C:\Program Files\...`) and profile names with spaces come through intact.
+- **When it can't be used,** the session connects directly, and the status bar and log say why: the jump host names no session and isn't `user@host:port`, plink.exe isn't beside PuTTY, or it names the session itself. Chains (a bastion with its own jump host) aren't followed.
+- **Stored:** a `JumpHost` attribute in Sessions.xml (only when set); `jump_host` columns on the database's sessions and folders tables (lockable with `locked_fields`; a table not yet upgraded is still written, without it); a `Jump host` CSV column; and a field in Edit sessions....
+- **Edit Session** shows a folder's jump host as the empty box's hint, e.g. "Bastions/bastion1 (from DC)".
+- **Database writes:** the optional session columns (`color`, `jump_host`) are now one list (`DatabaseSessions.OptionalWriteColumns`), written only when the table has them, and remembered in the cache.
+
+| File | Change |
+|---|---|
+| `Utils/JumpHosts.cs` | New. Resolving the jump host, finding plink, and the `-proxycmd` arguments |
+| `Utils/PuttyStartInfo.cs` | Adds them to PuTTY's command line |
+| `Utils/SessionVariables.cs` | Placeholders in the jump host are resolved |
+| `Data/SessionData.cs` | `JumpHost` |
+| `Data/FolderSettings.cs` | `JumpHost` as a folder default |
+| `Data/DatabaseSessions.cs` | `jump_host` on both tables; optional write columns generalised |
+| `Data/SessionCsv.cs`, `Data/SessionBulkEdit.cs`, `Gui/dlgBulkEdit.cs` | The Jump host column and field |
+| `dlgEditSession.cs` / `.Designer.cs` | The Jump host row (the rows below moved down 48 px), its hint, tooltip and lock |
+| `Gui/dlgFolderSettings.cs` | The Jump host row |
+
+**Checked** (test programs running the app's code; 20 checks, all passed):
+- **Resolving:** a saved session as the jump host gave its host, port 2022, user and profile; port 0 became 22, its folder's default username was used, and Default Settings meant no profile; `ops@jump.example.net:2200` and a bare host parsed; a session naming itself, and nonsense, weren't used.
+- **The arguments:** plink was found beside the PuTTY set in Options; an SSH session got `-proxycmd ... -nc %host:%port`, with the target's own `-l admin 10.1.2.3` after; a session without its own got its folder's; RDP got none; an unknown jump host connected directly.
+- **The quoting, through the real parser:** the real plink 0.85 (which shares PuTTY's command-line and proxy-command code) was started with these arguments. The proxy command was a stand-in plink in a folder with spaces in its name, which recorded what it received: exactly `-batch -ssh -P 2022 -load "Bastion key" -l jumpuser bastion.example.net -nc 10.1.2.3:22`.
+- **Database:** a table with `color` but not `jump_host` was still written (with the colour); the upgrade added `jump_host` to both tables; a session's and a folder's jump hosts were written and read back.
+- **Edit Session** (screenshot): the Jump host row fits, and the folder's username and jump host show as hints.
+- **Not checked:** a real connection through a bastion (none here accepts a key without a password).
+
 ## Folder defaults: username, PuTTY profile and port
 
 Right-click a folder → **Folder settings...** (`Gui/dlgFolderSettings.cs`) sets its colour and the values its sessions use when they have none of their own, so a site's credentials change in one place instead of in 40 sessions.
@@ -1353,6 +1385,7 @@ Favorites, Recent and private sessions:
 17. Right-click a folder → Edit sessions...: untick one session, tick Username and type `{user}`, tick Port and set 2222, Change: every ticked session has the new username and port, the unticked one doesn't. Under Database sessions, lock `username` on one row (`locked_fields = '{username}'`) and repeat: it's listed as left alone.
 18. Add a button with `interface {prompt:Interface}\rshow this\r`, open a session on a switch and click it: it asks for Interface, then types both lines. Click it again: the last interface is offered. Cancel: nothing is typed. Type `show interface {prompt:Port}` in Send Commands and press Enter: it asks, sends, and the history keeps `{prompt:Port}`.
 19. Right-click a folder → Folder settings...: Username `netops`, Port 2222. A session in a subfolder with no username and port 0 connects as netops on 2222; Edit Session shows "netops (from ...)" in the empty Username box. A session with its own username keeps it.
+20. With Pageant holding a key the bastion accepts, make a session `Bastions/bastion1` for it, then set a device's Jump host to `Bastions/bastion1` (or a folder's, in Folder settings...): the device connects through it. Set the jump host to `nosuch`: it connects directly and the status bar says why.
 
 Database sessions:
 

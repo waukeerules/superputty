@@ -30,6 +30,10 @@ namespace SuperPutty.Data
         [XmlAttribute]
         public int Port { get; set; }
 
+        /// <summary>Jump host for sessions below with none: a session's path or "user@host:port" (Utils.JumpHosts)</summary>
+        [XmlAttribute]
+        public string JumpHost { get; set; }
+
         /// <summary>XmlSerializer: write Port only when it's set</summary>
         /// <returns>true to write <see cref="Port"/></returns>
         public bool ShouldSerializePort()
@@ -41,7 +45,11 @@ namespace SuperPutty.Data
         [XmlIgnore]
         public bool IsEmpty
         {
-            get { return string.IsNullOrEmpty(this.Color) && string.IsNullOrEmpty(this.Username) && string.IsNullOrEmpty(this.PuttyProfile) && this.Port <= 0; }
+            get
+            {
+                return string.IsNullOrEmpty(this.Color) && string.IsNullOrEmpty(this.Username) && string.IsNullOrEmpty(this.PuttyProfile)
+                    && this.Port <= 0 && string.IsNullOrEmpty(this.JumpHost);
+            }
         }
 
         /// <summary>A copy, so callers can change one without touching the stored one</summary>
@@ -312,20 +320,23 @@ namespace SuperPutty.Data
                     copy.PuttySession = setting.PuttyProfile;
                 if (copy.Port <= 0 && setting.Port > 0)
                     copy.Port = setting.Port;
+                if (string.IsNullOrEmpty(copy.JumpHost) && !string.IsNullOrEmpty(setting.JumpHost))
+                    copy.JumpHost = setting.JumpHost;
             }
             return copy;
         }
 
         /// <summary>The default a session would get for a field from its folders, for showing in Edit Session</summary>
         /// <param name="session">The session (its ID gives the folder)</param>
-        /// <param name="field">"Username", "PuttyProfile" or "Port"</param>
+        /// <param name="field">"Username", "PuttyProfile", "Port" or "JumpHost"</param>
         /// <returns>The value and the folder it's from, e.g. "netops (from HQ/Core)"; null if no folder sets it</returns>
         public static string Describe(SessionData session, string field)
         {
             string folder = session.IsDatabase ? DatabaseSessions.FolderOf(session.SessionId) : SessionData.GetSessionParentId(session.SessionId) ?? string.Empty;
             foreach (FolderSetting setting in Along(StoreOf(session), folder))
             {
-                string value = field == "Username" ? setting.Username : field == "PuttyProfile" ? setting.PuttyProfile : setting.Port > 0 ? setting.Port.ToString() : null;
+                string value = field == "Username" ? setting.Username : field == "PuttyProfile" ? setting.PuttyProfile : field == "JumpHost" ? setting.JumpHost
+                    : setting.Port > 0 ? setting.Port.ToString() : null;
                 if (!string.IsNullOrEmpty(value))
                     return value + " (from " + setting.Path + ")";
             }

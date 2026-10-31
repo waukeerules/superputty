@@ -32,7 +32,7 @@ namespace SuperPutty.Gui
         }
 
         /// <summary>The fields offered</summary>
-        private readonly Field username, profile, port, protocol, icon, color, extraArgs;
+        private readonly Field username, profile, port, protocol, icon, color, extraArgs, jumpHost;
 
         /// <summary>The icon chosen, as a key</summary>
         private string iconKey;
@@ -86,6 +86,9 @@ namespace SuperPutty.Gui
             this.icon = this.AddField(grid, "Icon", buttonIcon);
             this.color = this.AddField(grid, "Colour", comboColor);
             this.extraArgs = this.AddField(grid, "Extra args", textArgs);
+            TextBox textJump = new TextBox();
+            HintText.Set(textJump, "e.g. Bastions/bastion1, or admin@10.0.0.1:22 (empty for none)");
+            this.jumpHost = this.AddField(grid, "Jump host", textJump);
             numericPort.Width = this.LogicalToDeviceUnits(90);
             buttonIcon.Anchor = AnchorStyles.Left;
             buttonIcon.Click += (s, e) =>
@@ -193,6 +196,7 @@ namespace SuperPutty.Gui
             if (this.icon.Use.Checked) change.Icon = this.iconKey ?? string.Empty;
             if (this.color.Use.Checked) change.Color = ColorChoices[((ComboBox)this.color.Editor).SelectedIndex].Value;
             if (this.extraArgs.Use.Checked) change.ExtraArgs = this.extraArgs.Editor.Text;
+            if (this.jumpHost.Use.Checked) change.JumpHost = this.jumpHost.Editor.Text.Trim();
             return change;
         }
 

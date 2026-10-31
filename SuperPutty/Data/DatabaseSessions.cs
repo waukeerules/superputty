@@ -57,6 +57,7 @@ namespace SuperPutty.Data
             new[] { "local_path", "text" },
             new[] { "remote_path", "text" },
             new[] { "color", "text" },
+            new[] { "jump_host", "text" },
             new[] { "locked", "boolean NOT NULL DEFAULT false" },
             new[] { "locked_fields", "text[] NOT NULL DEFAULT '{}'" },
             new[] { "managed_by", "text" },
@@ -80,7 +81,7 @@ namespace SuperPutty.Data
         public static readonly string[] LockableFields =
         {
             "folder", "name", "protocol", "host", "port", "username", "putty_profile", "extra_args", "icon", "notes",
-            "spsl_script", "rdp_options", "local_path", "remote_path", "color"
+            "spsl_script", "rdp_options", "local_path", "remote_path", "color", "jump_host"
         };
 
         /// <summary>
@@ -94,15 +95,33 @@ namespace SuperPutty.Data
             new[] { "username", "text" },
             new[] { "putty_profile", "text" },
             new[] { "port", "integer" },
+            new[] { "jump_host", "text" },
             new[] { "updated_at", "timestamptz NOT NULL DEFAULT now()" },
             new[] { "updated_by", "text NOT NULL DEFAULT current_user" }
         };
 
         /// <summary>
-        /// Whether the table had the color column at the last read: writes leave it out until Create / upgrade schema
-        /// adds it, so a table not yet upgraded can still be written
+        /// Session columns added after the first writable schema, written only when the table has them, so a table not
+        /// yet upgraded can still be written: <see cref="AddSessionParameters"/> and <see cref="WriteColumnList"/>
         /// </summary>
-        public static bool HasColorColumn { get; private set; }
+        private static readonly string[] OptionalWriteColumns = { "color", "jump_host" };
+
+        /// <summary>Which of <see cref="OptionalWriteColumns"/> the table had at the last read (or in the cache)</summary>
+        private static HashSet<string> optionalPresent = new HashSet<string>();
+
+        /// <summary>Whether the table had the color column at the last read</summary>
+        public static bool HasColorColumn
+        {
+            get { return HasColumn("color"); }
+        }
+
+        /// <summary>Whether the table had an optional column at the last read</summary>
+        /// <param name="column">e.g. "jump_host"</param>
+        /// <returns>true if it's there and written</returns>
+        public static bool HasColumn(string column)
+        {
+            return optionalPresent.Contains(column);
+        }
 
         /// <summary>The application name SuperPuTTY connects with; the guard trigger enforces locks only for it</summary>
         public const string ApplicationName = "SuperPuTTY";
@@ -617,7 +636,7 @@ namespace SuperPutty.Data
                     }
                 }
                 if (!before.FoldersTableExists)
-                    done.Add("added the folder settings table " + c.Table + "_folders");
+                    done.Add("added or updated the folder settings table " + c.Table + "_folders");
                 if (!before.TriggerExists)
                     done.Add("added the change and lock triggers");
                 transaction.Commit();
@@ -750,8 +769,9 @@ namespace SuperPutty.Data
                     + ", " + (present.Contains("locked_fields") ? "locked_fields" : "'{}'::text[]")
                     + ", " + (present.Contains("managed_by") ? "managed_by" : "NULL::text")
                     + ", " + (present.Contains("updated_by") ? "updated_by" : "NULL::text")
-                    + ", " + (present.Contains("color") ? "color" : "NULL::text");
-                HasColorColumn = present.Contains("color");
+                    + ", " + (present.Contains("color") ? "color" : "NULL::text")
+                    + ", " + (present.Contains("jump_host") ? "jump_host" : "NULL::text");
+                optionalPresent = new HashSet<string>(OptionalWriteColumns.Where(present.Contains));
                 folders = FetchFolders(connection, c);
                 // rows given a deleted_at (by the scripts that manage the table) are hidden, not removed
                 string visible = present.Contains("deleted_at") ? "deleted_at IS NULL" : null;
@@ -826,7 +846,8 @@ namespace SuperPutty.Data
                 DatabaseLockedFields = string.Join(",", reader.GetFieldValue<string[]>(17)),
                 DatabaseManagedBy = Text(reader, 18),
                 DatabaseUpdatedBy = Text(reader, 19),
-                Color = Text(reader, 20)
+                Color = Text(reader, 20),
+                JumpHost = Text(reader, 21)
             };
             session.SessionId = MakeSessionId(folder, name);
             return session;
@@ -854,7 +875,8 @@ namespace SuperPutty.Data
                             Color = (string)row["color"],
                             Username = (string)row["username"],
                             PuttyProfile = (string)row["putty_profile"],
-                            Port = (int?)row["port"] ?? 0
+                            Port = (int?)row["port"] ?? 0,
+                            JumpHost = (string)row["jump_host"]
                         });
                     }
                 }
@@ -882,8 +904,10 @@ namespace SuperPutty.Data
                     throw new InvalidOperationException("The database has no folder settings table yet. Run Create / upgrade schema in Tools > Database sessions.");
                 string sql = setting.IsEmpty
                     ? "DELETE FROM " + c.QualifiedFoldersTable + " WHERE folder = @folder"
-                    : "INSERT INTO " + c.QualifiedFoldersTable + " (folder, color, username, putty_profile, port) VALUES (@folder, @color, @username, @putty_profile, @port) "
-                        + "ON CONFLICT (folder) DO UPDATE SET color = EXCLUDED.color, username = EXCLUDED.username, putty_profile = EXCLUDED.putty_profile, port = EXCLUDED.port";
+                    : "INSERT INTO " + c.QualifiedFoldersTable + " (folder, color, username, putty_profile, port, jump_host) "
+                        + "VALUES (@folder, @color, @username, @putty_profile, @port, @jump_host) "
+                        + "ON CONFLICT (folder) DO UPDATE SET color = EXCLUDED.color, username = EXCLUDED.username, putty_profile = EXCLUDED.putty_profile, "
+                        + "port = EXCLUDED.port, jump_host = EXCLUDED.jump_host";
                 using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
                 {
                     command.Parameters.AddWithValue("folder", path);
@@ -891,6 +915,7 @@ namespace SuperPutty.Data
                     command.Parameters.AddWithValue("username", (object)NullIfEmpty(setting.Username) ?? DBNull.Value);
                     command.Parameters.AddWithValue("putty_profile", (object)NullIfEmpty(setting.PuttyProfile) ?? DBNull.Value);
                     command.Parameters.AddWithValue("port", setting.Port > 0 ? (object)setting.Port : DBNull.Value);
+                    command.Parameters.AddWithValue("jump_host", (object)NullIfEmpty(setting.JumpHost) ?? DBNull.Value);
                     try
                     {
                         return command.ExecuteNonQuery();
@@ -1005,24 +1030,28 @@ namespace SuperPutty.Data
             command.Parameters.AddWithValue("rdp_options", (object)NullIfEmpty(session.RdpOptions) ?? DBNull.Value);
             command.Parameters.AddWithValue("local_path", (object)NullIfEmpty(session.LocalPath) ?? DBNull.Value);
             command.Parameters.AddWithValue("remote_path", (object)NullIfEmpty(session.RemotePath) ?? DBNull.Value);
-            if (HasColorColumn)
+            if (HasColumn("color"))
             {
                 command.Parameters.AddWithValue("color", (object)NullIfEmpty(session.Color) ?? DBNull.Value);
             }
+            if (HasColumn("jump_host"))
+            {
+                command.Parameters.AddWithValue("jump_host", (object)NullIfEmpty(session.JumpHost) ?? DBNull.Value);
+            }
         }
 
-        /// <summary>The columns written: <see cref="WriteColumns"/>, plus color once the table has it</summary>
+        /// <summary>The columns written: <see cref="WriteColumns"/>, plus the optional ones the table has</summary>
         /// <returns>The column list for SQL</returns>
         private static string WriteColumnList()
         {
-            return WriteColumns + (HasColorColumn ? ", color" : "");
+            return WriteColumns + string.Concat(OptionalWriteColumns.Where(HasColumn).Select(col => ", " + col));
         }
 
         /// <summary>The parameters for <see cref="WriteColumnList"/></summary>
         /// <returns>The parameter list for SQL</returns>
         private static string WriteParameterList()
         {
-            return WriteParameters + (HasColorColumn ? ", @color" : "");
+            return WriteParameters + string.Concat(OptionalWriteColumns.Where(HasColumn).Select(col => ", @" + col));
         }
 
         /// <summary>Null for empty text, so optional columns stay NULL</summary>
@@ -1270,8 +1299,8 @@ namespace SuperPutty.Data
             /// <summary>The folders' settings (colours) at the last read</summary>
             public List<FolderSetting> Folders { get; set; } = new List<FolderSetting>();
 
-            /// <summary>Whether the table had the color column, so changes queued offline before the first read include it</summary>
-            public bool HasColor { get; set; }
+            /// <summary>The optional columns (color, jump_host) the table had, so changes queued offline before the first read include them</summary>
+            public List<string> OptionalColumns { get; set; } = new List<string>();
         }
 
         /// <summary>The cache file's path; set it to use another (tests)</summary>
@@ -1407,7 +1436,7 @@ namespace SuperPutty.Data
             if (cache != null && cache.Source == c.ToString())
             {
                 Writable = cache.Writable && !c.ReadOnly;
-                HasColorColumn = cache.HasColor;
+                optionalPresent = new HashSet<string>(cache.OptionalColumns ?? new List<string>());
                 FolderSettings.ReplaceDatabase(cache.Folders);
                 serverSessions = cache.Sessions;
                 ShowSessions(c);
@@ -1445,7 +1474,7 @@ namespace SuperPutty.Data
                     string token;
                     List<FolderSetting> folders;
                     List<SessionData> sessions = FetchAll(c, n => Post(() => { LoadedSoFar = n; StatusChanged?.Invoke(null, EventArgs.Empty); }), out writable, out hasLocks, out token, out folders);
-                    CacheFile cache = new CacheFile { Source = c.ToString(), SyncedAt = DateTime.Now, Sessions = sessions, Writable = writable, Folders = folders, HasColor = HasColorColumn };
+                    CacheFile cache = new CacheFile { Source = c.ToString(), SyncedAt = DateTime.Now, Sessions = sessions, Writable = writable, Folders = folders, OptionalColumns = optionalPresent.ToList() };
                     try
                     {
                         SaveCache(cache);

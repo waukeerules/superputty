@@ -126,6 +126,7 @@
     <Compile Include="Data\FolderSettings.cs" />
     <Compile Include="Data\SessionBulkEdit.cs" />
     <Compile Include="Utils\SnippetPrompts.cs" />
+    <Compile Include="Utils\JumpHosts.cs" />
     <Compile Include="Gui\dlgFolderSettings.cs">
       <SubType>Form</SubType>
     </Compile>
