@@ -235,8 +235,68 @@ namespace SuperPutty
 
             this.rdpOptions = Session.RdpOptions;
             UpdateRdpOptionsButton();
+            // after everything that enables controls, so a locked one stays locked
+            ApplyLockedFields();
 
             this.BeginInvoke(new MethodInvoker(delegate { this.textBoxSessionName.Focus(); }));
+        }
+
+        /// <summary>
+        /// Database columns locked for this session (the row's locked_fields, comma-separated, e.g. "host,port"): their
+        /// fields are shown but can't be changed. Set by SessionTreeview before showing the dialog for a database session.
+        /// </summary>
+        public string LockedFields { get; set; }
+
+        /// <summary>
+        /// Make the fields for <see cref="LockedFields"/> read-only (text boxes, so the value can still be selected and
+        /// copied) or disabled (lists and buttons), with a tooltip saying why
+        /// </summary>
+        private void ApplyLockedFields()
+        {
+            if (string.IsNullOrEmpty(this.LockedFields))
+                return;
+            Dictionary<string, Control[]> fields = new Dictionary<string, Control[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "name", new Control[] { this.textBoxSessionName } },
+                { "protocol", new Control[] { this.comboBoxProto } },
+                { "host", new Control[] { this.textBoxHostname } },
+                { "port", new Control[] { this.textBoxPort } },
+                { "username", new Control[] { this.textBoxUsername } },
+                { "putty_profile", new Control[] { this.comboBoxPuttyProfile } },
+                { "extra_args", new Control[] { this.textBoxExtraArgs } },
+                { "icon", new Control[] { this.buttonImageSelect } },
+                { "notes", new Control[] { this.textBoxNote } },
+                { "spsl_script", new Control[] { this.textBoxSPSLScriptFile, this.buttonBrowse, this.buttonClearSPSLFile } },
+                { "rdp_options", new Control[] { this.buttonRdpOptions } },
+                { "local_path", new Control[] { this.textBoxLocalPathSesion, this.buttonBrowseLocalPath } },
+                { "remote_path", new Control[] { this.textBoxRemotePathSesion } }
+            };
+            bool any = false;
+            foreach (string column in this.LockedFields.Split(','))
+            {
+                Control[] controls;
+                if (!fields.TryGetValue(column.Trim(), out controls))
+                    continue;
+                any = true;
+                foreach (Control control in controls)
+                {
+                    TextBox text = control as TextBox;
+                    if (text != null)
+                    {
+                        // read-only looks like editable in the dark theme, so show it flat and dimmed
+                        text.ReadOnly = true;
+                        text.BackColor = this.BackColor;
+                        text.ForeColor = Color.FromArgb(0x9A, 0x9A, 0x9A);
+                    }
+                    else
+                        control.Enabled = false;
+                    this.toolTip.SetToolTip(control, "Locked in the database: SuperXPuTTY can't change this field");
+                }
+            }
+            if (any)
+            {
+                this.Text += " (greyed fields are locked in the database)";
+            }
         }
 
         /// <summary>Enable "RDP options..." for RDP sessions only, and mark it with a tick when this session overrides something</summary>

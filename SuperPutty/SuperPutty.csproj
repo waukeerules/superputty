@@ -124,6 +124,9 @@
     <Compile Include="Gui\dlgDatabaseSettings.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Gui\dlgPendingChanges.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Gui\ImageListPopup.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -226,6 +229,7 @@
     <Compile Include="Data\SessionData.cs" />
     <Compile Include="Data\SessionShortcuts.cs" />
     <Compile Include="Data\DatabaseSessions.cs" />
+    <Compile Include="Data\DatabaseOutbox.cs" />
     <Compile Include="Data\SessionDataStartInfo.cs" />
     <Compile Include="DebugLogViewer.cs">
       <SubType>Form</SubType>

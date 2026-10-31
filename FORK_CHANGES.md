@@ -662,8 +662,48 @@ Sessions can be shared through a Postgres table. They show under a third root, *
 - **Someone else's change:** an edit is saved only if the row hasn't changed since it was read (its `updated_at`, kept as `SessionData.DatabaseVersion`). Otherwise it's refused with "Someone else changed or deleted this session since it was read. Refresh, then make your change again."
 - **Failures** are shown and leave the tree as it was: offline, a duplicate name, a refused name.
 - **When it can't be written** (read-only, no permission, offline, or not read yet): the sessions open, connect, go in Favorites and copy to Saved sessions, but Edit, Delete, New and Rename are disabled.
-- **Moving between folders or roots** (drag, Move to) isn't supported for database sessions yet.
+- **Dragging within Database sessions:** a session or folder can be dragged into another folder there, including a new, still-empty one, which then exists in the table.
+  - A session is saved with its new folder.
+  - A folder is renamed to its new path, with everything under it.
+  - It's saved at once, or queued while offline, like any other change.
+  - It's refused if a session involved has `folder` locked, and a folder can't be dropped inside itself.
+- **Not yet:** dragging between Database sessions and Saved or Private sessions, and Move to.
 - **Safe from Sessions.xml:** their IDs start with `@db/` (e.g. `@db/Lab/Core/sw1`), so they can't clash with Sessions.xml, and they're never written to Sessions.xml or PrivateSessions.xml.
+
+**For an inventory system**, three more columns:
+- **`created_at`:** when the row was added.
+- **`managed_by`:** which system owns the row, e.g. `inventory`; NULL for sessions made in SuperXPuTTY.
+- **`external_id`:** that system's key, unique per `managed_by` (index `<table>_external_id`). A sync script can upsert on it and delete its own stale rows without touching anyone else's.
+
+The guard trigger stops SuperXPuTTY changing these three, and the tree's tooltip says "Managed by inventory".
+
+**The guide [docs/DatabaseSessions.md](docs/DatabaseSessions.md)** is for whoever manages the table:
+- every column and its rules, with icon keys, RDP option keys and protocols;
+- the triggers and locks;
+- roles and permissions;
+- a complete Python (psycopg 3) inventory sync script, and useful SQL.
+
+**Port 0**, a row written without a port, connects on the protocol's usual port (see "Fix: sessions with port 0 connected with -P 0").
+
+**Locks**, for sessions a script manages:
+- **`locked`** (boolean): the whole session is locked. It opens and connects, but SuperXPuTTY doesn't edit, delete or rename it, or rename or remove a folder holding it.
+- **`locked_fields`** (`text[]`): just those columns are locked, e.g. `'{host,port}'`. Edit Session shows those fields greyed and read-only, with a tooltip and "(greyed fields are locked in the database)" in its title; the rest stay editable. Locking `folder` stops folder renames that would move the session.
+- **Enforced by the database too:** a guard trigger (`<table>_guard`) refuses SuperXPuTTY's changes to locked rows and fields, and to the locks themselves. SuperXPuTTY is recognised by its connection's application name, "SuperPuTTY". Your scripts connect under their own name, so they can change everything, locks included. An old copy of the app can't bypass the locks either.
+- **Refusals** are shown as e.g. "Host of "partly" is locked in the database".
+- **In the tree,** a locked session's tooltip says what's locked.
+- **Older tables:** a table made before locks still reads (as unlocked). Its root tooltip says to run Create / upgrade schema, which adds the columns and the trigger.
+
+**Changes while offline** are kept and sent later (`Data/DatabaseOutbox.cs`):
+- **Queueing:** while the table can't be reached, adding, editing, deleting and folder renames and removals are queued in `DatabaseSessions.outbox.xml` beside your settings. They show in the tree at once, in italics, with "Waiting to be saved to the database (queued 1:38 AM)" in the tooltip. The root says "3 pending".
+- **This needs the login to have been able to write at the last read**, which is kept in the cache. A change that loses the connection half-way is queued too.
+- **Changing queued sessions:** editing a queued new session updates it, deleting it just drops it, and two edits of one session make one change, keeping the version first read.
+- **Sending:** when the table can be reached again (the retry every 2 minutes, or Refresh), the queue is sent in order before the table is read. A row the queue itself changed earlier in the same sync, e.g. moved by a queued folder rename, is updated without the version check.
+- **Refused changes** (someone else changed the session meanwhile, a lock, a name clash) stay in the queue, marked "not saved", and the root says "1 not saved".
+- **Pending changes...** on the root's menu (`Gui/dlgPendingChanges.cs`) lists the queue:
+  - **Send again** retries the selected changes;
+  - **Overwrite theirs** saves a refused edit over the other change;
+  - **Discard** drops the selected changes.
+- **Each database has its own queue,** so changing the connection settings loses nothing. Online with nothing queued, a change is saved at once, as before.
 
 **Dialog layout:** the dialog sizes itself to its contents after it's laid out and themed, again when it's shown, and again when it moves to a monitor with another scaling. Before, the form's own AutoSize cut off the OK and Cancel row at some scalings.
 
@@ -671,7 +711,12 @@ Sessions can be shared through a Postgres table. They show under a third root, *
 |---|---|
 | `Data/DatabaseSessions.cs` | New. Connection settings, password protection, probe, create/upgrade, paged read, writes (insert, update with a version check, delete, rename and delete folder), cache, background sync and status |
 | `Gui/dlgDatabaseSettings.cs` | New. The settings dialog, built in code |
-| `Data/SessionData.cs` | `DatabaseId` and `DatabaseVersion` (written only to the cache) and `IsDatabase` |
+| `docs/DatabaseSessions.md` | New. The guide to the table, for scripts and admins |
+| `Utils/PuttyStartInfo.cs` | Port 0 means the protocol's usual port |
+| `Data/DatabaseOutbox.cs` | New. The queue of changes not yet in the table: merging, saving, and showing it over the table's sessions |
+| `Gui/dlgPendingChanges.cs` | New. Pending changes: Send again, Overwrite theirs, Discard |
+| `Data/SessionData.cs` | `DatabaseId`, `DatabaseVersion`, `DatabaseLocked` and `DatabaseLockedFields` (written only to the cache); `IsDatabase`, `IsDatabaseFieldLocked`; `DatabasePending` and its note |
+| `dlgEditSession.cs` | `LockedFields`: greys out and locks those fields |
 | `SuperPuTTY.cs` | `ReplaceDatabaseSessions` swaps them in one go; `SaveSessions` leaves them out; `LoadSessions` (Reload) keeps them |
 | `SessionTreeview.cs` | The Database sessions root, its status and menu; adding, editing and removing sessions and folders there (`SaveToDatabase`, `WriteDatabase`), and the guards for when it can't be written (`DatabaseLocked`) |
 | `frmSuperPutty.cs` / `.Designer.cs` | Tools → Database sessions...; `DatabaseSessions.Start()` on load |
@@ -698,6 +743,35 @@ Sessions can be shared through a Postgres table. They show under a third root, *
   - with the host unreachable, the six cached sessions stayed, the root read "offline, cached 1:12 AM", and the tooltip gave the error;
   - the dialog's Test connection reported the table.
 - **MSI:** it lists all 23 files.
+- **Locks** (written by SQL, as a script would):
+  - Editing and deleting a locked session were refused by the trigger ("whole" is locked in the database).
+  - Changing a locked field was refused ("Host of "partly" is locked"), and changing its unlocked notes saved.
+  - Renaming a folder holding a locked session was refused, and nothing moved.
+  - A script could still change locked rows.
+  - A table without the lock columns still read, was reported as needing the upgrade, and the upgrade added the columns and the trigger.
+- **The guide's SQL** (the upsert and delete read straight from docs/DatabaseSessions.md and run under the script's own application name):
+  - Three devices were added. Running it again with nothing changed updated nothing.
+  - A device moved and re-addressed updated its row, keeping a user's notes and icon and its `created_at`.
+  - A device clashing with a hand-made session failed with a unique violation, as the script expects.
+  - The stale delete removed only the stale inventory row.
+- **Inventory rows in the app:** `managed_by` and the locked fields were read. The app couldn't change a field the inventory locked, nor `managed_by`.
+- **Port 0:** a row with port 0 kept 0 and connected with `-P 22`. An earlier attempt, which turned 0 into 22 when reading, made saving an unrelated edit change the port, and the lock trigger refused it, so the default moved to connect time.
+- The Python script itself wasn't run: psycopg isn't installed here.
+- **Outbox (no database):**
+  - A queued insert showed as pending. Editing it updated the queued insert, and deleting it dropped it.
+  - Two edits made one change, keeping the first version.
+  - A queued folder rename and a delete were applied to what's shown, without changing the table's sessions.
+  - The queue was read back after a restart.
+- **Offline round trip, with the app connected through a local relay to the server that was then stopped:**
+  - three changes made offline were queued; the root read "offline, cached 1:38 AM, 3 pending", and the new session showed in italics;
+  - meanwhile dc1 was changed by SQL;
+  - with the relay started again, the new session and the edge-r1 edit were saved, while dc1's edit was refused as a conflict ("8, 1 not saved");
+  - Overwrite theirs saved it and emptied the queue.
+- **Dragging (the drop logic, called directly):**
+  - A session could be dropped on a new empty folder, but not on its own folder, and a folder not inside its own child.
+  - Moving edge-r1 into the new folder "Moved", then folder Lab/Core into it, left `Moved/edge-r1`, `Moved/Core/core-sw1` and `Moved/Core/core-sw2` in the table, and the tree showed the same.
+  - The mouse drag itself wasn't automated.
+- **Edit Session** with `host,port,username` locked: those fields were read-only and greyed, and notes stayed editable.
 - **Dialog fit:** shown, its OK button fit. Shrunk by 45 px, as a DPI change can do, it was clipped; refit, it fit again.
 - **Not checked:** the running app with your settings (the dialogs themselves weren't clicked through), a real move between monitors, SSL modes other than Prefer, and very large tables.
 
@@ -880,6 +954,9 @@ Database sessions:
 3a. Edit a session in SQL (`UPDATE ... SET host = ...`), then edit the same session in the tree without Refresh: saving says someone else changed it. Refresh and edit again: it saves.
 4. Stop Postgres (or set a wrong host): after Refresh the root says "offline, cached ..." and the sessions still open. Start it again and Refresh: back to the count.
 5. Tick Read only: Create / upgrade schema stays disabled, and New, Edit, Delete and Rename are disabled in Database sessions.
+5a. Locks: run Create / upgrade schema once (it adds the lock columns), then `UPDATE superputty.sessions SET locked_fields = '{host,port}' WHERE name = 'sw1';` and Refresh. Edit sw1: host and port are greyed, notes can be changed and saved. `UPDATE ... SET locked = true`: Edit and Delete are disabled, and renaming its folder is refused.
+5c. Dragging: right-click Database sessions → New folder "Moved". Drag a session onto it: it moves there, in the table too. Drag a folder onto it: the folder and everything in it move.
+5b. Offline: stop Postgres (or block the port), Refresh, then add a session and edit another: they show in italics, the root says "2 pending". Start Postgres, Refresh: they're in the table, and the italics go. Repeat, but change the edited session by SQL before reconnecting: it stays "not saved"; Database sessions → Pending changes → Overwrite theirs saves it.
 6. Move the Database sessions dialog to a monitor with another scaling: OK and Cancel stay fully visible.
 
 Dropped sessions:

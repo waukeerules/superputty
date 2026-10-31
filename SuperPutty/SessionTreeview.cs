@@ -568,6 +568,11 @@ namespace SuperPutty
                 node = treeView1.SelectedNode;
                 nodeRef = node.Parent;
                 title = "Edit session: " + session.SessionName;
+                if (session.DatabaseLocked)
+                {
+                    // locked in the database: it opens, but isn't edited here
+                    return;
+                }
             }
 
             if (node == null && DatabaseLocked(nodeRef))
@@ -586,6 +591,11 @@ namespace SuperPutty
             }
 
             dlgEditSession form = new dlgEditSession(session, treeView1.ImageList) {Text = title};
+            if (node != null && session.IsDatabase)
+            {
+                // fields the database's locked_fields names are shown but can't be changed
+                form.LockedFields = session.DatabaseLockedFields;
+            }
             form.SessionNameValidator += delegate(string txt, out string error)
             {
                 bool IsValid = ValidateSessionNameChange(nodeRef, node, txt, out error);
@@ -688,7 +698,7 @@ namespace SuperPutty
         private void deleteToolStripMenuItem_Click(object sender, EventArgs e)
         {
             SessionData session = (SessionData)treeView1.SelectedNode.Tag;
-            if (DatabaseLocked(treeView1.SelectedNode))
+            if (DatabaseLocked(treeView1.SelectedNode) || session.DatabaseLocked)
             {
                 return;
             }
@@ -696,7 +706,7 @@ namespace SuperPutty
             {
                 if (session.IsDatabase)
                 {
-                    if (this.WriteDatabase(c => DatabaseSessions.Delete(c, session.DatabaseId)))
+                    if (this.WriteDatabase(new DatabaseOutbox.PendingChange { Kind = DatabaseOutbox.ChangeKind.Delete, Session = session }))
                     {
                         SessionShortcuts.Forget(session.SessionId);
                     }
@@ -829,14 +839,20 @@ namespace SuperPutty
                     string to = SessionData.CombineSessionIds(NullIfEmpty(DatabaseFolder(node.Parent)), dialog.ItemName);
                     List<SessionData> moved = new List<SessionData>();
                     GetAllSessions(node, moved);
-                    if (moved.Count == 0)
+                    SessionData locked = moved.FirstOrDefault(m => m.IsDatabaseFieldLocked("folder"));
+                    if (locked != null)
+                    {
+                        Messenger.MessageBox("\"" + locked.SessionName + "\" in this folder is locked in the database, so the folder can't be renamed here.",
+                            "Rename folder", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else if (moved.Count == 0)
                     {
                         // a folder made here and still empty exists only in the tree
                         node.Text = dialog.ItemName;
                         node.Name = dialog.ItemName;
                         ResortNodes();
                     }
-                    else if (this.WriteDatabase(c => DatabaseSessions.RenameFolder(c, from, to)))
+                    else if (this.WriteDatabase(new DatabaseOutbox.PendingChange { Kind = DatabaseOutbox.ChangeKind.RenameFolder, From = from, To = to }))
                     {
                         foreach (SessionData session in moved)
                         {
@@ -873,7 +889,14 @@ namespace SuperPutty
                         if (IsDatabaseNode(node))
                         {
                             string folder = DatabaseFolder(node);
-                            if (this.WriteDatabase(c => DatabaseSessions.DeleteFolder(c, folder)))
+                            SessionData locked = sessions.FirstOrDefault(m => m.DatabaseLocked);
+                            if (locked != null)
+                            {
+                                Messenger.MessageBox("\"" + locked.SessionName + "\" in this folder is locked in the database, so the folder can't be removed here.",
+                                    "Remove folder", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                return;
+                            }
+                            if (this.WriteDatabase(new DatabaseOutbox.PendingChange { Kind = DatabaseOutbox.ChangeKind.DeleteFolder, From = folder }))
                             {
                                 sessions.ForEach(session => SessionShortcuts.Forget(session.SessionId));
                             }
@@ -957,7 +980,7 @@ namespace SuperPutty
                 ? "Remove from Favorites" : "Add to Favorites";
             this.moveSessionToolStripMenuItem.Text = MoveMenuText(this.treeView1.SelectedNode);
             // database sessions are edited and deleted only when the table can be written, and not moved yet
-            bool locked = DatabaseLocked(this.treeView1.SelectedNode);
+            bool locked = DatabaseLocked(this.treeView1.SelectedNode) || (session != null && session.DatabaseLocked);
             this.settingsToolStripMenuItem.Enabled = !locked;
             this.deleteToolStripMenuItem.Enabled = !locked;
             this.moveSessionToolStripMenuItem.Visible = !IsDatabaseNode(this.treeView1.SelectedNode);
@@ -1003,7 +1026,13 @@ namespace SuperPutty
                 tip += Environment.NewLine + "Read at " + DatabaseSessions.SyncedAt.Value.ToString("g");
             if (DatabaseSessions.State == DatabaseSessions.SyncState.Offline)
                 tip += Environment.NewLine + "Can't reach it: " + DatabaseSessions.LastError + Environment.NewLine
-                    + "Showing the cached copy; it's tried again every few minutes, or right-click -> Refresh";
+                    + "Showing the cached copy; it's tried again every few minutes, or right-click -> Refresh"
+                    + (DatabaseSessions.Writable ? Environment.NewLine + "Changes made now are kept here and sent when it's back" : "");
+            if (DatabaseSessions.PendingCount + DatabaseSessions.FailedCount > 0)
+                tip += Environment.NewLine + string.Format("{0} change(s) waiting, {1} not saved: right-click -> Pending changes",
+                    DatabaseSessions.PendingCount, DatabaseSessions.FailedCount);
+            if (DatabaseSessions.NeedsUpgrade)
+                tip += Environment.NewLine + "The table has no lock columns yet: Database settings -> Create / upgrade schema";
             this.nodeDatabase.ToolTipText = tip;
         }
 
@@ -1078,47 +1107,151 @@ namespace SuperPutty
             string folder = DatabaseFolder(nodeRef);
             string newId = DatabaseSessions.MakeSessionId(folder, session.SessionName);
             SessionData real = node?.Tag as SessionData;
-            bool saved = this.WriteDatabase(c =>
+            if (real != null)
             {
-                if (real == null)
-                    DatabaseSessions.Insert(c, session, folder);
-                else
-                    DatabaseSessions.Update(c, real.DatabaseId, real.DatabaseVersion, session, folder);
+                // the row it updates, and the version it was read at
+                session.DatabaseId = real.DatabaseId;
+                session.DatabaseVersion = real.DatabaseVersion;
+            }
+            // selected once it's shown: at once if it's queued, after the read if it's saved
+            this.pendingSelectId = newId;
+            bool saved = this.WriteDatabase(new DatabaseOutbox.PendingChange
+            {
+                Kind = real == null ? DatabaseOutbox.ChangeKind.Insert : DatabaseOutbox.ChangeKind.Update,
+                Session = session,
+                Folder = folder
             });
-            if (saved)
+            if (!saved)
             {
-                if (real != null)
-                {
-                    // a renamed favourite stays a favourite
-                    SessionShortcuts.Rename(real.SessionId, newId);
-                }
-                this.pendingSelectId = newId;
+                this.pendingSelectId = null;
+            }
+            else if (real != null)
+            {
+                // a renamed favourite stays a favourite
+                SessionShortcuts.Rename(real.SessionId, newId);
             }
         }
 
-        /// <summary>Make a change to the table, with a wait cursor, then read it again; a failure is shown</summary>
-        /// <param name="write">The change, given the connection</param>
-        /// <returns>true if it worked</returns>
-        bool WriteDatabase(Action<DatabaseSessions.Connection> write)
+        /// <summary>
+        /// Make a change to the table, with a wait cursor: saved at once when it can be reached, otherwise queued and
+        /// shown as pending until it's sent. A refusal (a lock, a name clash, someone else's change) is shown.
+        /// </summary>
+        /// <param name="change">The change</param>
+        /// <returns>true if it was saved or queued</returns>
+        bool WriteDatabase(DatabaseOutbox.PendingChange change)
         {
             Cursor previous = Cursor.Current;
             Cursor.Current = Cursors.WaitCursor;
+            DatabaseSessions.SubmitResult result;
+            string error;
             try
             {
-                write(DatabaseSessions.FromSettings());
-            }
-            catch (InvalidOperationException ex)
-            {
-                Cursor.Current = previous;
-                Messenger.MessageBox("Couldn't save to the database: " + ex.Message, "Database sessions", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return false;
+                result = DatabaseSessions.Submit(change, out error);
             }
             finally
             {
                 Cursor.Current = previous;
             }
-            DatabaseSessions.BeginSync();
+            if (result == DatabaseSessions.SubmitResult.Failed)
+            {
+                Messenger.MessageBox("Couldn't save to the database: " + error, "Database sessions", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+            if (result == DatabaseSessions.SubmitResult.Queued)
+            {
+                SuperPuTTY.ReportStatus("The database can't be reached: the change is kept here and sent when it's back ({0})", change);
+            }
             return true;
+        }
+
+        /// <summary>List the changes waiting for the database, to retry, overwrite or discard them</summary>
+        void ShowPendingChanges()
+        {
+            using (dlgPendingChanges dialog = new dlgPendingChanges())
+            {
+                dialog.ShowDialog(this);
+            }
+        }
+
+        /// <summary>
+        /// Whether a database session or folder can be dropped into a folder of Database sessions: the table can be
+        /// written, the target is a folder (or the root) other than its own, not inside the dragged folder, and
+        /// nothing of the same name is there
+        /// </summary>
+        /// <param name="payload">The session or folder being dragged</param>
+        /// <param name="target">The folder under the mouse</param>
+        /// <returns>true if it can be moved there</returns>
+        bool CanMoveInDatabase(TreeNode payload, TreeNode target)
+        {
+            if (DatabaseLocked(target) || !IsFolderNode(target) || target == payload || target == payload.Parent
+                || target.Nodes.ContainsKey(payload.Text))
+                return false;
+            for (TreeNode node = target; node != null; node = node.Parent)
+            {
+                if (node == payload)
+                {
+                    // a folder can't go inside itself
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Move a database session, or a folder and everything under it, into another folder of Database sessions:
+        /// a session is saved with its new folder, a folder is renamed to its new path. Saved at once, or queued while
+        /// offline; refused if a session involved has its folder locked. An empty folder made in the tree just moves.
+        /// </summary>
+        /// <param name="payload">The session or folder</param>
+        /// <param name="target">The folder it's dropped on</param>
+        void MoveInDatabase(TreeNode payload, TreeNode target)
+        {
+            string toFolder = DatabaseFolder(target);
+            List<SessionData> sessions = new List<SessionData>();
+            if (IsSessionNode(payload))
+                sessions.Add((SessionData)payload.Tag);
+            else
+                GetAllSessions(payload, sessions);
+            SessionData locked = sessions.FirstOrDefault(s => s.IsDatabaseFieldLocked("folder"));
+            if (locked != null)
+            {
+                Messenger.MessageBox("\"" + locked.SessionName + "\" is locked in the database, so it can't be moved here.",
+                    "Move", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (IsSessionNode(payload))
+            {
+                SessionData real = (SessionData)payload.Tag;
+                SessionData moved = (SessionData)real.Clone();
+                string newId = DatabaseSessions.MakeSessionId(toFolder, real.SessionName);
+                this.pendingSelectId = newId;
+                if (this.WriteDatabase(new DatabaseOutbox.PendingChange { Kind = DatabaseOutbox.ChangeKind.Update, Session = moved, Folder = toFolder }))
+                    SessionShortcuts.Rename(real.SessionId, newId);
+                else
+                    this.pendingSelectId = null;
+                return;
+            }
+
+            if (sessions.Count == 0)
+            {
+                // a folder made here and still empty exists only in the tree
+                TreeNode copy = (TreeNode)payload.Clone();
+                payload.Remove();
+                target.Nodes.Add(copy);
+                target.Expand();
+                return;
+            }
+            string from = DatabaseFolder(payload);
+            string to = SessionData.CombineSessionIds(NullIfEmpty(toFolder), payload.Text);
+            if (this.WriteDatabase(new DatabaseOutbox.PendingChange { Kind = DatabaseOutbox.ChangeKind.RenameFolder, From = from, To = to }))
+            {
+                string oldPrefix = DatabaseSessions.IdPrefix + SessionIdDelim + from;
+                foreach (SessionData session in sessions)
+                {
+                    SessionShortcuts.Rename(session.SessionId, DatabaseSessions.IdPrefix + SessionIdDelim + to + session.SessionId.Substring(oldPrefix.Length));
+                }
+            }
         }
 
         /// <summary>Open the database settings; they take effect when it's closed with OK</summary>
@@ -1396,10 +1529,14 @@ namespace SuperPutty
             this.contextMenuStripDatabaseRoot = new ContextMenuStrip { ShowImageMargin = false };
             ToolStripMenuItem databaseNewSession = new ToolStripMenuItem("New session...", null, (s, e) => this.CreateOrEditSession(0, null));
             ToolStripMenuItem databaseNewFolder = new ToolStripMenuItem("New folder", null, (s, e) => this.newFolderToolStripMenuItem_Click(this, EventArgs.Empty));
+            ToolStripMenuItem databasePending = new ToolStripMenuItem("Pending changes...", null, (s, e) => this.ShowPendingChanges());
             this.contextMenuStripDatabaseRoot.Opening += (s, e) =>
             {
                 databaseNewSession.Enabled = DatabaseSessions.Writable;
                 databaseNewFolder.Enabled = DatabaseSessions.Writable;
+                int waiting = DatabaseSessions.PendingCount + DatabaseSessions.FailedCount;
+                databasePending.Visible = waiting > 0;
+                databasePending.Text = string.Format("Pending changes ({0})...", waiting);
             };
             this.contextMenuStripDatabaseRoot.Items.AddRange(new ToolStripItem[]
             {
@@ -1407,6 +1544,7 @@ namespace SuperPutty
                 databaseNewFolder,
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("Refresh", null, (s, e) => DatabaseSessions.BeginSync()),
+                databasePending,
                 new ToolStripMenuItem("Database settings...", null, (s, e) => this.ShowDatabaseSettings()),
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("Expand all", null, (s, e) => this.nodeDatabase?.ExpandAll()),
@@ -1693,6 +1831,24 @@ namespace SuperPutty
                 addedNode.Tag = session;
                 addedNode.ContextMenuStrip = this.contextMenuStripAddTreeItem;
                 addedNode.ToolTipText = session.ToString();
+                if (session.DatabasePending)
+                {
+                    // not in the table yet: queued while offline, or refused
+                    addedNode.NodeFont = new Font(this.treeView1.Font, FontStyle.Italic);
+                    addedNode.ToolTipText = session.DatabasePendingNote + Environment.NewLine + addedNode.ToolTipText;
+                }
+                if (!string.IsNullOrEmpty(session.DatabaseManagedBy))
+                {
+                    addedNode.ToolTipText = "Managed by " + session.DatabaseManagedBy + Environment.NewLine + addedNode.ToolTipText;
+                }
+                if (session.DatabaseLocked)
+                {
+                    addedNode.ToolTipText = "Locked in the database: opens, but isn't edited here" + Environment.NewLine + addedNode.ToolTipText;
+                }
+                else if (!string.IsNullOrEmpty(session.DatabaseLockedFields))
+                {
+                    addedNode.ToolTipText = "Locked in the database: " + session.DatabaseLockedFields.Replace(",", ", ") + Environment.NewLine + addedNode.ToolTipText;
+                }
 
                 // Override with custom icon if valid, and a dot if the session has a tab open
                 string imageKey = SessionImageKey(session);
@@ -2076,9 +2232,9 @@ namespace SuperPutty
 
             // Start the drag-and-drop operation with a cloned copy of the node.
             //if (node != null && IsSessionNode(node))
-            // the top-level nodes and the Favorites and Recent entries stay where they are
-            // from Database sessions only a session can be dragged, and only onto Favorites
-            if (node != null && node.Parent != null && !IsQuickNode(node) && (!IsDatabaseNode(node) || IsSessionNode(node)))
+            // the top-level nodes and the Favorites and Recent entries stay where they are; in Database sessions a
+            // folder can be dragged only when the table can be written (a session also onto Favorites)
+            if (node != null && node.Parent != null && !IsQuickNode(node) && (!IsDatabaseNode(node) || IsSessionNode(node) || !DatabaseLocked(node)))
             {
                 this.treeView1.DoDragDrop(node, DragDropEffects.Copy);
             }
@@ -2107,6 +2263,15 @@ namespace SuperPutty
                 if (node != null && RootOf(node) == this.nodeFavorites && IsSessionNode(nodePayload))
                 {
                     e.Effect = DragDropEffects.Copy;
+                }
+                // within Database sessions, sessions and folders move to another folder there
+                else if (node != null && IsDatabaseNode(node) && IsDatabaseNode(nodePayload))
+                {
+                    tree.SelectedNode = node;
+                    if (CanMoveInDatabase(nodePayload, node))
+                    {
+                        e.Effect = DragDropEffects.Copy;
+                    }
                 }
                 // Is the mouse over a valid node?
                 else if (node != null && node != nodePayload && nodePayload.Nodes.Find(node.Text, true).Length == 0)
@@ -2140,6 +2305,13 @@ namespace SuperPutty
             if (node != null && RootOf(node) == this.nodeFavorites && IsSessionNode(nodeDropped))
             {
                 SessionShortcuts.AddFavorite(((SessionData)nodeDropped.Tag).SessionId);
+            }
+            else if (node != null && IsDatabaseNode(node) && IsDatabaseNode(nodeDropped))
+            {
+                if (CanMoveInDatabase(nodeDropped, node))
+                {
+                    this.MoveInDatabase(nodeDropped, node);
+                }
             }
             else if (node != null && IsFolderNode(node) && !IsDatabaseNode(node) && !IsDatabaseNode(nodeDropped))
             {

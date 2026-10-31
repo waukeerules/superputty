@@ -114,6 +114,56 @@ namespace SuperPutty.Data
         public string DatabaseVersion { get; set; }
 
         /// <summary>
+        /// For database sessions: the row's locked column. A locked session opens, but SuperPuTTY doesn't edit,
+        /// delete, rename or move it; the table's guard trigger refuses that too.
+        /// </summary>
+        [XmlAttribute]
+        [Browsable(false)]
+        public bool DatabaseLocked { get; set; }
+
+        /// <summary>XmlSerializer: write DatabaseLocked only when it's set, so Sessions.xml and the cache stay as they were</summary>
+        /// <returns>true to write <see cref="DatabaseLocked"/></returns>
+        public bool ShouldSerializeDatabaseLocked()
+        {
+            return this.DatabaseLocked;
+        }
+
+        /// <summary>For database sessions: the row's locked_fields, comma-separated column names Edit Session greys out</summary>
+        [XmlAttribute]
+        [Browsable(false)]
+        public string DatabaseLockedFields { get; set; }
+
+        /// <summary>
+        /// For database sessions: the row's managed_by, the system (e.g. an inventory sync script) that owns it; null
+        /// for rows made in SuperPuTTY. Shown in the tree's tooltip; only the database can change it.
+        /// </summary>
+        [XmlAttribute]
+        [Browsable(false)]
+        public string DatabaseManagedBy { get; set; }
+
+        /// <summary>Whether a database column is locked for this session, by the whole row or by locked_fields</summary>
+        /// <param name="column">A column name, e.g. "host"</param>
+        /// <returns>true if SuperPuTTY may not change it</returns>
+        public bool IsDatabaseFieldLocked(string column)
+        {
+            return this.DatabaseLocked || (!string.IsNullOrEmpty(this.DatabaseLockedFields)
+                && Array.Exists(this.DatabaseLockedFields.Split(','), f => string.Equals(f.Trim(), column, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        /// <summary>
+        /// For database sessions shown with a change that hasn't reached the table yet (queued while offline, or
+        /// refused): the tree shows them in italics, with <see cref="DatabasePendingNote"/> in the tooltip
+        /// </summary>
+        [XmlIgnore]
+        [Browsable(false)]
+        public bool DatabasePending { get; set; }
+
+        /// <summary>What's pending for this session, e.g. "Waiting to be saved (queued 09:41)"</summary>
+        [XmlIgnore]
+        [Browsable(false)]
+        public string DatabasePendingNote { get; set; }
+
+        /// <summary>
         /// The port a protocol normally uses, for sessions with port 0 (e.g. rows a script wrote without one): PuTTY is
         /// always given -P, and port 0 would fail. RDP and VNC keep 0, which means their own default.
         /// </summary>

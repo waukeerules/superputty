@@ -56,9 +56,30 @@ namespace SuperPutty.Data
             new[] { "rdp_options", "text" },
             new[] { "local_path", "text" },
             new[] { "remote_path", "text" },
+            new[] { "locked", "boolean NOT NULL DEFAULT false" },
+            new[] { "locked_fields", "text[] NOT NULL DEFAULT '{}'" },
+            new[] { "managed_by", "text" },
+            new[] { "external_id", "text" },
+            new[] { "created_at", "timestamptz NOT NULL DEFAULT now()" },
             new[] { "updated_at", "timestamptz NOT NULL DEFAULT now()" },
             new[] { "updated_by", "text NOT NULL DEFAULT current_user" }
         };
+
+        /// <summary>
+        /// The columns locked_fields may name, which Edit Session greys out (dlgEditSession.LockedFields). The guard
+        /// trigger compares any column named there, so other names work in the database too.
+        /// </summary>
+        public static readonly string[] LockableFields =
+        {
+            "folder", "name", "protocol", "host", "port", "username", "putty_profile", "extra_args", "icon", "notes",
+            "spsl_script", "rdp_options", "local_path", "remote_path"
+        };
+
+        /// <summary>The application name SuperPuTTY connects with; the guard trigger enforces locks only for it</summary>
+        public const string ApplicationName = "SuperPuTTY";
+
+        /// <summary>The prefix of the guard trigger's error messages, so they're shown as locks rather than failures</summary>
+        private const string LockedPrefix = "locked: ";
 
         /// <summary>The Postgres notification channel the table's trigger signals on every change</summary>
         public const string NotifyChannel = "superputty_sessions";
@@ -216,7 +237,7 @@ namespace SuperPutty.Data
                 Password = ResolvePassword(c.StoredPassword),
                 Timeout = 8,
                 CommandTimeout = 30,
-                ApplicationName = "SuperPuTTY",
+                ApplicationName = ApplicationName,
                 Pooling = false
             };
             SslMode mode;
@@ -308,7 +329,7 @@ namespace SuperPutty.Data
                     if (this.MissingColumns.Count > 0)
                         text.Append(" Missing columns: " + string.Join(", ", this.MissingColumns) + "; Create / upgrade schema adds them.");
                     else if (!this.TriggerExists)
-                        text.Append(" Its change trigger is missing; Create / upgrade schema adds it.");
+                        text.Append(" Its triggers are missing or out of date; Create / upgrade schema adds them.");
                 }
                 return text.ToString();
             }
@@ -361,7 +382,8 @@ namespace SuperPutty.Data
                     }
                     result.MissingColumns = Columns.Select(col => col[0]).Where(name => !present.Contains(name)).ToList();
                     result.TriggerExists = Convert.ToInt64(Scalar(connection,
-                        "SELECT count(*) FROM pg_trigger WHERE tgrelid = to_regclass(@t) AND tgname = @n", "t", qualified, "n", TriggerName(c))) > 0;
+                        "SELECT count(*) FROM pg_trigger WHERE tgrelid = to_regclass(@t) AND tgname = ANY(@n)", "t", qualified,
+                        "n", new[] { TriggerName(c), c.Table + "_touch", c.Table + "_guard" })) == 3;
                     result.CanWrite = Scalar(connection, "SELECT has_table_privilege(@t, 'INSERT') AND has_table_privilege(@t, 'UPDATE')", "t", qualified) as bool? == true;
                     result.Rows = Convert.ToInt64(Scalar(connection, "SELECT count(*) FROM " + qualified));
                 }
@@ -429,6 +451,9 @@ namespace SuperPutty.Data
                         done.Add("added column " + column[0]);
                     }
                 }
+                // an inventory system's own key: upserts match on it, so a device renamed or moved there updates its session
+                Execute(connection, "CREATE UNIQUE INDEX IF NOT EXISTS " + Quote(c.Table + "_external_id") + " ON " + table
+                    + " (managed_by, external_id) WHERE external_id IS NOT NULL");
                 string function = Quote(c.Schema) + "." + Quote(c.Table + "_touch");
                 Execute(connection, "CREATE OR REPLACE FUNCTION " + function + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN "
                     + "IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN NEW.updated_at := now(); NEW.updated_by := current_user; RETURN NEW; END IF; "
@@ -439,11 +464,33 @@ namespace SuperPutty.Data
                 Execute(connection, "DROP TRIGGER IF EXISTS " + Quote(c.Table + "_touch") + " ON " + table);
                 Execute(connection, "CREATE TRIGGER " + Quote(c.Table + "_touch") + " BEFORE INSERT OR UPDATE ON " + table
                     + " FOR EACH ROW EXECUTE FUNCTION " + function + "()");
+                // locks: SuperPuTTY may not change a locked row, the fields locked_fields names, or the locks themselves;
+                // other programs (the scripts that manage the table) connect under another name and aren't stopped
+                string guard = Quote(c.Schema) + "." + Quote(c.Table + "_guard");
+                Execute(connection, "CREATE OR REPLACE FUNCTION " + guard + "() RETURNS trigger LANGUAGE plpgsql AS $$ DECLARE f text; BEGIN "
+                    + "IF coalesce(current_setting('application_name', true), '') <> '" + ApplicationName + "' THEN "
+                    + "IF TG_OP = 'DELETE' THEN RETURN OLD; END IF; RETURN NEW; END IF; "
+                    + "IF TG_OP = 'DELETE' THEN "
+                    + "IF OLD.locked THEN RAISE EXCEPTION '" + LockedPrefix + "\"%\" is locked in the database', OLD.name; END IF; RETURN OLD; END IF; "
+                    + "IF NEW.locked IS DISTINCT FROM OLD.locked OR NEW.locked_fields IS DISTINCT FROM OLD.locked_fields THEN "
+                    + "RAISE EXCEPTION '" + LockedPrefix + "the locks on \"%\" can only be changed in the database', OLD.name; END IF; "
+                    + "IF NEW.managed_by IS DISTINCT FROM OLD.managed_by OR NEW.external_id IS DISTINCT FROM OLD.external_id "
+                    + "OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN "
+                    + "RAISE EXCEPTION '" + LockedPrefix + "who manages \"%\", and when it was created, can only be changed in the database', OLD.name; END IF; "
+                    + "IF OLD.locked AND (to_jsonb(NEW) - 'updated_at' - 'updated_by') IS DISTINCT FROM (to_jsonb(OLD) - 'updated_at' - 'updated_by') THEN "
+                    + "RAISE EXCEPTION '" + LockedPrefix + "\"%\" is locked in the database', OLD.name; END IF; "
+                    + "FOREACH f IN ARRAY OLD.locked_fields LOOP "
+                    + "IF (to_jsonb(NEW) -> f) IS DISTINCT FROM (to_jsonb(OLD) -> f) THEN "
+                    + "RAISE EXCEPTION '" + LockedPrefix + "% of \"%\" is locked in the database', f, OLD.name; END IF; END LOOP; "
+                    + "RETURN NEW; END $$");
+                Execute(connection, "DROP TRIGGER IF EXISTS " + Quote(c.Table + "_guard") + " ON " + table);
+                Execute(connection, "CREATE TRIGGER " + Quote(c.Table + "_guard") + " BEFORE UPDATE OR DELETE ON " + table
+                    + " FOR EACH ROW EXECUTE FUNCTION " + guard + "()");
                 Execute(connection, "DROP TRIGGER IF EXISTS " + Quote(TriggerName(c)) + " ON " + table);
                 Execute(connection, "CREATE TRIGGER " + Quote(TriggerName(c)) + " AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON " + table
                     + " FOR EACH STATEMENT EXECUTE FUNCTION " + notify + "()");
                 if (!before.TriggerExists)
-                    done.Add("added the change triggers");
+                    done.Add("added the change and lock triggers");
                 transaction.Commit();
             }
             Log.InfoFormat("Database schema ready at {0}: {1}", c, done.Count == 0 ? "already up to date" : string.Join(", ", done));
@@ -504,21 +551,39 @@ namespace SuperPutty.Data
         /// <returns>The sessions</returns>
         public static List<SessionData> FetchAll(Connection c, Action<int> progress = null)
         {
-            bool writable;
-            return FetchAll(c, progress, out writable);
+            bool writable, hasLocks;
+            return FetchAll(c, progress, out writable, out hasLocks);
         }
 
         /// <summary>Read every row (see <see cref="FetchAll(Connection, Action{int})"/>), and whether the login may change them</summary>
         /// <param name="c">The connection</param>
         /// <param name="progress">Told the number read so far after each page; may be null</param>
         /// <param name="writable">Whether the connection isn't read-only and the login may add, change and remove rows</param>
+        /// <param name="hasLocks">Whether the table has the lock and inventory columns; a table made before them reads as unlocked until upgraded</param>
         /// <returns>The sessions</returns>
-        public static List<SessionData> FetchAll(Connection c, Action<int> progress, out bool writable)
+        public static List<SessionData> FetchAll(Connection c, Action<int> progress, out bool writable, out bool hasLocks)
         {
             List<SessionData> sessions = new List<SessionData>();
             using (NpgsqlConnection connection = Open(c))
             {
                 writable = !c.ReadOnly && HasWritePrivilege(connection, c);
+                HashSet<string> present = new HashSet<string>();
+                using (NpgsqlCommand columns = new NpgsqlCommand(
+                    "SELECT column_name FROM information_schema.columns WHERE table_schema = @s AND table_name = @t", connection))
+                {
+                    columns.Parameters.AddWithValue("s", c.Schema);
+                    columns.Parameters.AddWithValue("t", c.Table);
+                    using (NpgsqlDataReader reader = columns.ExecuteReader())
+                    {
+                        while (reader.Read())
+                            present.Add(reader.GetString(0));
+                    }
+                }
+                // columns added after the first schema read as their defaults until Create / upgrade schema adds them
+                hasLocks = present.Contains("locked") && present.Contains("locked_fields") && present.Contains("managed_by");
+                string locks = (present.Contains("locked") ? "locked" : "false")
+                    + ", " + (present.Contains("locked_fields") ? "locked_fields" : "'{}'::text[]")
+                    + ", " + (present.Contains("managed_by") ? "managed_by" : "NULL::text");
                 string lastFolder = null, lastName = null;
                 Guid lastId = Guid.Empty;
                 while (true)
@@ -526,7 +591,7 @@ namespace SuperPutty.Data
                     int read = 0;
                     using (NpgsqlCommand command = new NpgsqlCommand(
                         "SELECT id, folder, name, protocol, host, port, username, putty_profile, extra_args, icon, notes, spsl_script, "
-                        + "rdp_options, local_path, remote_path, updated_at FROM " + c.QualifiedTable
+                        + "rdp_options, local_path, remote_path, updated_at, " + locks + " FROM " + c.QualifiedTable
                         + (lastName == null ? "" : " WHERE (folder, name, id) > (@f, @n, @i)")
                         + " ORDER BY folder, name, id LIMIT @limit", connection))
                     {
@@ -585,7 +650,10 @@ namespace SuperPutty.Data
                 LocalPath = Text(reader, 13),
                 RemotePath = Text(reader, 14),
                 DatabaseId = reader.GetGuid(0).ToString(),
-                DatabaseVersion = reader.GetDateTime(15).Ticks.ToString()
+                DatabaseVersion = reader.GetDateTime(15).Ticks.ToString(),
+                DatabaseLocked = reader.GetBoolean(16),
+                DatabaseLockedFields = string.Join(",", reader.GetFieldValue<string[]>(17)),
+                DatabaseManagedBy = Text(reader, 18)
             };
             session.SessionId = MakeSessionId(folder, name);
             return session;
@@ -607,6 +675,23 @@ namespace SuperPutty.Data
         public static string MakeSessionId(string folder, string name)
         {
             return IdPrefix + "/" + (string.IsNullOrEmpty(folder) ? name : folder + "/" + name);
+        }
+
+        /// <summary>A database session's path in the tree, without the "@db/" prefix</summary>
+        /// <param name="sessionId">e.g. "@db/Lab/Core/sw1"</param>
+        /// <returns>e.g. "Lab/Core/sw1"</returns>
+        public static string TreePath(string sessionId)
+        {
+            string prefix = IdPrefix + "/";
+            return sessionId != null && sessionId.StartsWith(prefix, StringComparison.Ordinal) ? sessionId.Substring(prefix.Length) : sessionId;
+        }
+
+        /// <summary>A database session's folder, as in the folder column</summary>
+        /// <param name="sessionId">e.g. "@db/Lab/Core/sw1"</param>
+        /// <returns>e.g. "Lab/Core", or "" at the top</returns>
+        public static string FolderOf(string sessionId)
+        {
+            return SessionData.GetSessionParentId(TreePath(sessionId)) ?? string.Empty;
         }
 
         #endregion
@@ -675,6 +760,21 @@ namespace SuperPutty.Data
                     return write(connection);
                 }
             }
+            catch (PostgresException ex) when (ex.SqlState == "P0001" && ex.MessageText.StartsWith(LockedPrefix, StringComparison.Ordinal))
+            {
+                string reason = ex.MessageText.Substring(LockedPrefix.Length);
+                throw new InvalidOperationException(char.ToUpper(reason[0]) + reason.Substring(1) + ".", ex);
+            }
+            catch (PostgresException ex) when (ex.SqlState.StartsWith("08", StringComparison.Ordinal) || ex.SqlState.StartsWith("57P", StringComparison.Ordinal))
+            {
+                // the connection failed or the server is shutting down
+                throw new DatabaseUnavailableException(ex.MessageText, ex);
+            }
+            catch (NpgsqlException ex) when (!(ex is PostgresException))
+            {
+                // no answer from the server: a refused or timed-out connection, or one dropped mid-way
+                throw new DatabaseUnavailableException(Describe(ex), ex);
+            }
             catch (PostgresException ex) when (ex.SqlState == "23505")
             {
                 throw new InvalidOperationException("A session with that name is already in that folder in the database.", ex);
@@ -686,6 +786,17 @@ namespace SuperPutty.Data
             catch (Exception ex) when (!(ex is InvalidOperationException))
             {
                 throw new InvalidOperationException(Describe(ex), ex);
+            }
+        }
+
+        /// <summary>A write that failed because the database couldn't be reached, rather than because it refused; it can be queued</summary>
+        public class DatabaseUnavailableException : InvalidOperationException
+        {
+            /// <summary>Create it</summary>
+            /// <param name="message">Why</param>
+            /// <param name="inner">The underlying failure</param>
+            public DatabaseUnavailableException(string message, Exception inner) : base(message, inner)
+            {
             }
         }
 
@@ -717,24 +828,28 @@ namespace SuperPutty.Data
         /// <param name="version">Its updated_at when read, as ticks</param>
         /// <param name="session">The changed session</param>
         /// <param name="folder">Its folder</param>
+        /// <param name="force">Save even if the row changed since (overwriting that change); it still fails if the row is gone</param>
         /// <exception cref="InvalidOperationException">It's read-only, someone else changed or deleted it, or the write failed</exception>
-        public static void Update(Connection c, string id, string version, SessionData session, string folder)
+        public static void Update(Connection c, string id, string version, SessionData session, string folder, bool force = false)
         {
-            if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(version))
+            if (string.IsNullOrEmpty(id) || (!force && string.IsNullOrEmpty(version)))
                 throw new InvalidOperationException("This session was read by an older version; Refresh, then make your change again.");
             int rows = Write(c, connection =>
             {
                 using (NpgsqlCommand command = new NpgsqlCommand("UPDATE " + c.QualifiedTable + " SET (" + WriteColumns + ") = ("
-                    + WriteParameters + ") WHERE id = @id AND updated_at = @version", connection))
+                    + WriteParameters + ") WHERE id = @id" + (force ? "" : " AND updated_at = @version"), connection))
                 {
                     AddSessionParameters(command, session, folder);
                     command.Parameters.AddWithValue("id", Guid.Parse(id));
-                    command.Parameters.AddWithValue("version", new DateTime(long.Parse(version), DateTimeKind.Utc));
+                    if (!force)
+                        command.Parameters.AddWithValue("version", new DateTime(long.Parse(version), DateTimeKind.Utc));
                     return command.ExecuteNonQuery();
                 }
             });
             if (rows == 0)
-                throw new InvalidOperationException("Someone else changed or deleted this session since it was read. Refresh, then make your change again.");
+                throw new InvalidOperationException(force
+                    ? "The session isn't in the database any more."
+                    : "Someone else changed or deleted this session since it was read. Refresh, then make your change again.");
         }
 
         /// <summary>Remove a session's row</summary>
@@ -760,18 +875,24 @@ namespace SuperPutty.Data
         /// <param name="c">The connection</param>
         /// <param name="from">The folder's path, e.g. "Lab/Core"</param>
         /// <param name="to">Its new path, e.g. "Lab/Backbone"</param>
-        /// <returns>How many sessions moved</returns>
-        /// <exception cref="InvalidOperationException">It's read-only, or the write failed (e.g. a name clash)</exception>
-        public static int RenameFolder(Connection c, string from, string to)
+        /// <returns>The ids of the sessions that moved</returns>
+        /// <exception cref="InvalidOperationException">It's read-only, or the write failed (e.g. a name clash, or a locked session)</exception>
+        public static List<string> RenameFolder(Connection c, string from, string to)
         {
             return Write(c, connection =>
             {
                 using (NpgsqlCommand command = new NpgsqlCommand("UPDATE " + c.QualifiedTable
-                    + " SET folder = @to || substr(folder, length(@from) + 1) WHERE " + InFolder, connection))
+                    + " SET folder = @to || substr(folder, length(@from) + 1) WHERE " + InFolder + " RETURNING id", connection))
                 {
                     command.Parameters.AddWithValue("from", from.Trim('/'));
                     command.Parameters.AddWithValue("to", to.Trim('/'));
-                    return command.ExecuteNonQuery();
+                    List<string> ids = new List<string>();
+                    using (NpgsqlDataReader reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                            ids.Add(reader.GetGuid(0).ToString());
+                    }
+                    return ids;
                 }
             });
         }
@@ -818,6 +939,9 @@ namespace SuperPutty.Data
 
             /// <summary>The sessions</summary>
             public List<SessionData> Sessions { get; set; } = new List<SessionData>();
+
+            /// <summary>Whether the login could write the table at the last read, so changes made offline can be queued</summary>
+            public bool Writable { get; set; }
         }
 
         /// <summary>The cache file's path; set it to use another (tests)</summary>
@@ -899,10 +1023,19 @@ namespace SuperPutty.Data
         public static int Count { get; private set; }
 
         /// <summary>
-        /// Whether sessions can be added and changed from the tree: the table was read, the connection isn't read-only,
-        /// and the login may write it. False while offline or before the first read.
+        /// Whether sessions can be added and changed from the tree: the connection isn't read-only and the login could
+        /// write the table at the last read. While offline, changes are queued (<see cref="Submit"/>).
         /// </summary>
         public static bool Writable { get; private set; }
+
+        /// <summary>The sessions as last read from the table (or its cache), before queued changes are applied</summary>
+        private static List<SessionData> serverSessions = new List<SessionData>();
+
+        /// <summary>Changes waiting to be sent</summary>
+        public static int PendingCount { get; private set; }
+
+        /// <summary>Changes the table refused, waiting for Retry, Overwrite or Discard</summary>
+        public static int FailedCount { get; private set; }
 
         /// <summary>Rows read so far while <see cref="State"/> is Loading</summary>
         public static int LoadedSoFar { get; private set; }
@@ -928,8 +1061,10 @@ namespace SuperPutty.Data
             CaptureUiThread();
             StopRetrying();
             Writable = false;
+            NeedsUpgrade = false;
             if (!Enabled)
             {
+                serverSessions = new List<SessionData>();
                 SuperPuTTY.ReplaceDatabaseSessions(new List<SessionData>());
                 SetStatus(SyncState.Off, null, null, 0);
                 return;
@@ -938,12 +1073,15 @@ namespace SuperPutty.Data
             CacheFile cache = LoadCache();
             if (cache != null && cache.Source == c.ToString())
             {
-                SuperPuTTY.ReplaceDatabaseSessions(cache.Sessions);
+                Writable = cache.Writable && !c.ReadOnly;
+                serverSessions = cache.Sessions;
+                ShowSessions(c);
                 SetStatus(SyncState.Loading, null, cache.SyncedAt, cache.Sessions.Count);
             }
             else
             {
-                SuperPuTTY.ReplaceDatabaseSessions(new List<SessionData>());
+                serverSessions = new List<SessionData>();
+                ShowSessions(c);
                 SetStatus(SyncState.Loading, null, null, 0);
             }
             BeginSync();
@@ -964,9 +1102,13 @@ namespace SuperPutty.Data
             {
                 try
                 {
-                    bool writable;
-                    List<SessionData> sessions = FetchAll(c, n => Post(() => { LoadedSoFar = n; StatusChanged?.Invoke(null, EventArgs.Empty); }), out writable);
-                    CacheFile cache = new CacheFile { Source = c.ToString(), SyncedAt = DateTime.Now, Sessions = sessions };
+                    if (!c.ReadOnly)
+                    {
+                        Flush(c);
+                    }
+                    bool writable, hasLocks;
+                    List<SessionData> sessions = FetchAll(c, n => Post(() => { LoadedSoFar = n; StatusChanged?.Invoke(null, EventArgs.Empty); }), out writable, out hasLocks);
+                    CacheFile cache = new CacheFile { Source = c.ToString(), SyncedAt = DateTime.Now, Sessions = sessions, Writable = writable };
                     try
                     {
                         SaveCache(cache);
@@ -979,8 +1121,15 @@ namespace SuperPutty.Data
                     {
                         syncing = false;
                         Writable = writable;
-                        SuperPuTTY.ReplaceDatabaseSessions(sessions);
+                        NeedsUpgrade = !hasLocks;
+                        serverSessions = sessions;
+                        ShowSessions(c);
                         SetStatus(SyncState.Online, null, cache.SyncedAt, sessions.Count);
+                        if (PendingCount > 0)
+                        {
+                            // queued while this read was running
+                            BeginSync();
+                        }
                         Log.InfoFormat("Read {0} database sessions from {1}", sessions.Count, c);
                     });
                 }
@@ -991,7 +1140,8 @@ namespace SuperPutty.Data
                     Post(() =>
                     {
                         syncing = false;
-                        Writable = false;
+                        // changes made meanwhile are queued, if the table could be written before
+                        ShowSessions(c);
                         SetStatus(SyncState.Offline, error, SyncedAt, Count);
                         StartRetrying();
                     });
@@ -1008,6 +1158,148 @@ namespace SuperPutty.Data
             if (SynchronizationContext.Current is System.Windows.Forms.WindowsFormsSynchronizationContext)
             {
                 ui = SynchronizationContext.Current;
+            }
+        }
+
+        /// <summary>Whether the table lacks the lock columns: it's read as unlocked until Create / upgrade schema is run</summary>
+        public static bool NeedsUpgrade { get; private set; }
+
+        /// <summary>Show the table's sessions with the queued changes on top, and count what's pending</summary>
+        /// <param name="c">The connection</param>
+        private static void ShowSessions(Connection c)
+        {
+            string source = c.ToString();
+            int failed;
+            PendingCount = DatabaseOutbox.Count(source, out failed);
+            FailedCount = failed;
+            SuperPuTTY.ReplaceDatabaseSessions(DatabaseOutbox.Apply(serverSessions, source));
+        }
+
+        /// <summary>Show the sessions again after the outbox changed (e.g. a discard), and update the status</summary>
+        public static void RefreshPending()
+        {
+            ShowSessions(FromSettings());
+            StatusChanged?.Invoke(null, EventArgs.Empty);
+        }
+
+        /// <summary>How a change from the tree went</summary>
+        public enum SubmitResult
+        {
+            /// <summary>Saved to the table</summary>
+            Saved,
+            /// <summary>The table can't be reached: it's queued, shown already, and sent when it can be</summary>
+            Queued,
+            /// <summary>The table refused it; nothing changed</summary>
+            Failed
+        }
+
+        /// <summary>
+        /// Make a change from the tree. Online with nothing queued, it's written at once and the table read again;
+        /// offline (or behind queued changes, to keep their order) it's queued in the outbox and shown at once.
+        /// </summary>
+        /// <param name="change">The change</param>
+        /// <param name="error">Why it was refused, for <see cref="SubmitResult.Failed"/></param>
+        /// <returns>How it went</returns>
+        public static SubmitResult Submit(DatabaseOutbox.PendingChange change, out string error)
+        {
+            error = null;
+            Connection c = FromSettings();
+            if (c.ReadOnly)
+            {
+                error = "The database connection is read-only.";
+                return SubmitResult.Failed;
+            }
+            string source = c.ToString();
+            int failed;
+            bool queueEmpty = DatabaseOutbox.Count(source, out failed) == 0 && failed == 0;
+            bool pendingRow = change.Session?.DatabaseId != null && change.Session.DatabaseId.StartsWith("pending:", StringComparison.Ordinal);
+            if (State == SyncState.Online && queueEmpty && !pendingRow)
+            {
+                try
+                {
+                    ApplyChange(c, change, new HashSet<string>());
+                    BeginSync();
+                    return SubmitResult.Saved;
+                }
+                catch (DatabaseUnavailableException ex)
+                {
+                    Log.WarnFormat("The database dropped while saving; queued: {0}", ex.Message);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    error = ex.Message;
+                    return SubmitResult.Failed;
+                }
+            }
+            change.QueuedAt = DateTime.Now;
+            DatabaseOutbox.Add(source, change);
+            RefreshPending();
+            if (State != SyncState.Offline)
+            {
+                BeginSync();
+            }
+            return SubmitResult.Queued;
+        }
+
+        /// <summary>
+        /// Send one change to the table. Rows this sync already changed (e.g. moved by a queued folder rename) are
+        /// updated without the version check: the version they were read at is older than our own change.
+        /// </summary>
+        /// <param name="c">The connection</param>
+        /// <param name="change">The change</param>
+        /// <param name="touched">Ids of rows changed earlier in this sync; this change's rows are added</param>
+        /// <exception cref="InvalidOperationException">Refused, or <see cref="DatabaseUnavailableException"/> when it can't be reached</exception>
+        private static void ApplyChange(Connection c, DatabaseOutbox.PendingChange change, HashSet<string> touched)
+        {
+            switch (change.Kind)
+            {
+                case DatabaseOutbox.ChangeKind.Insert:
+                    touched.Add(Insert(c, change.Session, change.Folder));
+                    break;
+                case DatabaseOutbox.ChangeKind.Update:
+                    string id = change.Session.DatabaseId;
+                    Update(c, id, change.Session.DatabaseVersion, change.Session, change.Folder, change.Force || touched.Contains(id));
+                    touched.Add(id);
+                    break;
+                case DatabaseOutbox.ChangeKind.Delete:
+                    Delete(c, change.Session.DatabaseId);
+                    break;
+                case DatabaseOutbox.ChangeKind.RenameFolder:
+                    touched.UnionWith(RenameFolder(c, change.From, change.To));
+                    break;
+                case DatabaseOutbox.ChangeKind.DeleteFolder:
+                    DeleteFolder(c, change.From);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Send the queued changes in order (on the sync's background thread). A refused one is marked with why and
+        /// left for the user; the rest still go. Stops, and the sync reports offline, if the table can't be reached.
+        /// </summary>
+        /// <param name="c">The connection</param>
+        /// <exception cref="DatabaseUnavailableException">The table can't be reached</exception>
+        private static void Flush(Connection c)
+        {
+            string source = c.ToString();
+            HashSet<string> touched = new HashSet<string>();
+            foreach (DatabaseOutbox.PendingChange change in DatabaseOutbox.Changes(source).Where(x => x.Error == null))
+            {
+                try
+                {
+                    ApplyChange(c, change, touched);
+                    DatabaseOutbox.Remove(source, change.Id);
+                    Log.InfoFormat("Sent a queued change: {0}", change);
+                }
+                catch (DatabaseUnavailableException)
+                {
+                    throw;
+                }
+                catch (InvalidOperationException ex)
+                {
+                    DatabaseOutbox.SetError(source, change.Id, ex.Message);
+                    Log.WarnFormat("The database refused a queued change ({0}): {1}", change, ex.Message);
+                }
             }
         }
 
@@ -1062,7 +1354,9 @@ namespace SuperPutty.Data
         /// <returns>The text to show in brackets after "Database sessions"</returns>
         public static string StatusText()
         {
-            string readOnly = SuperPuTTY.Settings.DatabaseReadOnly || (State == SyncState.Online && !Writable) ? ", read-only" : "";
+            string readOnly = (SuperPuTTY.Settings.DatabaseReadOnly || (State == SyncState.Online && !Writable) ? ", read-only" : "")
+                + (PendingCount > 0 ? string.Format(", {0} pending", PendingCount) : "")
+                + (FailedCount > 0 ? string.Format(", {0} not saved", FailedCount) : "");
             switch (State)
             {
                 case SyncState.Loading:
