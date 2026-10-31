@@ -737,6 +737,19 @@ namespace SuperPutty.Properties {
                 this["SessionsShowRecent"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool ScriptEditorTopMost {
+            get {
+                return ((bool)(this["ScriptEditorTopMost"]));
+            }
+            set {
+                this["ScriptEditorTopMost"] = value;
+            }
+        }
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]

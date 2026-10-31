@@ -599,6 +599,17 @@ The Sessions tree now has four top-level groups, always in this order: **Favorit
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.
 
+## Script Editor: Always on top
+
+An **Always on top** check box under Saved scripts keeps the Script Editor above other windows. It's useful because the editor isn't owned by the main window, so clicking a tab would otherwise hide it. The choice is saved (`ScriptEditorTopMost`, default off) and applied the next time the editor opens.
+
+**Dialogs above it:** a window opened from an always-on-top window can open behind it, leaving it waiting unseen for an answer. The "Send it anyway?" warning did, so the editor seemed stuck.
+- **Message boxes:** the editor's message boxes, and the saved-scripts panel's, now name the editor as their owner.
+- **`Messenger.MessageBox`** (vendored DarkModeForms) makes a box always on top when its owner is, which fixes this for any always-on-top window.
+- **File dialogs:** the editor's Open file and Save to file dialogs are owned by it too.
+
+**Checked against the compiled assembly:** ticking it set `TopMost` and wrote `ScriptEditorTopMost` to the settings file. The send warning, the Save as... naming dialog and the Open file dialog, each opened from an always-on-top editor, were the window on screen at their own title bar (before the fix, the warning was hidden behind the editor). A newly opened editor came up ticked and on top. The editor was rendered in the dark theme at 150% scaling.
+
 ## Hints in empty text boxes
 
 Empty boxes now show a grey example of what goes in them, gone as soon as you type (`Gui/HintText.cs`, using Windows' own cue banner, so it's never part of the text):
@@ -715,6 +726,7 @@ Script editing:
 4. **Save as...** on the left saves the script as the current kind (it's listed as SPSL or lines). Clear the editor, double-click it: it comes back, and Run as switches to match.
 5. Edit a button-bar button → Action: Run SPSL script: the panel appears beside the script by itself, with a Saved scripts tab listing your SPSL scripts, and the script box doesn't get a `#!/bin/spsl` line. Click OK with an error in the script: you're asked whether to save anyway.
 6. Click the mask button on the Send Commands toolbar: the icon switches between a grey eye and an amber asterisk, and typing is masked accordingly.
+7. Tick **Always on top** in the Script Editor, click a session tab: the editor stays in front. Close and reopen it, and restart SuperPuTTY: it's still ticked. With it ticked, send `SENDLNE hi` as SPSL: the "Send it anyway?" warning shows in front of the editor. So do Save as... and Open file....
 
 Favorites, Recent and private sessions:
 

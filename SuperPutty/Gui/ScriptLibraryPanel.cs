@@ -145,7 +145,7 @@ namespace SuperPutty.Gui
             }
             catch (Exception ex)
             {
-                Messenger.MessageBox("Couldn't read the script \"" + entry.Name + "\": " + ex.Message, "Saved scripts", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Messenger.MessageBox(this.FindForm(), "Couldn't read the script \"" + entry.Name + "\": " + ex.Message, "Saved scripts", MessageBoxButtons.OK, MsgIcon.Warning);
                 return;
             }
             if (ScriptText.Insert(this.Editor, text) && this.InsertedIntoEmpty != null)
@@ -178,8 +178,8 @@ namespace SuperPutty.Gui
                 if (naming.ShowDialog(this) != DialogResult.OK)
                     return;
                 string name = naming.ItemName.Trim();
-                if (ScriptLibrary.Exists(name) && Messenger.MessageBox("Replace the saved script \"" + name + "\"?", "Save script",
-                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                if (ScriptLibrary.Exists(name) && Messenger.MessageBox(this.FindForm(), "Replace the saved script \"" + name + "\"?", "Save script",
+                        MessageBoxButtons.YesNo, MsgIcon.Question) != DialogResult.Yes)
                     return;
                 try
                 {
@@ -187,7 +187,7 @@ namespace SuperPutty.Gui
                 }
                 catch (Exception ex)
                 {
-                    Messenger.MessageBox("Couldn't save the script: " + ex.Message, "Save script", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Messenger.MessageBox(this.FindForm(), "Couldn't save the script: " + ex.Message, "Save script", MessageBoxButtons.OK, MsgIcon.Warning);
                     return;
                 }
                 this.RefreshList(name);
@@ -199,8 +199,8 @@ namespace SuperPutty.Gui
         private void DeleteSelected()
         {
             ScriptLibrary.Entry entry = this.listScripts.SelectedItem as ScriptLibrary.Entry;
-            if (entry == null || Messenger.MessageBox("Delete the saved script \"" + entry.Name + "\"?", "Saved scripts",
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            if (entry == null || Messenger.MessageBox(this.FindForm(), "Delete the saved script \"" + entry.Name + "\"?", "Saved scripts",
+                    MessageBoxButtons.YesNo, MsgIcon.Question) != DialogResult.Yes)
                 return;
             try
             {
@@ -208,7 +208,7 @@ namespace SuperPutty.Gui
             }
             catch (Exception ex)
             {
-                Messenger.MessageBox("Couldn't delete the script: " + ex.Message, "Saved scripts", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Messenger.MessageBox(this.FindForm(), "Couldn't delete the script: " + ex.Message, "Saved scripts", MessageBoxButtons.OK, MsgIcon.Warning);
                 return;
             }
             this.RefreshList(null);

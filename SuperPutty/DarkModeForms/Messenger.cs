@@ -129,6 +129,9 @@ namespace DarkModeForms
 			if (owner != null)
 			{
 				form.Owner = owner;
+				// a non-topmost box can open behind an always-on-top owner (e.g. the Script Editor), leaving it
+				// waiting unseen for an answer
+				form.TopMost = owner.TopMost;
 			}
 
 			DarkModeCS DMode = new DarkModeCS(form)

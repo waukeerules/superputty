@@ -38,6 +38,7 @@
             this.helpPanel = new SuperPutty.Gui.SpslHelpPanel();
             this.labelRunAs = new System.Windows.Forms.Label();
             this.comboRunAs = new System.Windows.Forms.ComboBox();
+            this.checkTopMost = new System.Windows.Forms.CheckBox();
             this.SuspendLayout();
             //
             // buttonSendScript
@@ -104,7 +105,7 @@
             | System.Windows.Forms.AnchorStyles.Left)));
             this.libraryPanel.Location = new System.Drawing.Point(12, 12);
             this.libraryPanel.Name = "libraryPanel";
-            this.libraryPanel.Size = new System.Drawing.Size(170, 397);
+            this.libraryPanel.Size = new System.Drawing.Size(170, 364);
             this.libraryPanel.TabIndex = 0;
             //
             // helpPanel
@@ -135,6 +136,17 @@
             this.comboRunAs.TabIndex = 6;
             this.comboRunAs.SelectedIndexChanged += new System.EventHandler(this.comboRunAs_SelectedIndexChanged);
             //
+            // checkTopMost
+            //
+            this.checkTopMost.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.checkTopMost.AutoSize = true;
+            this.checkTopMost.Location = new System.Drawing.Point(12, 390);
+            this.checkTopMost.Name = "checkTopMost";
+            this.checkTopMost.TabIndex = 8;
+            this.checkTopMost.Text = "Always on top";
+            this.checkTopMost.UseVisualStyleBackColor = true;
+            this.checkTopMost.CheckedChanged += new System.EventHandler(this.checkTopMost_CheckedChanged);
+            //
             // dlgScriptEditor
             //
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -149,6 +161,7 @@
             this.Controls.Add(this.labelRunAs);
             this.Controls.Add(this.comboRunAs);
             this.Controls.Add(this.buttonSendScript);
+            this.Controls.Add(this.checkTopMost);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.SizableToolWindow;
             this.MinimumSize = new System.Drawing.Size(720, 300);
             this.Name = "dlgScriptEditor";
@@ -173,5 +186,6 @@
         private SuperPutty.Gui.SpslHelpPanel helpPanel;
         private System.Windows.Forms.Label labelRunAs;
         private System.Windows.Forms.ComboBox comboRunAs;
+        private System.Windows.Forms.CheckBox checkTopMost;
     }
 }

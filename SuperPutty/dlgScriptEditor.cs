@@ -64,6 +64,9 @@ namespace SuperPutty
             this.toolTip = new ToolTip();
             this.toolTip.SetToolTip(this.comboRunAs, "Send lines types each line as it is, then Enter. SPSL script runs SPSL commands such as WAITFOR and SENDKEY.");
             this.Kind = ScriptKind.Spsl;
+            this.toolTip.SetToolTip(this.checkTopMost, "Keep the Script Editor above other windows, including SuperPuTTY's tabs");
+            this.checkTopMost.Checked = SuperPuTTY.Settings.ScriptEditorTopMost;
+            this.TopMost = this.checkTopMost.Checked;
 
             if (SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme)
             {
@@ -87,9 +90,10 @@ namespace SuperPutty
             if (args.IsSPSL)
             {
                 int errors = this.helpPanel.Check().Count(i => i.IsError);
-                if (errors > 0 && Messenger.MessageBox(
+                // owned by the editor, so it shows above it even when the editor is always on top
+                if (errors > 0 && Messenger.MessageBox(this,
                         string.Format("The script has {0} error{1}, listed beside it. Send it anyway?", errors, errors == 1 ? "" : "s"),
-                        "Script Editor", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                        "Script Editor", MessageBoxButtons.YesNo, MsgIcon.Warning) != DialogResult.Yes)
                 {
                     return;
                 }
@@ -101,7 +105,7 @@ namespace SuperPutty
 
         private void buttonLoadScript_Click(object sender, EventArgs e)
         {
-            DialogResult dlgResult = this.openFileDialog1.ShowDialog();
+            DialogResult dlgResult = this.openFileDialog1.ShowDialog(this);
             if(dlgResult == DialogResult.OK)
             {
                 string script = File.ReadAllText(this.openFileDialog1.FileName);
@@ -112,6 +116,19 @@ namespace SuperPutty
                     this.Kind = ScriptKind.Spsl;
                 }
                 textBoxScript.AppendText(script);
+            }
+        }
+
+        /// <summary>Keep the editor above other windows, and remember the choice for next time</summary>
+        /// <param name="sender">The Always on top check box</param>
+        /// <param name="e">Not used</param>
+        private void checkTopMost_CheckedChanged(object sender, EventArgs e)
+        {
+            this.TopMost = this.checkTopMost.Checked;
+            if (SuperPuTTY.Settings.ScriptEditorTopMost != this.checkTopMost.Checked)
+            {
+                SuperPuTTY.Settings.ScriptEditorTopMost = this.checkTopMost.Checked;
+                SuperPuTTY.Settings.Save();
             }
         }
 
@@ -140,7 +157,7 @@ namespace SuperPutty
 
         private void buttonSaveScript_Click(object sender, EventArgs e)
         {
-            DialogResult dlgResult = this.saveFileDialog1.ShowDialog();
+            DialogResult dlgResult = this.saveFileDialog1.ShowDialog(this);
             if(dlgResult == DialogResult.OK)
             {
                 File.WriteAllText(this.saveFileDialog1.FileName, textBoxScript.Text);
