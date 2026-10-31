@@ -38,6 +38,40 @@ The project was built with Visual Studio 2022.
 
 To request new features or report any found issues, use the Issues tab.
 
+### Making a release of this fork
+
+These steps build the installer and a portable zip, then publish them as a GitHub release of [waukeerules/superputty](https://github.com/waukeerules/superputty/releases).
+
+**1. Set the version.** Edit `SuperPutty\Properties\AssemblyInfo.cs` and raise `AssemblyVersion` and `AssemblyFileVersion` (both places they appear), e.g. `2.1.2.0` → `2.1.3.0`. The installer takes its version from the exe, and only upgrades an existing install when the version changes. Commit and push the change.
+
+**2. Build Release.** Close any SuperXPuTTY running from `bin\Release` first. In PowerShell, from the repository folder:
+
+```powershell
+$msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -find MSBuild\**\Bin\MSBuild.exe
+& $msbuild SuperPutty.sln /restore /p:Configuration=Release /v:minimal
+```
+
+This builds:
+- the program: `bin\Release\SuperXPuTTY.exe`
+- the installer: `SuperPuttyInstaller\bin\x86\Release\SuperXPuTTYSetup.msi`
+
+**3. Make the portable zip.** Don't publish the exe on its own: it needs the DLLs and `SuperXPuTTY.exe.config` beside it.
+
+```powershell
+Compress-Archive -Path bin\Release\* -DestinationPath SuperXPuTTY-2.1.3.0-portable.zip -Force
+```
+
+**4. Publish the release.** This needs the [GitHub CLI](https://cli.github.com/) (`gh`), signed in with `gh auth login`. Use the version from step 1:
+
+```bash
+gh release create v2.1.3.0 SuperPuttyInstaller/bin/x86/Release/SuperXPuTTYSetup.msi SuperXPuTTY-2.1.3.0-portable.zip --repo waukeerules/superputty --target master --title "SuperXPuTTY 2.1.3.0" --generate-notes --draft
+```
+
+- **The command** tags master with the version, creates the release and uploads both files.
+- **`--generate-notes`** lists the commits since the previous tag; use `--notes-file notes.md` to write your own instead.
+- **`--draft`** keeps the release hidden. Check it on GitHub, then press **Publish release** there, or run `gh release edit v2.1.3.0 --repo waukeerules/superputty --draft=false`.
+- **The zip** can stay in the folder: `.gitignore` excludes `SuperXPuTTY-*.zip`, so it's never committed.
+
 ## License
 
 MIT

@@ -138,3 +138,6 @@ Licenses.licx
 /Talon.ApiServer/Identity4/Config.cs
 /Talon.ApiServer/tempkey.jwk
 /ArmorLink/Libs
+
+# portable zips made for GitHub releases (see README, Making a release of this fork)
+SuperXPuTTY-*.zip
