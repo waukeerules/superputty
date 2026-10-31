@@ -898,6 +898,12 @@ The hint stays visible while the box has focus, so the session name box shows it
 
 **Checked:** the Release MSI was rebuilt. Its ProductVersion is 2.1.2.0, and so is the exe's file version. Its Upgrade table removes any older version up to and including its own. Installing it wasn't tried here.
 
+## Fix: every search added the tree's change handlers to every session again
+
+**Cause:** `SessionTreeview.AddSessionNode` subscribes to each session's `OnPropertyChanged` and `OnPropertyChanging`, and the tree is rebuilt on every search (and every clear). Each rebuild added another subscription, so after a dozen searches, a session's rename ran the tree's handler a dozen times.
+
+**Fix:** it unsubscribes before subscribing, so each session has the handlers once.
+
 ## Fix: the Log Viewer froze the window during a burst of log lines, and crashed on exit
 
 **Symptom:** with View → Log Viewer open, pointing the settings folder at a 10,000-session Sessions.xml left the window unresponsive for over a minute. Closing the application then failed with "Cannot access a disposed object. Object name: 'RichTextBox'" (`Log4netLogViewer.timerLogPull_Tick`).

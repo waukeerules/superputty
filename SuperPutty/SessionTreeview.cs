@@ -2036,7 +2036,10 @@ namespace SuperPutty
                 }
             }
 
+            // once per session however often the tree is rebuilt (each search does): adding again made the handler lists grow
+            session.OnPropertyChanged -= SessionPropertyChanged;
             session.OnPropertyChanged += SessionPropertyChanged;
+            session.OnPropertyChanging -= SessionPropertyChanging;
             session.OnPropertyChanging += SessionPropertyChanging;
 
             return addedNode;
