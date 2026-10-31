@@ -533,6 +533,16 @@ Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom netw
 - **Typing the name, without leaving the box:** the mark cleared and Save was enabled.
 - **Typing a taken name:** "Session with same name exists" appeared and Save was disabled; correcting it enabled Save again.
 
+## Fix: dragging a folder left the sessions in its subfolders behind
+
+**Symptom:** after dragging a folder that has subfolders (e.g. `Core`, holding `Core/Dist/sw9`) into another folder, the tree looked right, but the subfolders' sessions kept their old IDs. After a reload they were back where they started.
+
+**Cause:** upstream's drop handler (`resetFoldersChildrenPaths`) gave new IDs only to the moved folder's own sessions, not to those further down.
+
+**Fix:** the drop handler now uses the existing recursive `UpdateSessionId`, which updates every level below the moved folder.
+
+**Checked against the compiled assembly** (in the change that followed, which keeps this fix): moving `Core` (holding `Core/Dist/sw9`) into `Home` gave the session the ID `Home/Core/Dist/sw9`.
+
 ## Fix: the installer didn't include Newtonsoft.Json.dll
 
 `SuperPuttyInstaller/Product.wxs` lists every file the MSI installs. `Newtonsoft.Json.dll`, which the Environment Variables feature needs (and so, through `{key}` placeholders, every session launch), was never added, so an installed copy would fail to load it. It's now a component of its own. The built MSI's File table lists it next to the exe, its config, log4net and the two DockPanel DLLs.

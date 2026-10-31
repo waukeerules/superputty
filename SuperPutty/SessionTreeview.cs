@@ -1026,10 +1026,11 @@ namespace SuperPutty
                 node.Nodes.Add(nodeNew);
                 UpdateSessionId(nodeNew, (SessionData)nodeNew.Tag); //
 
-                // If this a folder, reset it's childrens sessionIds
+                // If this a folder, reset it's childrens sessionIds, at every level below, so sessions in subfolders
+                // follow too (resetFoldersChildrenPaths only did the folder's own sessions)
                 if (IsFolderNode(nodeNew))
                 {
-                    resetFoldersChildrenPaths(nodeNew);
+                    UpdateSessionId(nodeNew);
                     
                 }
 
