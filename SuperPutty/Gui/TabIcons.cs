@@ -20,7 +20,8 @@ namespace SuperPutty.Gui
     /// gets blank padding in front (<see cref="WithPad"/>), which makes DockPanelSuite itself widen the tab and move the
     /// text right by the room the larger icon needs. Callers set icons with
     /// <see cref="Set"/> instead of the Icon property (SuperPuTTY.ApplyIconForWindow, ctlPuttyPanel's badges); the strips
-    /// are hooked by DocumentTabs.MarkCurrentTabInLists.
+    /// are hooked by DocumentTabs.MarkCurrentTabInLists. The same paint also shows each tab's environment colour
+    /// (EnvironmentColors): the selected tab filled with it, the others tinted and striped.
     /// </summary>
     public static class TabIcons
     {
@@ -76,6 +77,12 @@ namespace SuperPutty.Gui
         /// <summary>Space kept between the icon and the text, in pixels</summary>
         private const int TextGap = 3;
 
+        /// <summary>The tab font, for redrawing the text of a tab filled with its environment colour</summary>
+        private static Font tabFont;
+
+        /// <summary>How strongly an unselected tab is tinted with its environment colour, out of 255</summary>
+        private const int TintAlpha = 70;
+
         /// <summary>
         /// Size the icons for the tab font and work out the padding that makes room for them. frmSuperPutty calls this
         /// when it sets the tab font, before any tab opens.
@@ -83,6 +90,7 @@ namespace SuperPutty.Gui
         /// <param name="tabFont">The tab font</param>
         public static void Configure(Font tabFont)
         {
+            TabIcons.tabFont = tabFont;
             iconSize = tabFont.Height;
             int needed = 1 + iconSize + TextGap - TextStart;
             pad = string.Empty;
@@ -216,13 +224,25 @@ namespace SuperPutty.Gui
                     if (bounds == null || (width is int && (int)width == 0))
                         continue;
 
-                    // the environment colour (e.g. red for production) as a stripe along the tab's top edge
+                    // the environment colour (e.g. red for production): the selected tab is filled with it, others are
+                    // tinted with it and get a stripe along the top edge
                     Color? environment = EnvironmentColors.For((content as ctlPuttyPanel)?.Session);
                     if (environment != null)
                     {
-                        using (SolidBrush brush = new SolidBrush(environment.Value))
+                        DockContent dockContent = content as DockContent;
+                        bool selected = dockContent?.Pane != null && dockContent.Pane.ActiveContent == content;
+                        if (selected)
                         {
-                            g.FillRectangle(brush, bounds.Value.X, bounds.Value.Y, bounds.Value.Width, stripe);
+                            FillSelectedTab(g, strip, dockContent, bounds.Value, environment.Value);
+                        }
+                        else
+                        {
+                            using (SolidBrush tint = new SolidBrush(Color.FromArgb(TintAlpha, environment.Value)))
+                            using (SolidBrush brush = new SolidBrush(environment.Value))
+                            {
+                                g.FillRectangle(tint, bounds.Value);
+                                g.FillRectangle(brush, bounds.Value.X, bounds.Value.Y, bounds.Value.Width, stripe);
+                            }
                         }
                     }
                     Icon icon = Get(content);
@@ -235,6 +255,57 @@ namespace SuperPutty.Gui
                     int y = rect.Y + (rect.Height - size) / 2;
                     g.DrawImage(BitmapOf(icon), new Rectangle(x, y, size, size));
                 }
+            }
+        }
+
+        /// <summary>
+        /// Fill the selected tab with its environment colour in place of the theme's, then draw its text and close
+        /// button again on top in white or black, whichever reads better. DockPanelSuite picks tab colours per theme,
+        /// not per tab, so this paints over what it drew; the close button keeps working but loses its hover highlight.
+        /// The icon is drawn afterwards by <see cref="Paint"/>.
+        /// </summary>
+        /// <param name="g">The strip's graphics</param>
+        /// <param name="strip">The strip</param>
+        /// <param name="content">The tab's content</param>
+        /// <param name="rect">The tab's rectangle</param>
+        /// <param name="color">The environment colour</param>
+        private static void FillSelectedTab(Graphics g, DockPaneStripBase strip, DockContent content, Rectangle rect, Color color)
+        {
+            Color ink = color.GetBrightness() < 0.6f ? Color.White : Color.Black;
+            using (SolidBrush brush = new SolidBrush(color))
+            {
+                g.FillRectangle(brush, rect);
+            }
+
+            // VS2013/2015 strips put a close button in the selected tab; Classic has one for the whole strip
+            Rectangle close = Rectangle.Empty;
+            MethodInfo closeRect = strip.GetType().GetMethod("GetCloseButtonRect", BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { typeof(Rectangle) }, null);
+            if (closeRect != null)
+            {
+                close = (Rectangle)closeRect.Invoke(strip, new object[] { rect });
+                int inset = Math.Max(3, close.Width / 4);
+                using (Pen pen = new Pen(ink, Math.Max(1.5f, strip.LogicalToDeviceUnits(1) * 1.5f)))
+                {
+                    SmoothingMode smoothing = g.SmoothingMode;
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.DrawLine(pen, close.Left + inset, close.Top + inset, close.Right - inset, close.Bottom - inset);
+                    g.DrawLine(pen, close.Right - inset, close.Top + inset, close.Left + inset, close.Bottom - inset);
+                    g.SmoothingMode = smoothing;
+                }
+            }
+
+            string text = (content.TabText ?? content.Text ?? string.Empty).TrimStart(PadChar);
+            int left = rect.X + TextStart + padWidth - (IsClassic(strip) ? 4 : 0);
+            int right = close.IsEmpty ? rect.Right - 4 : close.Left - 2;
+            if (tabFont != null && right > left)
+            {
+                TextFormatFlags flags = TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix;
+                PropertyInfo format = strip.GetType().GetProperty("DocumentTextFormat", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                if (format != null)
+                {
+                    flags = (TextFormatFlags)format.GetValue(strip) | TextFormatFlags.NoPrefix;
+                }
+                TextRenderer.DrawText(g, text, tabFont, new Rectangle(left, rect.Y, right - left, rect.Height), ink, flags);
             }
         }
 
