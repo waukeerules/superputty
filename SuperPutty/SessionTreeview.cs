@@ -209,6 +209,7 @@ namespace SuperPutty
             SuperPuTTY.Settings.SettingsSaving += new SettingsSavingEventHandler(Settings_SettingsSaving);
             SessionShortcuts.Changed += SessionShortcuts_Changed;
             this.treeView1.BeforeExpand += this.treeView1_BeforeExpand;
+            this.treeView1.BeforeSelect += this.treeView1_BeforeSelectMulti;
             this.treeView1.AfterExpand += (s, e) => RememberGroup(e.Node, e.Action, true);
             this.treeView1.AfterCollapse += (s, e) => RememberGroup(e.Node, e.Action, false);
             if (m_DockPanel != null)
@@ -604,6 +605,17 @@ namespace SuperPutty
             // e is null if this method is called from connectToolStripMenuItem_Click
             TreeNode node = e != null ? e.Node : treeView1.SelectedNode;
 
+            // Connect or Enter with several sessions selected opens them all
+            List<TreeNode> selected = this.SelectedSessionNodes();
+            if (e == null && selected.Count > 1)
+            {
+                foreach (TreeNode session in selected)
+                {
+                    SuperPuTTY.OpenProtoSession((SessionData)session.Tag);
+                }
+                return;
+            }
+
             if (IsSessionNode(node) && node == treeView1.SelectedNode)
             {
                 SessionData sessionData = (SessionData)node.Tag;
@@ -834,6 +846,12 @@ namespace SuperPutty
         /// <param name="e"></param>
         private void deleteToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            List<TreeNode> selected = this.SelectedSessionNodes();
+            if (selected.Count > 1)
+            {
+                this.DeleteSessions(selected);
+                return;
+            }
             SessionData session = (SessionData)treeView1.SelectedNode.Tag;
             if (DatabaseLocked(treeView1.SelectedNode) || session.DatabaseLocked)
             {
@@ -1339,6 +1357,14 @@ namespace SuperPutty
             bool locked = DatabaseLocked(this.treeView1.SelectedNode) || (session != null && session.DatabaseLocked);
             this.settingsToolStripMenuItem.Enabled = !locked;
             this.deleteToolStripMenuItem.Enabled = !locked;
+            // with several sessions selected, Connect and Delete act on them all
+            int count = this.SelectedSessionNodes().Count;
+            this.connectToolStripMenuItem.Text = count > 1 ? string.Format("Connect {0} sessions", count) : "Connect";
+            this.deleteToolStripMenuItem.Text = count > 1 ? string.Format("Delete {0} sessions", count) : "Delete";
+            if (count > 1)
+            {
+                this.deleteToolStripMenuItem.Enabled = true;
+            }
             this.colorSessionToolStripMenuItem.Enabled = !locked && (session == null || !session.IsDatabaseFieldLocked("color"));
         }
 
@@ -2092,6 +2118,176 @@ namespace SuperPutty
             using (dlgDatabaseSettings dialog = new dlgDatabaseSettings())
             {
                 dialog.ShowDialog(this);
+            }
+        }
+
+        #endregion
+
+        #region Multiple selection
+
+        /// <summary>
+        /// Sessions selected besides the tree's own selected node, with Ctrl+click and Shift+click. The tree view only
+        /// selects one node; these are painted with a selection background, and Connect, Enter and Delete act on them
+        /// all (<see cref="SelectedSessionNodes"/>). Only session nodes: not folders, nor Favorites and Recent entries.
+        /// </summary>
+        readonly List<TreeNode> multiSelection = new List<TreeNode>();
+
+        /// <summary>Where a Shift+click range starts: the node last clicked without Shift</summary>
+        TreeNode selectionAnchor;
+
+        /// <summary>
+        /// Extend or reset the multiple selection as the tree's selection moves: Ctrl+click adds or removes a session,
+        /// Shift+click selects the sessions shown between the anchor and the click, and anything else (a plain click,
+        /// the arrow keys) leaves one session selected. Selecting a node from code keeps the selection when the node is
+        /// part of it (a right-click on a selected session).
+        /// </summary>
+        /// <param name="sender">The tree</param>
+        /// <param name="e">The node about to be selected, and how</param>
+        void treeView1_BeforeSelectMulti(object sender, TreeViewCancelEventArgs e)
+        {
+            TreeNode current = this.treeView1.SelectedNode;
+            Keys modifiers = Control.ModifierKeys;
+            if (e.Action == TreeViewAction.ByMouse && (modifiers & Keys.Shift) != 0 && IsSessionNode(e.Node))
+            {
+                this.SetMultiSelection(this.SessionsBetween(this.selectionAnchor ?? current, e.Node));
+            }
+            else if (e.Action == TreeViewAction.ByMouse && (modifiers & Keys.Control) != 0 && IsSessionNode(e.Node))
+            {
+                List<TreeNode> nodes = this.SelectedSessionNodes();
+                if (nodes.Contains(e.Node))
+                {
+                    // Ctrl+click on a selected session takes it out, and the selection stays where it was
+                    nodes.Remove(e.Node);
+                    e.Cancel = true;
+                }
+                else
+                {
+                    nodes.Add(e.Node);
+                }
+                this.SetMultiSelection(nodes);
+                if (!e.Cancel)
+                {
+                    this.selectionAnchor = e.Node;
+                }
+            }
+            else if (e.Action != TreeViewAction.Unknown || !this.SelectedSessionNodes().Contains(e.Node))
+            {
+                this.SetMultiSelection(null);
+                this.selectionAnchor = e.Node;
+            }
+        }
+
+        /// <summary>
+        /// The selected sessions' nodes: the multiple selection with the tree's selected node, in the order they were
+        /// picked, or just the selected node when it's a session
+        /// </summary>
+        /// <returns>The nodes; empty when no session is selected</returns>
+        List<TreeNode> SelectedSessionNodes()
+        {
+            List<TreeNode> nodes = this.multiSelection.Where(n => n.TreeView != null).ToList();
+            TreeNode selected = this.treeView1.SelectedNode;
+            if (IsSessionNode(selected) && !nodes.Contains(selected))
+            {
+                nodes.Add(selected);
+            }
+            return nodes;
+        }
+
+        /// <summary>The session nodes shown from one node to another, in either direction, both included</summary>
+        /// <param name="from">Where the range starts (any node), or null to take just <paramref name="to"/></param>
+        /// <param name="to">Where it ends</param>
+        /// <returns>The session nodes, top to bottom</returns>
+        List<TreeNode> SessionsBetween(TreeNode from, TreeNode to)
+        {
+            List<TreeNode> shown = new List<TreeNode>();
+            for (TreeNode node = this.treeView1.Nodes.Count > 0 ? this.treeView1.Nodes[0] : null; node != null; node = node.NextVisibleNode)
+            {
+                shown.Add(node);
+            }
+            int a = from == null ? -1 : shown.IndexOf(from), b = shown.IndexOf(to);
+            if (a < 0 || b < 0)
+                return new List<TreeNode> { to };
+            return shown.Skip(Math.Min(a, b)).Take(Math.Abs(a - b) + 1).Where(IsSessionNode).ToList();
+        }
+
+        /// <summary>Replace the multiple selection, painting the nodes that join it and clearing those that leave</summary>
+        /// <param name="nodes">The selected session nodes, or null for none</param>
+        void SetMultiSelection(IEnumerable<TreeNode> nodes)
+        {
+            List<TreeNode> next = nodes == null ? new List<TreeNode>() : nodes.Where(n => n.TreeView != null).Distinct().ToList();
+            // a single session is just the tree's own selection
+            if (next.Count < 2)
+                next.Clear();
+            bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
+            Color back = dark ? Color.FromArgb(0x26, 0x4F, 0x78) : SystemColors.Highlight;
+            Color fore = dark ? Color.White : SystemColors.HighlightText;
+            foreach (TreeNode node in this.multiSelection.Except(next))
+            {
+                node.BackColor = Color.Empty;
+                node.ForeColor = Color.Empty;
+            }
+            foreach (TreeNode node in next)
+            {
+                node.BackColor = back;
+                node.ForeColor = fore;
+            }
+            this.multiSelection.Clear();
+            this.multiSelection.AddRange(next);
+        }
+
+        /// <summary>
+        /// Delete several sessions after one question. Database sessions go to the table in one batch; those locked, or
+        /// in a table that can't be written, are left and listed.
+        /// </summary>
+        /// <param name="nodes">The session nodes</param>
+        void DeleteSessions(List<TreeNode> nodes)
+        {
+            List<TreeNode> deletable = nodes.Where(n => !DatabaseLocked(n) && !((SessionData)n.Tag).DatabaseLocked).ToList();
+            List<string> problems = nodes.Except(deletable).Select(n => ((SessionData)n.Tag).SessionName + ": locked in the database").ToList();
+            if (deletable.Count == 0)
+            {
+                Messenger.MessageBox("None of these sessions can be deleted here:\n\n" + string.Join("\n", problems.Take(15)), "Delete sessions", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            IEnumerable<string> names = deletable.Take(10).Select(n => ((SessionData)n.Tag).SessionName);
+            string question = string.Format("Are you sure you want to delete these {0} sessions?\n\n{1}{2}{3}", deletable.Count,
+                string.Join("\n", names), deletable.Count > 10 ? "\n... and " + (deletable.Count - 10) + " more" : "",
+                problems.Count > 0 ? string.Format("\n\n{0} locked in the database will be left.", problems.Count) : "");
+            if (Messenger.MessageBox(question, "Delete sessions", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            this.SetMultiSelection(null);
+            List<SessionData> database = deletable.Select(n => (SessionData)n.Tag).Where(s => s.IsDatabase).ToList();
+            int refusedCount = 0;
+            if (database.Count > 0)
+            {
+                List<string> errors;
+                HashSet<int> refused;
+                DatabaseSessions.SubmitBatch(database.Select(s => new DatabaseOutbox.PendingChange { Kind = DatabaseOutbox.ChangeKind.Delete, Session = s }).ToList(), out errors, out refused);
+                problems.AddRange(errors);
+                refusedCount = refused.Count;
+                for (int i = 0; i < database.Count; i++)
+                {
+                    if (!refused.Contains(i))
+                        SessionShortcuts.Forget(database[i].SessionId);
+                }
+            }
+            List<TreeNode> files = deletable.Where(n => !((SessionData)n.Tag).IsDatabase).ToList();
+            foreach (TreeNode node in files)
+            {
+                SessionData session = (SessionData)node.Tag;
+                node.Remove();
+                SuperPuTTY.RemoveSession(session.SessionId);
+                SessionShortcuts.Forget(session.SessionId);
+            }
+            if (files.Count > 0)
+            {
+                SuperPuTTY.SaveSessions();
+            }
+            SuperPuTTY.ReportStatus("Deleted {0} sessions", deletable.Count - refusedCount);
+            if (problems.Count > 0)
+            {
+                Messenger.MessageBox("These weren't deleted:\n\n" + string.Join("\n", problems.Take(15)), "Delete sessions", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
@@ -3508,7 +3704,13 @@ namespace SuperPutty
 
         private void treeView1_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Delete && (treeView1.SelectedNode == null || treeView1.SelectedNode.Parent == null))
+            if (e.KeyCode == Keys.Delete && this.SelectedSessionNodes().Count > 1)
+            {
+                // several sessions selected: one question for them all
+                this.DeleteSessions(this.SelectedSessionNodes());
+                e.Handled = true;
+            }
+            else if (e.KeyCode == Keys.Delete && (treeView1.SelectedNode == null || treeView1.SelectedNode.Parent == null))
             {
                 // the top-level nodes can't be deleted
                 e.Handled = true;

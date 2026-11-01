@@ -1574,6 +1574,24 @@ That alone left the cursor flickering as you moved over the edge: the splitter w
 **Checked** with a program moving the pointer one pixel at a time across the Sessions pane's right edge in the real window, at 150 %, and recording where the cursor was the resize arrow: 6 pixels before the fix (and still 6 when the width was set after the theme), 12 after. Then, with a recorder of every cursor change while you moved over the edge: the cursor flipped between the pane's border pixel and the splitter's first. With the grip line: its colour read from the screen, dim with the pointer away and lighter over it, in the middle of the 12 pixels (dark theme, 150 %).
 **Not checked:** dragging (DockPanelSuite's own, unchanged), the light themes' line colour, the Classic (VS2005) theme, and panes docked elsewhere.
 
+## Selecting several sessions in the tree
+
+**Ctrl+click** adds a session to the selection or takes it out, and **Shift+click** selects every session shown between the last session clicked and this one. A plain click or the arrow keys go back to one. Only sessions take part, not folders or Favorites and Recent entries.
+
+- **Connect** (the menu, or Enter) opens them all; the menu says "Connect 5 sessions".
+- **Delete** (the menu, or the Delete key) asks once, listing them ("Delete 5 sessions"). Database sessions go to the table in one batch (`DatabaseSessions.SubmitBatch`); those locked, or in a table that can't be written, are left and listed. Sessions.xml is saved once.
+- The other menu items (Edit, Rename, Move to...) still act on the session right-clicked.
+- The WinForms tree selects one node only, so the others are kept in `SessionTreeview.multiSelection` and painted with a selection background; the last one clicked keeps the tree's own highlight. A right-click on a selected session keeps the selection; anywhere else resets it.
+
+| File | Change |
+|---|---|
+| `SessionTreeview.cs` | `treeView1_BeforeSelectMulti`, `SelectedSessionNodes`, `SessionsBetween`, `SetMultiSelection`, `DeleteSessions`; Connect, Enter, Delete and the menu's text use the selection |
+
+**Checked** in the real window with real clicks on rows found by name: a click on 192.168.3.2-2, Shift+click on Media Server and Ctrl+click on Windows 7 Host selected those five; the menu read "Connect 5 sessions" and "Delete 5 sessions"; Delete asked about the five by name, and No left them all (Sessions.xml unchanged); a plain click went back to one. Ctrl+click on a folder reset the selection.
+**Not checked:** connecting several at once (it opens each as a double-click does), deleting for real, Database sessions in a selection, and the light theme's colours.
+
+Manual test: select three sessions with Shift+click, right-click one → Connect 3 sessions: three tabs open. Ctrl+click one out, press Delete: one question for the two; Yes deletes both and Sessions.xml is saved once.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
