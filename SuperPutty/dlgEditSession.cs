@@ -365,7 +365,7 @@ namespace SuperPutty
         }
 
         /// <summary>The fields a local override can replace, by the name the overrides use</summary>
-        /// <returns>"Host", "Port", "Username", "PuTTY profile", "Extra args" and "Jump host", with their editors</returns>
+        /// <returns>"Host", "Port", "Username", "PuTTY profile", "Extra args", "Jump host" and "Notes", with their editors</returns>
         private Dictionary<string, Control> OverridableFields()
         {
             return new Dictionary<string, Control>
@@ -375,7 +375,8 @@ namespace SuperPutty
                 { "Username", this.textBoxUsername },
                 { "PuTTY profile", this.comboBoxPuttyProfile },
                 { "Extra args", this.textBoxExtraArgs },
-                { "Jump host", this.textBoxJumpHost }
+                { "Jump host", this.textBoxJumpHost },
+                { "Notes", this.textBoxNote }
             };
         }
 
@@ -415,6 +416,8 @@ namespace SuperPutty
             string value = field == "Host" ? local.Host : field == "Port" ? local.Port.ToString()
                 : field == "Username" ? local.Username : field == "PuTTY profile" ? local.PuttyProfile
                 : field == "Jump host" ? local.JumpHost : null;
+            if (field == "Notes")
+                return "(your own note, in Local overrides)";
             // extra arguments can hold a -pw password: not shown
             if (field == "Extra args")
                 return "(set in Local overrides)";

@@ -3059,7 +3059,15 @@ namespace SuperPutty
         /// <returns>The tooltip text</returns>
         static string SessionToolTip(SessionData session)
         {
-            string text = session.ToString();
+            // the user's own note, if they have one, shows instead of the stored note
+            SessionOverrides.Override own = SessionOverrides.Get(session.SessionId);
+            SessionData shown = session;
+            if (own != null && own.Note != null)
+            {
+                shown = (SessionData)session.Clone();
+                shown.Note = own.Note;
+            }
+            string text = shown.ToString();
             if (session.DatabasePending)
             {
                 text = session.DatabasePendingNote + Environment.NewLine + text;
@@ -3852,7 +3860,13 @@ namespace SuperPutty
                 if (fields.HasFlag(SearchFields.PuttyProfile)) values.Add(s.PuttySession);
                 // never let a search reveal a password stored in the extra arguments
                 if (fields.HasFlag(SearchFields.ExtraArgs)) values.Add(CommandLineOptions.replacePassword(s.ExtraArgs, ""));
-                if (fields.HasFlag(SearchFields.Notes)) values.Add(s.Note);
+                if (fields.HasFlag(SearchFields.Notes))
+                {
+                    values.Add(s.Note);
+                    // the user's own note for the session is searched too
+                    SessionOverrides.Override own = SessionOverrides.Get(s.SessionId);
+                    if (own != null) values.Add(own.Note);
+                }
                 if (fields.HasFlag(SearchFields.SpslScript)) values.Add(s.SPSLFileName);
                 return values.Where(v => !string.IsNullOrEmpty(v));
             }

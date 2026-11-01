@@ -9,7 +9,8 @@ namespace SuperPutty.Data
 {
     /// <summary>
     /// The current user's local overrides: their own host, port, username, PuTTY profile, extra arguments or jump
-    /// host for a session, used instead of the stored value whenever it opens. For a Database session whose field is
+    /// host for a session, used instead of the stored value whenever it opens, and their own note for it, shown
+    /// instead of the stored one (in the Sessions tree's tooltip, and found by its search). For a Database session whose field is
     /// locked, or a shared Sessions.xml session, where an edit isn't possible or would change it for everyone. Kept in
     /// SessionOverrides.json beside the user's SuperXPuTTY.settings, by session ID, and never written into the session
     /// itself. Utils.SessionVariables.Resolve applies them (<see cref="Apply"/>), after the folders' defaults, so every
@@ -44,11 +45,14 @@ namespace SuperPutty.Data
             /// <summary>The jump host instead ("" for none, overriding the session's or folder's)</summary>
             public string JumpHost { get; set; }
 
+            /// <summary>The user's own note for the session, shown instead of the stored one ("" for none)</summary>
+            public string Note { get; set; }
+
             /// <summary>Whether nothing is overridden, so the entry can be dropped</summary>
             [JsonIgnore]
             public bool IsEmpty
             {
-                get { return this.Host == null && this.Port <= 0 && this.Username == null && this.PuttyProfile == null && this.ExtraArgs == null && this.JumpHost == null; }
+                get { return this.Host == null && this.Port <= 0 && this.Username == null && this.PuttyProfile == null && this.ExtraArgs == null && this.JumpHost == null && this.Note == null; }
             }
 
             /// <summary>The names of the fields overridden, for the tree's tooltip</summary>
@@ -62,6 +66,7 @@ namespace SuperPutty.Data
                 if (this.PuttyProfile != null) fields.Add("PuTTY profile");
                 if (this.ExtraArgs != null) fields.Add("Extra args");
                 if (this.JumpHost != null) fields.Add("Jump host");
+                if (this.Note != null) fields.Add("Notes");
                 return fields;
             }
 
@@ -122,6 +127,7 @@ namespace SuperPutty.Data
             if (value.PuttyProfile != null) copy.PuttySession = value.PuttyProfile;
             if (value.ExtraArgs != null) copy.ExtraArgs = value.ExtraArgs;
             if (value.JumpHost != null) copy.JumpHost = value.JumpHost;
+            if (value.Note != null) copy.Note = value.Note;
             return copy;
         }
 

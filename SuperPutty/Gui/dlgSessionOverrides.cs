@@ -48,6 +48,7 @@ namespace SuperPutty.Gui
         private readonly ComboBox comboProfile = new ComboBox { DropDownStyle = ComboBoxStyle.DropDown };
         private readonly TextBox textExtraArgs = new TextBox();
         private readonly TextBox textJumpHost = new TextBox();
+        private readonly TextBox textNote = new TextBox { Multiline = true, ScrollBars = ScrollBars.Vertical, AcceptsReturn = true };
 
         /// <summary>The fields, in the order shown</summary>
         private readonly List<Field> fields;
@@ -84,10 +85,11 @@ namespace SuperPutty.Gui
 
             this.comboProfile.Items.AddRange(PuttyDataHelper.GetSessionNames().Where(n => !string.IsNullOrEmpty(n)).ToArray());
             HintText.Set(this.textJumpHost, "empty: no jump host, even if the session or folder has one");
-            foreach (Control box in new Control[] { this.textHost, this.textUsername, this.comboProfile, this.textExtraArgs, this.textJumpHost })
+            foreach (Control box in new Control[] { this.textHost, this.textUsername, this.comboProfile, this.textExtraArgs, this.textJumpHost, this.textNote })
             {
                 box.Width = this.LogicalToDeviceUnits(280);
             }
+            this.textNote.Height = this.textNote.Font.Height * 3 + this.LogicalToDeviceUnits(8);
             this.numericPort.Width = this.LogicalToDeviceUnits(90);
 
             this.fields = new List<Field>
@@ -100,7 +102,9 @@ namespace SuperPutty.Gui
                 // a -pw password in the stored extra arguments is never shown
                 new Field { Name = "Extra args", Editor = this.textExtraArgs, Get = o => o.ExtraArgs, Set = (o, v) => o.ExtraArgs = v,
                     Stored = s => Regex.Replace(s.ExtraArgs ?? string.Empty, @"(-pw\s+)(""[^""]*""|\S+)", "$1****") },
-                new Field { Name = "Jump host", Editor = this.textJumpHost, Get = o => o.JumpHost, Set = (o, v) => o.JumpHost = v, Stored = s => s.JumpHost }
+                new Field { Name = "Jump host", Editor = this.textJumpHost, Get = o => o.JumpHost, Set = (o, v) => o.JumpHost = v, Stored = s => s.JumpHost },
+                // your own note, shown instead of the stored one; beside it only the stored note's first line
+                new Field { Name = "Notes", Editor = this.textNote, Get = o => o.Note, Set = (o, v) => o.Note = v, Stored = s => FirstLine(s.Note) }
             };
 
             TableLayoutPanel grid = new TableLayoutPanel { ColumnCount = 3, AutoSize = true, Dock = DockStyle.Fill };
@@ -109,7 +113,8 @@ namespace SuperPutty.Gui
                 Text = (several
                         ? string.Format("For these {0} sessions: a ticked field is set on all of them, an unticked one is removed from all, "
                             + "and a filled box (where they differ) leaves each as it is. ", sessions.Count)
-                        : "Tick a field to use your own value whenever this session opens, instead of the stored one. ")
+                        : "Tick a field to use your own value whenever this session opens, instead of the stored one; your own notes "
+                            + "show instead of the stored ones. ")
                     + "Only you get these (they're kept beside your settings, not in the session), so they work for locked database "
                     + "fields and shared sessions. The sessions themselves aren't changed.",
                 AutoSize = true,
@@ -189,6 +194,16 @@ namespace SuperPutty.Gui
             grid.Controls.Add(field.Use, 0, row);
             grid.Controls.Add(field.Editor, 1, row);
             grid.Controls.Add(storedLabel, 2, row);
+        }
+
+        /// <summary>A note's first line, shortened to fit beside the field</summary>
+        /// <param name="note">The note, or null</param>
+        /// <returns>e.g. "Core switch, room 2..."; empty for none</returns>
+        private static string FirstLine(string note)
+        {
+            string line = (note ?? string.Empty).Split('\r', '\n')[0];
+            bool more = line.Length > 40 || line.Length < (note ?? string.Empty).Trim().Length;
+            return (line.Length > 40 ? line.Substring(0, 40) : line) + (more ? "..." : "");
         }
 
         /// <summary>Put a value in an editor: the port box takes a number, the others text</summary>
