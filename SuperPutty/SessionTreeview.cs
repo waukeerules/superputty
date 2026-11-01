@@ -199,6 +199,8 @@ namespace SuperPutty
                 this.treeView1.ItemHeight = height + height % 2;
             }
             this.BuildShortcutMenus();
+            this.AddOverridesMenuItem();
+            SessionOverrides.Changed += this.SessionOverrides_Changed;
             this.BuildToolbar();
             this.ApplySettings();
 
@@ -371,6 +373,7 @@ namespace SuperPutty
             SuperPuTTY.DatabaseSessionsReplaced -= DatabaseSessions_Replaced;
             DatabaseSessions.StatusChanged -= DatabaseSessions_StatusChanged;
             EnvironmentColors.Changed -= EnvironmentColors_Changed;
+            SessionOverrides.Changed -= this.SessionOverrides_Changed;
             base.OnClosed(e);
         }
 
@@ -761,6 +764,8 @@ namespace SuperPutty
                 this.EnsureFolderFilled(nodeRef);
             }
 
+            // say where the session is kept: the table, PrivateSessions.xml or the shared Sessions.xml
+            title += " — " + StoreDescription(KindOf(nodeRef));
             dlgEditSession form = new dlgEditSession(session, SuperPuTTY.Images) {Text = title};
             if (node != null && session.IsDatabase)
             {
@@ -1418,6 +1423,78 @@ namespace SuperPutty
         static string RootName(RootKind kind)
         {
             return kind == RootKind.Private ? "Private sessions" : kind == RootKind.Database ? "Database sessions" : "Saved sessions";
+        }
+
+        /// <summary>The session menu's "Local overrides..." item, after Edit</summary>
+        ToolStripMenuItem overridesToolStripMenuItem;
+
+        /// <summary>
+        /// Add "Local overrides..." to the session menu, after Edit: the user's own values for the session, used when it
+        /// opens without changing it (Data.SessionOverrides), so it works for locked database fields and shared sessions
+        /// </summary>
+        void AddOverridesMenuItem()
+        {
+            this.overridesToolStripMenuItem = new ToolStripMenuItem("Local overrides...", null, (s, e) => this.EditOverrides(this.SelectedSession))
+            {
+                ToolTipText = "Your own host, port, username, profile... for this session, used when it opens; only you get them"
+            };
+            int edit = this.contextMenuStripAddTreeItem.Items.IndexOf(this.settingsToolStripMenuItem);
+            this.contextMenuStripAddTreeItem.Items.Insert(edit + 1, this.overridesToolStripMenuItem);
+        }
+
+        /// <summary>Edit a session's local overrides and save them</summary>
+        /// <param name="session">The session; nothing happens for null</param>
+        void EditOverrides(SessionData session)
+        {
+            if (session == null)
+                return;
+            using (dlgSessionOverrides dialog = new dlgSessionOverrides(session, SessionOverrides.Get(session.SessionId)))
+            {
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    SessionOverrides.Set(session.SessionId, dialog.Result);
+                }
+            }
+        }
+
+        /// <summary>Overrides were set or removed: show them in the sessions' tooltips</summary>
+        /// <param name="sender">Not used</param>
+        /// <param name="e">Not used</param>
+        void SessionOverrides_Changed(object sender, EventArgs e)
+        {
+            if (this.InvokeRequired)
+            {
+                this.BeginInvoke((MethodInvoker)(() => this.SessionOverrides_Changed(sender, e)));
+                return;
+            }
+            foreach (TreeNode root in new[] { this.nodeRoot, this.nodePrivate, this.nodeDatabase })
+            {
+                if (root != null)
+                    this.RefreshToolTips(root.Nodes);
+            }
+        }
+
+        /// <summary>Build the session nodes' tooltips again, in the nodes already filled</summary>
+        /// <param name="nodes">The nodes to start from</param>
+        void RefreshToolTips(TreeNodeCollection nodes)
+        {
+            foreach (TreeNode node in nodes)
+            {
+                if (IsSessionNode(node))
+                    node.ToolTipText = SessionToolTip((SessionData)node.Tag);
+                else if (node.Nodes.Count > 0)
+                    this.RefreshToolTips(node.Nodes);
+            }
+        }
+
+        /// <summary>Where a root's sessions are kept, for the Edit Session title</summary>
+        /// <param name="kind">Shared, Private or Database</param>
+        /// <returns>e.g. "Database sessions" or "Saved sessions (Sessions.xml)"</returns>
+        static string StoreDescription(RootKind kind)
+        {
+            return kind == RootKind.Database ? "Database sessions"
+                : kind == RootKind.Private ? "Private sessions (only yours)"
+                : "Saved sessions (Sessions.xml)";
         }
 
         /// <summary>A Move to or Copy to submenu, filled with the other roots as it opens</summary>
@@ -2971,6 +3048,11 @@ namespace SuperPutty
             if (!string.IsNullOrEmpty(session.DatabaseManagedBy))
             {
                 text = "Managed by " + session.DatabaseManagedBy + Environment.NewLine + text;
+            }
+            SessionOverrides.Override local = SessionOverrides.Get(session.SessionId);
+            if (local != null)
+            {
+                text = "Your local overrides: " + string.Join(", ", local.Fields()) + Environment.NewLine + text;
             }
             if (session.DatabaseLocked)
             {

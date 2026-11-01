@@ -80,13 +80,15 @@ namespace SuperPutty.Utils
 
         /// <summary>
         /// Return a copy of the session with its folders' defaults filled in (username, PuTTY profile, port:
-        /// FolderSettings.WithDefaults) and its placeholders replaced. The original keeps its placeholders, so the
+        /// FolderSettings.WithDefaults), the user's local overrides put in (SessionOverrides.Apply) and its
+        /// placeholders replaced. The original keeps its placeholders, so the
         /// current user's values are never saved back to Sessions.xml.
         /// </summary>
         public static SessionData Resolve(SessionData session)
         {
             Dictionary<string, string> variables = Load();
-            SessionData resolved = FolderSettings.WithDefaults(session);
+            // the user's local overrides beat both the session's own values and its folder's
+            SessionData resolved = SessionOverrides.Apply(FolderSettings.WithDefaults(session));
             resolved.Host = Substitute(resolved.Host, variables);
             resolved.Username = Substitute(resolved.Username, variables);
             resolved.Password = Substitute(resolved.Password, variables);

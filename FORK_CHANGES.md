@@ -1622,6 +1622,31 @@ The installer isn't rebuilt when only `License.rtf` changes, as its project does
 
 **Checked:** `License.rtf` loaded into a RichTextBox reads "SuperXPuTTY", "MIT License", then the three copyright lines; the rebuilt MSI's licence text (its `Control` table) has the new line and no "version 2.1.", and its ProductVersion is 2.3.0.0.
 
+## Local overrides, and where a session is kept in Edit Session's title
+
+**Edit Session's title says where the session is kept:** "Edit session: core-sw1 — Database sessions", "— Private sessions (only yours)" or "— Saved sessions (Sessions.xml)"; new sessions and copies say where they'll be saved (`SessionTreeview.StoreDescription`).
+
+**Local overrides:** right-click a session → **Local overrides...** to use your own host, port, username, PuTTY profile, extra arguments or jump host whenever it opens, without editing it. For a Database session whose fields are locked, or a shared Sessions.xml session you don't want to change for everyone.
+- **The dialog** (`Gui/dlgSessionOverrides.cs`) has a box to tick per field, the value to use, and the stored value beside it (a `-pw` password in the stored extra arguments is shown as `****`). **Clear all** removes them. A ticked, empty jump host means none, even if the session or its folder has one.
+- **Kept** in `SessionOverrides.json` beside your settings (`Data/SessionOverrides.cs`), by session ID; the session itself is never changed. They follow a session that's renamed or moved and are dropped when it's deleted (`SessionShortcuts.Rename` and `Forget` pass these on).
+- **Applied** by `SessionVariables.Resolve`, after the folders' defaults, so every launch gets them (PuTTY, the built-in terminal, SCP, WinSCP, RDP) and they beat both the session's and its folder's values; placeholders in them are filled in as usual.
+- **Shown** in the session's tooltip: "Your local overrides: Username, Host".
+
+| File | Change |
+|---|---|
+| `Data/SessionOverrides.cs` | New. The overrides: read, set, apply, follow renames, forget |
+| `Gui/dlgSessionOverrides.cs` | New. The dialog |
+| `Utils/SessionVariables.cs` | `Resolve` applies them |
+| `Data/SessionShortcuts.cs` | `Rename` and `Forget` pass renames and deletions on |
+| `SessionTreeview.cs` | The menu item, the tooltip line, and where a session is kept in the Edit title |
+
+**Checked:**
+- In the real window: Edit on Media Server read "Edit session: Media Server — Saved sessions (Sessions.xml)", on Lab Switch "— Private sessions (only yours)". Local overrides on Media Server showed the stored values; ticking Username and typing a name saved `{"Media Server": {"Username": ...}}` and the tooltip read "Your local overrides: Username". The test override was removed afterwards.
+- `SessionVariables.Resolve` on a session with overrides for host, username and port gave the overridden values, and the stored session kept its own; a rename kept them under the new ID and a delete dropped them.
+- **Not checked:** connecting with an override (the values reach the same launch copy as folder defaults), a Database session's title and overrides, and the light theme.
+
+Manual test: on a Database session with a locked host, Local overrides... → tick Host, enter another address, OK; connect: it goes to that address, and the session still shows its stored host in Edit. Clear all: it goes back.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

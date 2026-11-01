@@ -159,6 +159,7 @@ namespace SuperPutty.Data
         /// <param name="sessionId">The deleted session's ID</param>
         public static void Forget(string sessionId)
         {
+            SessionOverrides.Forget(sessionId);
             bool removed = Data.Favorites.Remove(sessionId);
             removed |= Data.Recent.Remove(sessionId);
             if (removed)
@@ -174,6 +175,8 @@ namespace SuperPutty.Data
         {
             if (string.IsNullOrEmpty(oldId) || string.IsNullOrEmpty(newId) || oldId == newId)
                 return;
+            // the user's local overrides follow the session too; every rename and move already comes through here
+            SessionOverrides.Rename(oldId, newId);
             bool changed = ReplaceId(Data.Favorites, oldId, newId);
             changed |= ReplaceId(Data.Recent, oldId, newId);
             if (changed)
