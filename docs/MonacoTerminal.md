@@ -261,6 +261,10 @@ plan below:
   stdin). What works: attach to plink's console briefly and set `ENABLE_VIRTUAL_TERMINAL_INPUT` without
   `ENABLE_PROCESSED_INPUT` (`ConPty.EnsureVirtualTerminalInput`), checked before each ESC or Ctrl+C because plink sets
   its mode when the session starts;
+- **PuTTY's Special Commands** (Break, signals, IGNORE, re-key) are protocol messages that only the program holding
+  the connection can send, and plink has no way to be asked to. A console Ctrl+Break (as a key event through the pseudo
+  console, or as `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT)`) was tried against the switch: plink doesn't handle it, so
+  Windows ends plink and the session drops. The terminal's menu offers "Open in PuTTY" for these instead;
 - **xterm.js 6.0.0 decoration bug:** disposing a marker before its decorations corrupts the decoration list (the
   marker's line is already -1 when the decoration is looked up to be removed), and other lines lose their colours.
   Always dispose the decoration first;
