@@ -109,6 +109,18 @@ namespace SuperPutty.Gui
         /// <summary>Whether a chunk is with the page and not yet acknowledged</summary>
         private bool waitingForAck;
 
+        /// <summary>Output waiting longer than this, here or in the page, is logged (Delay)</summary>
+        private static readonly TimeSpan SlowOutput = TimeSpan.FromMilliseconds(500);
+
+        /// <summary>When the oldest output in <see cref="pending"/> arrived; guarded by <see cref="pending"/></summary>
+        private DateTime pendingSince;
+
+        /// <summary>When the chunk the page is drawing was sent (UTC)</summary>
+        private DateTime chunkSentAt;
+
+        /// <summary>The size of the chunk the page is drawing</summary>
+        private int chunkBytes;
+
         /// <summary>The terminal's size in characters, from the page</summary>
         private int columns, rows;
 
@@ -314,6 +326,7 @@ namespace SuperPutty.Gui
                     break;
                 case "ack":
                     this.waitingForAck = false;
+                    this.Delay("The page took {0} ms to draw {1} bytes of output", this.chunkSentAt, this.chunkBytes);
                     this.SendPending();
                     break;
                 case "log":
@@ -625,9 +638,29 @@ namespace SuperPutty.Gui
         {
             lock (this.pending)
             {
+                if (this.pending.Length == 0)
+                {
+                    this.pendingSince = DateTime.UtcNow;
+                }
                 this.pending.Write(bytes, 0, bytes.Length);
             }
             this.BeginInvokeSafe(this.SendPending);
+        }
+
+        /// <summary>
+        /// Log output that waited too long, so a prompt that shows late can be traced to SuperPuTTY (queued here, or
+        /// the page slow to draw it) or to the program (it never came). Only times and sizes, never the text.
+        /// </summary>
+        /// <param name="format">The message, with {0} for the milliseconds and {1} for the bytes</param>
+        /// <param name="since">When the wait began (UTC)</param>
+        /// <param name="bytes">How much output waited</param>
+        private void Delay(string format, DateTime since, int bytes)
+        {
+            TimeSpan waited = DateTime.UtcNow - since;
+            if (waited > SlowOutput)
+            {
+                Log.InfoFormat(format, (int)waited.TotalMilliseconds, bytes);
+            }
         }
 
         /// <summary>Send queued output to the page, one chunk at a time</summary>
@@ -636,18 +669,25 @@ namespace SuperPutty.Gui
             if (!this.pageReady || this.waitingForAck)
                 return;
             byte[] chunk;
+            DateTime queuedSince;
             lock (this.pending)
             {
                 if (this.pending.Length == 0)
                     return;
+                queuedSince = this.pendingSince;
                 byte[] all = this.pending.ToArray();
                 int take = Math.Min(all.Length, ChunkBytes);
                 chunk = new byte[take];
                 Buffer.BlockCopy(all, 0, chunk, 0, take);
                 this.pending.SetLength(0);
                 this.pending.Write(all, take, all.Length - take);
+                // what's left waits for the page by design, not because it was held up here
+                this.pendingSince = DateTime.UtcNow;
             }
+            this.Delay("Output waited {0} ms in SuperPuTTY before going to the page ({1} bytes)", queuedSince, chunk.Length);
             this.waitingForAck = true;
+            this.chunkSentAt = DateTime.UtcNow;
+            this.chunkBytes = chunk.Length;
             this.Post(new { type = "data", data = Convert.ToBase64String(chunk) });
         }
 
@@ -882,7 +922,7 @@ namespace SuperPutty.Gui
             ConPty target = this.pty;
             if (target != null && !this.disconnected)
             {
-                StringBuilder text = new StringBuilder(command.Command ?? string.Empty);
+                StringBuilder text = new StringBuilder(LineFeedsAsEnter(command.Command));
                 if (command.KeyData != null)
                 {
                     text.Append(KeySequence(command.KeyData));
@@ -893,6 +933,21 @@ namespace SuperPutty.Gui
             {
                 System.Threading.Thread.Sleep(command.Delay);
             }
+        }
+
+        /// <summary>
+        /// Turn each line feed (a button's \n, or a line break in a Send Commands string) into Enter (CR). With PuTTY a
+        /// line feed reached the device as a character, which shells and switches take as Enter; typed into a pseudo
+        /// console it becomes Ctrl+Enter, which plink and cmd drop, so the command was typed but never run. A CR LF pair
+        /// becomes one Enter.
+        /// </summary>
+        /// <param name="text">Text to type; may be null</param>
+        /// <returns>The text with CR in place of every line feed; empty for null</returns>
+        public static string LineFeedsAsEnter(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return string.Empty;
+            return text.Replace("\r\n", "\r").Replace('\n', '\r');
         }
 
         /// <summary>
