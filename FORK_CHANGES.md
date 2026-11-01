@@ -416,8 +416,9 @@ Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom netw
     - **Who uses it:** set tab icons with `TabIcons.Set`, not the `Icon` property (`SuperPuTTY.ApplyIconForWindow`, the badges in `ctlPuttyPanel`). The tab-list menu shows the real icons and strips the padding.
     - **Classic tabs** have a slanted left edge and start their text a few pixels earlier, so their icons start further in and are a little smaller.
 - **Device templates** (`Gui/IconTemplates.cs`) are drawn in code, so they're sharp at any size, and their body takes any colour.
-  - **Templates:** switch, layer 3 switch, router, voice router, data centre (Nexus) switch, firewall, wireless, load balancer, server, workstation, terminal, Windows, database, storage, cloud, IP phone, camera, printer, folder and flag.
+  - **Templates:** switch, layer 3 switch, stack switch, router, voice router, data centre (Nexus) switch, firewall, VPN concentrator, wireless, access point, wireless controller, load balancer, console server, UPS, server, workstation, terminal, Windows, database, storage, cloud, IP phone, camera, printer, folder and flag.
   - **Colour coding:** "green switch = layer 2, blue switch = layer 3" is one template in two colours.
+  - **3D boxes** (data centre switch, stack switch, wireless controller, VPN concentrator, access point) follow the network-diagram symbols; the voice router is a call symbol (a handset with arrows each way), redrawn because the old handset read as a blob.
   - **General icons** replace the rest of the old Silk PNGs, drawn the same way: home, globe, map, truck, book, document, archive, email, chat, feed, clock, help, information, light bulb, lightning, television and mobile device. The picker lists them under "General".
   - **The top toolbars' buttons** (connect, clear, send, mask, run script, select tabs, the icon filter's "stop") are drawn the same way, so they match.
 - **Logos** (`Gui/BrandLogos.cs`): 26 OS and vendor logos from [Simple Icons](https://simpleicons.org) 16.36.0. The icon data is CC0 (`Resources/third-party/simple-icons-LICENSE.md`), and the logos remain their owners' trademarks.

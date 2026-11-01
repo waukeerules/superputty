@@ -40,12 +40,18 @@ namespace SuperPutty.Gui
         {
             Add("switch", "Switch", Color.FromArgb(0x2E, 0x7D, 0x32), PaintSwitch);
             Add("l3switch", "Layer 3 switch", Color.FromArgb(0x1E, 0x63, 0xB4), PaintL3Switch);
+            Add("stackswitch", "Stack switch", Color.FromArgb(0x2E, 0x7D, 0x32), PaintStackSwitch);
             Add("router", "Router", Color.FromArgb(0x1E, 0x63, 0xB4), PaintRouter);
             Add("voicerouter", "Voice router", Color.FromArgb(0x6A, 0x3D, 0x9A), PaintVoiceRouter);
             Add("nexus", "Data centre switch", Color.FromArgb(0x2E, 0x7D, 0x32), PaintNexus);
             Add("firewall", "Firewall", Color.FromArgb(0xC6, 0x4B, 0x2B), PaintFirewall);
+            Add("vpn", "VPN concentrator", Color.FromArgb(0x6A, 0x3D, 0x9A), PaintVpn);
             Add("wireless", "Wireless", Color.FromArgb(0x1E, 0x63, 0xB4), PaintWireless);
+            Add("accesspoint", "Access point", Color.FromArgb(0x1E, 0x63, 0xB4), PaintAccessPoint);
+            Add("wlc", "Wireless controller", Color.FromArgb(0x1E, 0x63, 0xB4), PaintWirelessController);
             Add("loadbalancer", "Load balancer", Color.FromArgb(0x00, 0x83, 0x8F), PaintLoadBalancer);
+            Add("consoleserver", "Console server", Color.FromArgb(0x45, 0x5A, 0x64), PaintConsoleServer);
+            Add("ups", "UPS", Color.FromArgb(0xEF, 0x6C, 0x00), PaintUps);
             Add("server", "Server", Color.FromArgb(0x60, 0x7D, 0x8B), PaintServer);
             Add("workstation", "Workstation", Color.FromArgb(0x60, 0x7D, 0x8B), PaintWorkstation);
             Add("terminal", "Terminal", Color.FromArgb(0x45, 0x5A, 0x64), PaintTerminal);
@@ -278,6 +284,56 @@ namespace SuperPutty.Gui
             }
         }
 
+        /// <summary>
+        /// A box seen from above-front, like the data centre switch: a lighter top, a darker side and the front filled
+        /// as a body
+        /// </summary>
+        /// <param name="g">The graphics</param>
+        /// <param name="body">The body colour</param>
+        /// <param name="front">The front face</param>
+        /// <param name="depth">How far right the back edge sits from the front</param>
+        /// <param name="lift">How far up the back edge sits from the front</param>
+        private static void IsoBox(Graphics g, Color body, RectangleF front, float depth, float lift)
+        {
+            PointF[] top = { new PointF(front.Left, front.Top), new PointF(front.Left + depth, front.Top - lift), new PointF(front.Right + depth, front.Top - lift), new PointF(front.Right, front.Top) };
+            PointF[] side = { new PointF(front.Right, front.Top), new PointF(front.Right + depth, front.Top - lift), new PointF(front.Right + depth, front.Bottom - lift), new PointF(front.Right, front.Bottom) };
+            using (Brush topFill = new SolidBrush(Shade(body, 0.28f)))
+            using (Brush sideFill = new SolidBrush(Shade(body, -0.25f)))
+            using (Pen edge = new Pen(Shade(body, -0.4f), 0.04f) { LineJoin = LineJoin.Round })
+            {
+                g.FillPolygon(topFill, top);
+                g.FillPolygon(sideFill, side);
+                using (GraphicsPath path = new GraphicsPath())
+                {
+                    path.AddRectangle(front);
+                    FillBody(g, path, body);
+                }
+                g.DrawPolygon(edge, top);
+                g.DrawPolygon(edge, side);
+            }
+        }
+
+        /// <summary>The wireless symbol: three arcs over a dot</summary>
+        /// <param name="g">The graphics</param>
+        /// <param name="color">Its colour</param>
+        /// <param name="cx">Centre x</param>
+        /// <param name="baseY">The dot's y, where the arcs are centred</param>
+        /// <param name="reach">The outer arc's radius</param>
+        /// <param name="width">The arcs' thickness</param>
+        private static void WirelessArcs(Graphics g, Color color, float cx, float baseY, float reach, float width)
+        {
+            using (Pen arc = new Pen(color, width) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            using (Brush dot = new SolidBrush(color))
+            {
+                for (int i = 1; i <= 3; i++)
+                {
+                    float r = reach * i / 3f;
+                    g.DrawArc(arc, cx - r, baseY - r, r * 2, r * 2, 225, 90);
+                }
+                g.FillEllipse(dot, cx - width * 0.8f, baseY - width * 0.8f, width * 1.6f, width * 1.6f);
+            }
+        }
+
         #endregion
 
         #region Templates
@@ -306,6 +362,18 @@ namespace SuperPutty.Gui
             OutwardCross(g, 0.5f, 0.5f, 0.34f);
         }
 
+        /// <summary>Stack switch: two switch boxes, one on the other, with traffic each way</summary>
+        private static void PaintStackSwitch(Graphics g, Color body)
+        {
+            using (Brush white = new SolidBrush(Glyph))
+            {
+                IsoBox(g, Shade(body, -0.1f), new RectangleF(0.06f, 0.66f, 0.66f, 0.28f), 0.2f, 0.23f);
+                Arrow(g, white, new PointF(0.14f, 0.80f), new PointF(0.64f, 0.80f), 0.065f, 0.1f);
+                IsoBox(g, body, new RectangleF(0.06f, 0.32f, 0.66f, 0.28f), 0.2f, 0.23f);
+                Arrow(g, white, new PointF(0.64f, 0.46f), new PointF(0.14f, 0.46f), 0.065f, 0.1f);
+            }
+        }
+
         /// <summary>Router: a disc with arrows pointing out on all four sides</summary>
         private static void PaintRouter(Graphics g, Color body)
         {
@@ -317,7 +385,7 @@ namespace SuperPutty.Gui
             OutwardCross(g, 0.5f, 0.5f, 0.34f);
         }
 
-        /// <summary>Voice router: a disc with a telephone handset</summary>
+        /// <summary>Voice router: a disc with a call symbol, a handset on the diagonal with arrows going each way</summary>
         private static void PaintVoiceRouter(Graphics g, Color body)
         {
             using (GraphicsPath path = new GraphicsPath())
@@ -325,20 +393,47 @@ namespace SuperPutty.Gui
                 path.AddEllipse(0.05f, 0.05f, 0.9f, 0.9f);
                 FillBody(g, path, body);
             }
-            PaintHandset(g, new RectangleF(0.24f, 0.24f, 0.52f, 0.52f));
+            using (Brush white = new SolidBrush(Glyph))
+            using (GraphicsPath handset = Handset(new RectangleF(0.22f, 0.31f, 0.52f, 0.49f)))
+            {
+                g.FillPath(white, handset);
+            }
+            using (Pen line = new Pen(Glyph, 0.05f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+            {
+                g.DrawLine(line, 0.45f, 0.25f, 0.66f, 0.25f);
+                g.DrawLines(line, new[] { new PointF(0.61f, 0.20f), new PointF(0.66f, 0.25f), new PointF(0.61f, 0.30f) });
+                g.DrawLine(line, 0.70f, 0.38f, 0.49f, 0.38f);
+                g.DrawLines(line, new[] { new PointF(0.54f, 0.33f), new PointF(0.49f, 0.38f), new PointF(0.54f, 0.43f) });
+            }
         }
 
-        /// <summary>A white telephone handset in a box</summary>
-        private static void PaintHandset(Graphics g, RectangleF r)
+        /// <summary>
+        /// A telephone handset on the diagonal, as on call buttons, as one smooth outline: the earpiece at the top left,
+        /// the mouthpiece at the bottom right, and the grip curving between them
+        /// </summary>
+        /// <param name="r">The box it fills</param>
+        /// <returns>The outline</returns>
+        private static GraphicsPath Handset(RectangleF r)
         {
-            using (Pen handle = new Pen(Glyph, r.Width * 0.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
-            using (Brush white = new SolidBrush(Glyph))
-            {
-                g.DrawArc(handle, r.Left + r.Width * 0.12f, r.Top + r.Height * 0.12f, r.Width * 0.76f, r.Height * 0.76f, 200, 140);
-                g.FillEllipse(white, r.Left, r.Top + r.Height * 0.38f, r.Width * 0.3f, r.Height * 0.26f);
-                g.FillEllipse(white, r.Right - r.Width * 0.3f, r.Top + r.Height * 0.38f, r.Width * 0.3f, r.Height * 0.26f);
-                g.FillRectangle(white, r.Left + r.Width * 0.2f, r.Top + r.Height * 0.62f, r.Width * 0.6f, r.Height * 0.3f);
-            }
+            Func<float, float, PointF> p = (x, y) => new PointF(r.Left + r.Width * x, r.Top + r.Height * y);
+            GraphicsPath path = new GraphicsPath();
+            // the outer edge, from the earpiece's tip round to the mouthpiece's
+            path.AddBezier(p(0.08f, 0.03f), p(0.02f, 0.07f), p(-0.02f, 0.22f), p(0.04f, 0.40f));
+            path.AddBezier(p(0.04f, 0.40f), p(0.12f, 0.62f), p(0.36f, 0.86f), p(0.62f, 0.97f));
+            path.AddBezier(p(0.62f, 0.97f), p(0.72f, 1.01f), p(0.86f, 1.00f), p(0.92f, 0.94f));
+            path.AddLine(p(0.92f, 0.94f), p(0.98f, 0.88f));
+            path.AddBezier(p(0.98f, 0.88f), p(1.01f, 0.85f), p(1.00f, 0.79f), p(0.96f, 0.76f));
+            // the mouthpiece's end, the inner edge of the grip, and the earpiece's end
+            path.AddLine(p(0.96f, 0.76f), p(0.80f, 0.65f));
+            path.AddBezier(p(0.80f, 0.65f), p(0.76f, 0.62f), p(0.71f, 0.63f), p(0.68f, 0.66f));
+            path.AddLine(p(0.68f, 0.66f), p(0.62f, 0.72f));
+            path.AddBezier(p(0.62f, 0.72f), p(0.50f, 0.66f), p(0.36f, 0.52f), p(0.29f, 0.39f));
+            path.AddLine(p(0.29f, 0.39f), p(0.35f, 0.33f));
+            path.AddBezier(p(0.35f, 0.33f), p(0.38f, 0.30f), p(0.38f, 0.25f), p(0.36f, 0.21f));
+            path.AddLine(p(0.36f, 0.21f), p(0.25f, 0.05f));
+            path.AddBezier(p(0.25f, 0.05f), p(0.22f, 0.01f), p(0.13f, 0.00f), p(0.08f, 0.03f));
+            path.CloseFigure();
+            return path;
         }
 
         /// <summary>Data centre switch: a box seen from above-front, arrows on the front</summary>
@@ -396,6 +491,35 @@ namespace SuperPutty.Gui
             }
         }
 
+        /// <summary>VPN concentrator: a box with two tunnels through it, traffic going each way, their mouths on the side</summary>
+        private static void PaintVpn(Graphics g, Color body)
+        {
+            IsoBox(g, body, new RectangleF(0.04f, 0.30f, 0.62f, 0.64f), 0.28f, 0.32f);
+            using (Pen tube = new Pen(Glyph, 0.045f))
+            using (Brush white = new SolidBrush(Glyph))
+            {
+                float[] tops = { 0.38f, 0.66f };
+                for (int i = 0; i < 2; i++)
+                {
+                    using (GraphicsPath path = RoundRect(new RectangleF(0.10f, tops[i], 0.56f, 0.20f), 0.10f))
+                    {
+                        g.DrawPath(tube, path);
+                    }
+                    float y = tops[i] + 0.10f;
+                    if (i == 0)
+                    {
+                        Arrow(g, white, new PointF(0.18f, y), new PointF(0.60f, y), 0.04f, 0.08f);
+                    }
+                    else
+                    {
+                        Arrow(g, white, new PointF(0.58f, y), new PointF(0.16f, y), 0.04f, 0.08f);
+                    }
+                    // the side face rises as it goes back, so each tunnel's mouth sits higher than the tunnel
+                    g.DrawEllipse(tube, 0.75f, tops[i] - 0.13f, 0.10f, 0.20f);
+                }
+            }
+        }
+
         /// <summary>Wireless: an access point with signal arcs above it</summary>
         private static void PaintWireless(Graphics g, Color body)
         {
@@ -416,6 +540,68 @@ namespace SuperPutty.Gui
             }
         }
 
+        /// <summary>Access point: a flat puck with the signal rising from it</summary>
+        private static void PaintAccessPoint(Graphics g, Color body)
+        {
+            using (GraphicsPath side = new GraphicsPath())
+            {
+                side.AddArc(0.08f, 0.60f, 0.84f, 0.24f, 180, -180);
+                side.AddLine(0.92f, 0.72f, 0.92f, 0.80f);
+                side.AddArc(0.08f, 0.68f, 0.84f, 0.24f, 0, 180);
+                side.CloseFigure();
+                FillBody(g, side, Shade(body, -0.15f));
+            }
+            using (Brush top = new SolidBrush(Shade(body, 0.2f)))
+            using (Pen edge = new Pen(Shade(body, -0.35f), 0.04f))
+            {
+                g.FillEllipse(top, 0.08f, 0.60f, 0.84f, 0.24f);
+                g.DrawEllipse(edge, 0.08f, 0.60f, 0.84f, 0.24f);
+            }
+            WirelessArcs(g, body, 0.5f, 0.62f, 0.5f, 0.08f);
+        }
+
+        /// <summary>
+        /// Wireless controller, after the network-diagram symbol: a low box with arrows converging on its top and a
+        /// braided wave across its front
+        /// </summary>
+        private static void PaintWirelessController(Graphics g, Color body)
+        {
+            RectangleF front = new RectangleF(0.02f, 0.54f, 0.80f, 0.40f);
+            IsoBox(g, body, front, 0.16f, 0.36f);
+            using (Brush white = new SolidBrush(Glyph))
+            {
+                // drawn flat in a unit square (across, then front to back) mapped onto the top face, so the arrows
+                // lie on it in perspective; drawn straight onto the screen they looked like they were floating
+                Matrix saved = g.Transform;
+                g.MultiplyTransform(new Matrix(0.80f, 0f, 0.16f, -0.36f, 0.02f, 0.54f));
+                Arrow(g, white, new PointF(0.10f, 0.10f), new PointF(0.36f, 0.44f), 0.07f, 0.11f);
+                Arrow(g, white, new PointF(0.50f, 0.06f), new PointF(0.50f, 0.44f), 0.07f, 0.11f);
+                Arrow(g, white, new PointF(0.90f, 0.10f), new PointF(0.64f, 0.44f), 0.07f, 0.11f);
+                Arrow(g, white, new PointF(0.50f, 0.52f), new PointF(0.50f, 0.94f), 0.13f, 0.17f);
+                g.Transform = saved;
+            }
+            float mid = front.Top + front.Height / 2, amplitude = front.Height * 0.28f;
+            float left = front.Left + 0.06f, right = front.Right - 0.06f;
+            const int steps = 60;
+            PointF[] up = new PointF[steps + 1], down = new PointF[steps + 1];
+            for (int i = 0; i <= steps; i++)
+            {
+                float x = left + (right - left) * i / steps;
+                float y = amplitude * (float)Math.Sin(i * Math.PI * 4 / steps);
+                up[i] = new PointF(x, mid + y);
+                down[i] = new PointF(x, mid - y);
+            }
+            // each strand gets a dark outline, so the second one drawn appears to pass over the first
+            using (Pen outline = new Pen(Shade(body, -0.45f), 0.11f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            using (Pen strand = new Pen(Glyph, 0.065f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                g.DrawLines(outline, down);
+                g.DrawLines(strand, down);
+                g.DrawLines(outline, up);
+                g.DrawLines(strand, up);
+            }
+        }
+
         /// <summary>Load balancer: a rounded square with one arrow splitting into three</summary>
         private static void PaintLoadBalancer(Graphics g, Color body)
         {
@@ -430,6 +616,46 @@ namespace SuperPutty.Gui
                 Arrow(g, white, new PointF(0.42f, 0.5f), new PointF(0.82f, 0.22f), 0.07f, 0.11f);
                 Arrow(g, white, new PointF(0.42f, 0.5f), new PointF(0.84f, 0.5f), 0.07f, 0.11f);
                 Arrow(g, white, new PointF(0.42f, 0.5f), new PointF(0.82f, 0.78f), 0.07f, 0.11f);
+            }
+        }
+
+        /// <summary>Console server: a unit with a prompt above a row of serial ports</summary>
+        private static void PaintConsoleServer(Graphics g, Color body)
+        {
+            using (GraphicsPath path = RoundRect(new RectangleF(0.05f, 0.14f, 0.9f, 0.72f), 0.1f))
+            {
+                FillBody(g, path, body);
+            }
+            using (Pen prompt = new Pen(Glyph, 0.075f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+            {
+                g.DrawLines(prompt, new[] { new PointF(0.18f, 0.28f), new PointF(0.32f, 0.39f), new PointF(0.18f, 0.50f) });
+                g.DrawLine(prompt, 0.40f, 0.52f, 0.60f, 0.52f);
+            }
+            using (Brush port = new SolidBrush(Shade(body, 0.6f)))
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    g.FillRectangle(port, 0.15f + i * 0.19f, 0.64f, 0.13f, 0.1f);
+                }
+            }
+        }
+
+        /// <summary>UPS: a battery with a lightning bolt</summary>
+        private static void PaintUps(Graphics g, Color body)
+        {
+            using (GraphicsPath path = RoundRect(new RectangleF(0.16f, 0.14f, 0.68f, 0.82f), 0.09f))
+            {
+                FillBody(g, path, body);
+            }
+            using (Brush terminal = new SolidBrush(Shade(body, -0.3f)))
+            using (Brush white = new SolidBrush(Glyph))
+            {
+                g.FillRectangle(terminal, 0.36f, 0.04f, 0.28f, 0.1f);
+                g.FillPolygon(white, new[]
+                {
+                    new PointF(0.56f, 0.24f), new PointF(0.30f, 0.60f), new PointF(0.48f, 0.60f),
+                    new PointF(0.42f, 0.86f), new PointF(0.70f, 0.48f), new PointF(0.52f, 0.48f)
+                });
             }
         }
 

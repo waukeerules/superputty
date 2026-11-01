@@ -118,7 +118,7 @@ ON CONFLICT (folder) DO UPDATE SET color = EXCLUDED.color;
 
 `icon` takes the same keys as the icon picker in Edit Session:
 
-- **A device or general icon:** `switch`, `l3switch`, `router`, `voicerouter`, `nexus`, `firewall`, `wireless`, `loadbalancer`, `server`, `workstation`, `terminal`, `windows`, `database`, `storage`, `cloud`, `phone`, `camera`, `printer`, `folder`, `flag`, `house`, `globe`, `map`, `truck`, `book`, `document`, `archive`, `email`, `chat`, `rss`, `clock`, `help`, `info`, `lightbulb`, `bolt`, `tv`, `mobile`, `star`, `lock`.
+- **A device or general icon:** `switch`, `l3switch`, `stackswitch`, `router`, `voicerouter`, `nexus`, `firewall`, `vpn`, `wireless`, `accesspoint`, `wlc`, `loadbalancer`, `consoleserver`, `ups`, `server`, `workstation`, `terminal`, `windows`, `database`, `storage`, `cloud`, `phone`, `camera`, `printer`, `folder`, `flag`, `house`, `globe`, `map`, `truck`, `book`, `document`, `archive`, `email`, `chat`, `rss`, `clock`, `help`, `info`, `lightbulb`, `bolt`, `tv`, `mobile`, `star`, `lock`.
 - **A logo:** `almalinux`, `alpinelinux`, `android`, `apple`, `archlinux`, `centos`, `cisco`, `debian`, `docker`, `fedora`, `fortinet`, `freebsd`, `kalilinux`, `kubernetes`, `linux`, `linuxmint`, `openbsd`, `opensuse`, `paloaltonetworks`, `proxmox`, `raspberrypi`, `redhat`, `rockylinux`, `suse`, `ubuntu`, `vmware`.
 - **With a colour:** any of those plus `#RRGGBB`, e.g. `switch#1E63B4` for a blue switch.
 - **A user's custom icon:** `custom:name`, e.g. `custom:juniper#C62828`. Custom icons are files in each user's settings folder (`<SettingsFolder>\icons`), so they only show for users who have them.
