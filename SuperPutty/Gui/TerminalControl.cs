@@ -679,17 +679,73 @@ namespace SuperPutty.Gui
         /// <summary>
         /// How much longer queued output should wait before going to the page: output that ends in a line break waits
         /// up to <see cref="LineBreakHold"/> for what follows, so a new prompt is drawn together with the line break
-        /// before it rather than one frame later. A lone CR counts too: over SSH the CR and LF sometimes arrive apart.
-        /// Anything else (typed characters echoed back) goes at once.
+        /// before it rather than one frame later. Anything else (typed characters echoed back) goes at once.
         /// </summary>
-        /// <param name="lastByte">The last byte queued</param>
+        /// <param name="output">The queued output (only the first <paramref name="length"/> bytes count)</param>
+        /// <param name="length">How many bytes are queued</param>
         /// <param name="waited">How long the oldest queued output has waited</param>
         /// <returns>The time left to wait; zero to send now</returns>
-        public static TimeSpan HoldForNextLine(byte lastByte, TimeSpan waited)
+        public static TimeSpan HoldForNextLine(byte[] output, int length, TimeSpan waited)
         {
-            if ((lastByte != (byte)'\n' && lastByte != (byte)'\r') || waited >= LineBreakHold)
+            if (waited >= LineBreakHold || !EndsWithLineBreak(output, length))
                 return TimeSpan.Zero;
             return LineBreakHold - waited;
+        }
+
+        /// <summary>
+        /// Whether output ends in a line break (CR or LF; over SSH the two sometimes arrive apart), possibly followed by
+        /// escape sequences that don't print anything: bash sends Enter's line break between its bracketed-paste
+        /// switches (ESC [ ? 2004 l, CR LF, ESC [ ? 2004 h) and the prompt after them.
+        /// </summary>
+        /// <param name="output">The output (only the first <paramref name="length"/> bytes count)</param>
+        /// <param name="length">How many bytes there are</param>
+        /// <returns>true if only CSI or OSC sequences follow the last CR or LF</returns>
+        public static bool EndsWithLineBreak(byte[] output, int length)
+        {
+            // escape sequences after a line break are short; don't scan large output
+            int start = Math.Max(0, length - 64);
+            int lineBreak = -1;
+            for (int i = length - 1; i >= start; i--)
+            {
+                if (output[i] == (byte)'\n' || output[i] == (byte)'\r')
+                {
+                    lineBreak = i;
+                    break;
+                }
+            }
+            if (lineBreak < 0)
+                return false;
+            int at = lineBreak + 1;
+            while (at < length)
+            {
+                if (output[at] != 0x1B || at + 1 >= length)
+                    return false;
+                if (output[at + 1] == (byte)'[')
+                {
+                    // CSI: parameter and intermediate bytes, then one final byte
+                    at += 2;
+                    while (at < length && output[at] >= 0x20 && output[at] <= 0x3F)
+                        at++;
+                    if (at >= length || output[at] < 0x40 || output[at] > 0x7E)
+                        return false;
+                    at++;
+                }
+                else if (output[at + 1] == (byte)']')
+                {
+                    // OSC (a window title): ends with BEL or ESC \
+                    at += 2;
+                    while (at < length && output[at] != 0x07 && output[at] != 0x1B)
+                        at++;
+                    if (at >= length || (output[at] == 0x1B && (at + 1 >= length || output[at + 1] != (byte)'\\')))
+                        return false;
+                    at += output[at] == 0x07 ? 1 : 2;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         /// <summary>Send queued output to the page, one chunk at a time</summary>
@@ -705,7 +761,7 @@ namespace SuperPutty.Gui
                 if (this.pending.Length == 0)
                     return;
                 queuedSince = this.pendingSince;
-                hold = HoldForNextLine(this.pending.GetBuffer()[this.pending.Length - 1], DateTime.UtcNow - queuedSince);
+                hold = HoldForNextLine(this.pending.GetBuffer(), (int)this.pending.Length, DateTime.UtcNow - queuedSince);
                 if (hold > TimeSpan.Zero)
                 {
                     chunk = null;
