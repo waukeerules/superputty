@@ -209,6 +209,8 @@ namespace SuperPutty
             SuperPuTTY.Settings.SettingsSaving += new SettingsSavingEventHandler(Settings_SettingsSaving);
             SessionShortcuts.Changed += SessionShortcuts_Changed;
             this.treeView1.BeforeExpand += this.treeView1_BeforeExpand;
+            this.treeView1.AfterExpand += (s, e) => RememberGroup(e.Node, e.Action, true);
+            this.treeView1.AfterCollapse += (s, e) => RememberGroup(e.Node, e.Action, false);
             if (m_DockPanel != null)
             {
                 m_DockPanel.ContentAdded += DockPanel_ContentChanged;
@@ -245,9 +247,41 @@ namespace SuperPutty
                     }
                 }
             }
-            this.nodeFavorites?.Expand();
-            this.nodeRecent?.Expand();
+            foreach (TreeNode group in new[] { this.nodeFavorites, this.nodeRecent })
+            {
+                if (group == null)
+                    continue;
+                if (GroupExpanded((RootKind)group.Tag))
+                    group.Expand();
+                else
+                    group.Collapse();
+            }
             this.nodeDatabase?.Expand();
+        }
+
+        /// <summary>Whether Favorites or Recent should show open: as the user last left it (closed at first)</summary>
+        /// <param name="kind">The group</param>
+        /// <returns>true to show it open</returns>
+        static bool GroupExpanded(RootKind kind)
+        {
+            return kind == RootKind.Favorites ? SessionShortcuts.FavoritesExpanded : SessionShortcuts.RecentExpanded;
+        }
+
+        /// <summary>
+        /// Remember Favorites or Recent being opened or closed, when the user did it: not when a search opens everything,
+        /// Expand all or Collapse all, or a rebuild (those come as <see cref="TreeViewAction.Unknown"/>)
+        /// </summary>
+        /// <param name="node">The node opened or closed</param>
+        /// <param name="action">How</param>
+        /// <param name="expanded">Whether it's now open</param>
+        static void RememberGroup(TreeNode node, TreeViewAction action, bool expanded)
+        {
+            if (action == TreeViewAction.Unknown || node.Parent != null || !(node.Tag is RootKind))
+                return;
+            if ((RootKind)node.Tag == RootKind.Favorites)
+                SessionShortcuts.FavoritesExpanded = expanded;
+            else if ((RootKind)node.Tag == RootKind.Recent)
+                SessionShortcuts.RecentExpanded = expanded;
         }
 
         protected override void OnLoad(EventArgs e)
@@ -2507,7 +2541,8 @@ namespace SuperPutty
                 return null;
             }
 
-            bool expand = group == null || group.IsExpanded;
+            // a new group opens as the user last left it (closed at first); a rebuilt one stays as it is
+            bool expand = group == null ? GroupExpanded(kind) : group.IsExpanded;
             if (group == null)
             {
                 string key = IsValidImage(imageKey) ? imageKey : ImageKeyFolder;
@@ -2515,6 +2550,8 @@ namespace SuperPutty
                 group.Tag = kind;
                 group.ContextMenuStrip = kind == RootKind.Recent ? this.contextMenuStripRecentGroup : null;
             }
+            // the count shows there's something inside while it's closed, as top-level nodes have no arrow
+            group.Text = string.Format("{0} ({1})", text, sessions.Count);
             group.Nodes.Clear();
             for (int i = 0; i < sessions.Count; i++)
             {

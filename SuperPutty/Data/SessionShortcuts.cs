@@ -12,7 +12,7 @@ namespace SuperPutty.Data
     /// the top of the Sessions tree (SessionTreeview). Both are lists of session IDs, kept in SessionShortcuts.json
     /// beside the user's SuperXPuTTY.settings rather than in Sessions.xml, so starring a session in a shared settings
     /// folder doesn't change it for the whole team. SuperPuTTY.OpenProtoSession records recent sessions; the tree
-    /// adds and removes favourites and follows renames.
+    /// adds and removes favourites and follows renames. The file also remembers whether each group was left open.
     /// </summary>
     public static class SessionShortcuts
     {
@@ -32,6 +32,12 @@ namespace SuperPutty.Data
 
             /// <summary>Recently opened session IDs, most recent first</summary>
             public List<string> Recent { get; set; } = new List<string>();
+
+            /// <summary>Whether the Favorites group was left open in the Sessions tree; closed at first</summary>
+            public bool FavoritesExpanded { get; set; }
+
+            /// <summary>Whether the Recent group was left open in the Sessions tree; closed at first</summary>
+            public bool RecentExpanded { get; set; }
         }
 
         /// <summary>The loaded lists; null until first used</summary>
@@ -53,6 +59,37 @@ namespace SuperPutty.Data
         public static IList<string> Recent
         {
             get { return Data.Recent.AsReadOnly(); }
+        }
+
+        /// <summary>
+        /// Whether the Sessions tree shows the Favorites group open, as the user last left it. Saved when it changes,
+        /// without raising <see cref="Changed"/>: the tree already shows it.
+        /// </summary>
+        public static bool FavoritesExpanded
+        {
+            get { return Data.FavoritesExpanded; }
+            set
+            {
+                if (Data.FavoritesExpanded != value)
+                {
+                    Data.FavoritesExpanded = value;
+                    Save();
+                }
+            }
+        }
+
+        /// <summary>Whether the Sessions tree shows the Recent group open, as the user last left it; see <see cref="FavoritesExpanded"/></summary>
+        public static bool RecentExpanded
+        {
+            get { return Data.RecentExpanded; }
+            set
+            {
+                if (Data.RecentExpanded != value)
+                {
+                    Data.RecentExpanded = value;
+                    Save();
+                }
+            }
         }
 
         /// <summary>Whether a session is a favourite</summary>
@@ -215,6 +252,13 @@ namespace SuperPutty.Data
         /// <summary>Write the lists and tell the Sessions tree</summary>
         private static void SaveAndNotify()
         {
+            Save();
+            Changed?.Invoke(null, EventArgs.Empty);
+        }
+
+        /// <summary>Write the lists and the groups' open state to the file</summary>
+        private static void Save()
+        {
             string path = Path;
             try
             {
@@ -225,7 +269,6 @@ namespace SuperPutty.Data
             {
                 Log.Warn("Could not save " + path, ex);
             }
-            Changed?.Invoke(null, EventArgs.Empty);
         }
     }
 }

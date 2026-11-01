@@ -557,6 +557,7 @@ The Sessions tree now has four top-level groups, always in this order: **Favorit
   - **What counts:** opening a saved session from anywhere: the tree, the Quick Selector or Connect All. A layout reopening its sessions doesn't count, nor do quick connections.
   - **Clearing:** right-click Recent → **Clear Recent**. Delete on an entry removes just that one.
   - **Turning it off:** Tools → Options → GUI → **Show recent**.
+- **Open or closed:** both groups start closed, with how many sessions they hold after the name ("Favorites (3)"), as top-level groups have no arrow. Opening or closing one yourself (double-click, the keyboard) is remembered between runs, in `SessionShortcuts.json` (`FavoritesExpanded`, `RecentExpanded`); a search opening everything, Expand all and Collapse all aren't (`SessionTreeview.RememberGroup` checks the event's `TreeViewAction`). Clearing a search puts them back as you left them.
 - **Entries in both:** double-click or Enter opens the session. Right-click offers **Connect**, **Show in Sessions tree** and removing the entry, plus **Add to Favorites** in Recent. The tooltip says where the session lives. A session that's renamed or moved stays a favourite; a deleted one is dropped from both.
 - **Per user:** both lists are in `SessionShortcuts.json` beside your `SuperXPuTTY.settings` (`Data/SessionShortcuts.cs`), not in `Sessions.xml`, so starring a session in a shared settings folder doesn't change it for the team.
 - **Private sessions** (padlock): sessions only you see, in `PrivateSessions.xml` beside your `SuperXPuTTY.settings` instead of the shared `Sessions.xml`.
@@ -578,7 +579,7 @@ The Sessions tree now has four top-level groups, always in this order: **Favorit
 
 | File | Change |
 |---|---|
-| `Data/SessionShortcuts.cs` | New. The Favorites and Recent lists, `SessionShortcuts.json`, and the `Changed` event the tree redraws on |
+| `Data/SessionShortcuts.cs` | New. The Favorites and Recent lists, whether each group was left open, `SessionShortcuts.json`, and the `Changed` event the tree redraws on |
 | `Data/SessionData.cs` | `IsPrivate`, not serialized |
 | `SuperPuTTY.cs` | `UserSettingsFolder`, `PrivateSessionsFileName`; `LoadSessions` reads both files and `SaveSessions` writes both; `OpenProtoSession` adds to Recent unless `IsRestoringLayout` |
 | `frmSuperPutty.cs` | Sets `SuperPuTTY.IsRestoringLayout` while a layout loads |
@@ -1670,6 +1671,7 @@ Favorites, Recent and private sessions:
 1. Right-click a session → **Add to Favorites**: a Favorites group appears at the top with it. Drag another session onto Favorites: it's added too. Delete on a favourite removes only the shortcut.
 2. Open two sessions: they appear under Recent, the latest first. Load a layout: its sessions aren't added. Right-click Recent → **Clear Recent**. Untick Options → GUI → **Show recent**: the group goes.
 3. Rename a favourite (Edit session): it stays in Favorites under its new name.
+3a. Start SuperXPuTTY: Favorites and Recent are closed, with their counts. Double-click Favorites open, restart: it's still open. Close it, restart: closed. Search for something: both open with the matches; clear the search: they go back as you left them.
 4. Right-click **Private sessions** → New session...: it's saved to `PrivateSessions.xml` in `Documents\SuperXPuTTY` (or beside the exe if portable), not `Sessions.xml`. Right-click it → **Move to Saved sessions**, then back. Drag a folder from Saved sessions to Private sessions.
 5. Try to create a shared session with the same folder and name as a private one: it's refused, with the reason.
 6. Change Options → Icon size to 32 and back to 16: the search box, its buttons and the toolbar follow (after a restart, as for the other icons). Check the dark theme.
