@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using DarkModeForms;
@@ -352,7 +353,13 @@ namespace SuperPutty.Gui
                     System.Media.SystemSounds.Beep.Play();
                     break;
                 case "pasteRequest":
-                    this.Post(new { type = "paste", text = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty });
+                    // the menu's Copy and Paste sends its text; everything else pastes the clipboard
+                    string toPaste = (string)message["text"] ?? (Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty);
+                    // after this message is handled: asking first shows a dialog
+                    this.BeginInvokeSafe(() => this.Paste(toPaste));
+                    break;
+                case "openLink":
+                    OpenLink((string)message["uri"]);
                     break;
                 case "pref":
                     // saved for every terminal tab; TerminalPreferences.Changed sends it to all of them
@@ -410,7 +417,131 @@ namespace SuperPutty.Gui
             }
             bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
             this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursor = CursorFromProfile(this.session.PuttySession), local = IsLocalShell(this.session.Proto),
-                profileFont = FontFromProfile(this.session.PuttySession), fonts = MonospaceFonts(), prefs = TerminalPreferences.All(), cursorColor = this.cursorColor });
+                profileFont = FontFromProfile(this.session.PuttySession), fonts = MonospaceFonts(), prefs = TerminalPreferences.All(), cursorColor = this.cursorColor,
+                keys = KeysFromProfile(this.session.PuttySession), sessionRules = this.session.HighlightRules ?? string.Empty,
+                unlimitedScrollback = TerminalPreferences.UnlimitedScrollback });
+        }
+
+        /// <summary>
+        /// The keys PuTTY sends that differ between profiles (Terminal > Keyboard), as PuTTY saves them: Backspace
+        /// ("BackspaceIsDelete": 1 Control-? (DEL), 0 Control-H), Home and End ("RXVTHomeEnd": 0 standard, 1 rxvt) and
+        /// the function keys ("LinuxFunctionKeys": 0 ESC[n~, 1 Linux, 2 Xterm R6, 3 VT400, 4 VT100+, 5 SCO, 6 Xterm
+        /// 216+). A profile that doesn't set one gets PuTTY's default. The page sends them instead of xterm's own.
+        /// </summary>
+        /// <param name="profile">The PuTTY profile; empty for Default Settings</param>
+        /// <returns>backspace ("del" or "bs"), homeEnd ("standard" or "rxvt") and functionKeys ("tilde", "linux", "xtermr6", "vt400", "vt100", "sco" or "xterm216")</returns>
+        public static object KeysFromProfile(string profile)
+        {
+            int backspace, homeEnd, function;
+            if (!int.TryParse(PuttyDataHelper.GetProfileValue(profile, "BackspaceIsDelete"), out backspace))
+                backspace = 1;
+            if (!int.TryParse(PuttyDataHelper.GetProfileValue(profile, "RXVTHomeEnd"), out homeEnd))
+                homeEnd = 0;
+            if (!int.TryParse(PuttyDataHelper.GetProfileValue(profile, "LinuxFunctionKeys"), out function))
+                function = 0;
+            string[] functionNames = { "tilde", "linux", "xtermr6", "vt400", "vt100", "sco", "xterm216" };
+            return new
+            {
+                backspace = backspace == 0 ? "bs" : "del",
+                homeEnd = homeEnd == 1 ? "rxvt" : "standard",
+                functionKeys = function >= 0 && function < functionNames.Length ? functionNames[function] : "tilde"
+            };
+        }
+
+        /// <summary>
+        /// Paste into the session, asking first when it's several lines and Options -> Terminal says to ask for this
+        /// session (by default: sessions coloured red, for production). Each line runs as it arrives, so 40 lines of
+        /// config pasted by mistake into a production switch would all be applied.
+        /// </summary>
+        /// <param name="text">The text to paste; nothing happens when it's empty</param>
+        private void Paste(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return;
+            int lines = PasteLineCount(text);
+            if (ShouldConfirmPaste(TerminalPreferences.Get("pasteCheck"), lines, this.environmentColor))
+            {
+                IEnumerable<string> first = text.Replace("\r\n", "\n").Split('\n', '\r').Take(3)
+                    .Select(line => line.Length > 80 ? line.Substring(0, 80) + "..." : line);
+                string question = string.Format("Paste {0} lines into {1}?\n\n{2}{3}", lines, this.session.SessionName,
+                    string.Join("\n", first), lines > 3 ? "\n..." : string.Empty);
+                DialogResult answer = Messenger.MessageBox(question, "Paste", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+                this.Post(new { type = "focus" });
+                if (answer != DialogResult.Yes)
+                    return;
+            }
+            this.Post(new { type = "paste", text });
+        }
+
+        /// <summary>
+        /// Open a link Ctrl+clicked in the output in the default browser. Only web links: the output comes from the
+        /// device, so a file: or other link there mustn't run anything.
+        /// </summary>
+        /// <param name="uri">The link as the page found it</param>
+        private static void OpenLink(string uri)
+        {
+            if (!IsWebLink(uri))
+            {
+                Log.WarnFormat("Not opening a link that isn't http or https");
+                return;
+            }
+            try
+            {
+                System.Diagnostics.Process.Start(new Uri(uri).AbsoluteUri);
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception || ex is InvalidOperationException)
+            {
+                Log.Warn("Could not open a link from the terminal", ex);
+            }
+        }
+
+        /// <summary>Whether a link is an absolute http or https address, the only kind <see cref="OpenLink"/> opens</summary>
+        /// <param name="uri">The link</param>
+        /// <returns>true for http and https</returns>
+        public static bool IsWebLink(string uri)
+        {
+            Uri parsed;
+            return Uri.TryCreate(uri, UriKind.Absolute, out parsed) && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps);
+        }
+
+        /// <summary>How many lines a paste would type; a line break at the very end doesn't start another</summary>
+        /// <param name="text">The text</param>
+        /// <returns>The number of lines, at least 1</returns>
+        public static int PasteLineCount(string text)
+        {
+            string lines = (text ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n');
+            if (lines.EndsWith("\n"))
+            {
+                lines = lines.Substring(0, lines.Length - 1);
+            }
+            return lines.Split('\n').Length;
+        }
+
+        /// <summary>Whether to ask before a paste</summary>
+        /// <param name="mode">The pasteCheck preference: "production", "always" or "never"</param>
+        /// <param name="lines">How many lines the paste is (<see cref="PasteLineCount"/>)</param>
+        /// <param name="environmentColor">The session's environment colour, or null</param>
+        /// <returns>true to ask: several lines, and "always", or "production" in a session coloured red</returns>
+        public static bool ShouldConfirmPaste(string mode, int lines, System.Drawing.Color? environmentColor)
+        {
+            if (lines < 2 || mode == "never")
+                return false;
+            return mode == "always" || IsProductionColor(environmentColor);
+        }
+
+        /// <summary>
+        /// Whether an environment colour is a red, as production is coloured (EnvironmentColors' "Red (production)",
+        /// #C62828, or any other clear red); orange (staging) and the rest aren't
+        /// </summary>
+        /// <param name="color">The colour, or null</param>
+        /// <returns>true for a red</returns>
+        public static bool IsProductionColor(System.Drawing.Color? color)
+        {
+            if (!color.HasValue)
+                return false;
+            float hue = color.Value.GetHue();
+            float brightness = color.Value.GetBrightness();
+            return (hue <= 15 || hue >= 345) && color.Value.GetSaturation() >= 0.5f && brightness >= 0.2f && brightness <= 0.8f;
         }
 
         /// <summary>
@@ -430,6 +561,12 @@ namespace SuperPutty.Gui
         /// <summary>The session's environment colour as #rrggbb, for the cursor; null for none</summary>
         private string cursorColor;
 
+        /// <summary>The session's environment colour, for asking before a paste into production; null for none</summary>
+        private System.Drawing.Color? environmentColor;
+
+        /// <summary>When the session log last got a time stamp (<see cref="LogStamp"/>)</summary>
+        private DateTime lastLogStamp = DateTime.MinValue;
+
         /// <summary>
         /// Draw the cursor in the session's environment colour (red for production), like its tab, or the theme's
         /// cursor colour when it has none. The cursor rather than the prompt: it's the same on every device, where
@@ -438,6 +575,7 @@ namespace SuperPutty.Gui
         /// <param name="color">The colour (EnvironmentColors.For), or null</param>
         public void SetCursorColor(System.Drawing.Color? color)
         {
+            this.environmentColor = color;
             this.cursorColor = color.HasValue ? string.Format("#{0:x2}{1:x2}{2:x2}", color.Value.R, color.Value.G, color.Value.B) : null;
             if (this.pageLoaded)
             {
@@ -943,7 +1081,7 @@ namespace SuperPutty.Gui
             {
                 try
                 {
-                    byte[] bytes = Encoding.UTF8.GetBytes(text.ToString().Replace("\n", "\r\n"));
+                    byte[] bytes = Encoding.UTF8.GetBytes((this.LogStamp(DateTime.Now) + text).Replace("\n", "\r\n"));
                     this.log.Write(bytes, 0, bytes.Length);
                     this.log.Flush();
                 }
@@ -952,6 +1090,36 @@ namespace SuperPutty.Gui
                     Log.Warn("Could not write the session log " + this.logPath, ex);
                 }
             }
+        }
+
+        /// <summary>
+        /// A time stamp line for the session log, before lines written now, when the logTimestamps preference's
+        /// interval (30 seconds by default) has passed since the last one. Stamps come only with output, so an idle
+        /// session adds none, and a burst of output gets one; they go to the log file, not to WAITFOR's text.
+        /// </summary>
+        /// <param name="now">The time the lines are written</param>
+        /// <returns>"--- 2026-11-01 02:50:12 ---" and a line break, or empty</returns>
+        private string LogStamp(DateTime now)
+        {
+            string stamp = TimeStamp(TerminalPreferences.Get("logTimestamps"), this.lastLogStamp, now);
+            if (stamp.Length > 0)
+            {
+                this.lastLogStamp = now;
+            }
+            return stamp;
+        }
+
+        /// <summary>The time stamp line due now, if any (<see cref="LogStamp"/>)</summary>
+        /// <param name="seconds">The logTimestamps preference: seconds between stamps; "0" or anything not a positive number for none</param>
+        /// <param name="last">When the last stamp was written; DateTime.MinValue for none yet</param>
+        /// <param name="now">Now</param>
+        /// <returns>The stamp and a line break, or empty when none is due</returns>
+        public static string TimeStamp(string seconds, DateTime last, DateTime now)
+        {
+            int interval;
+            if (!int.TryParse(seconds, out interval) || interval <= 0 || now - last < TimeSpan.FromSeconds(interval))
+                return string.Empty;
+            return "--- " + now.ToString("yyyy-MM-dd HH:mm:ss") + " ---\n";
         }
 
         /// <summary>

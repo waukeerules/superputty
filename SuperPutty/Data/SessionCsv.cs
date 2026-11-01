@@ -79,6 +79,7 @@ namespace SuperPutty.Data
             new Column { Header = "Local path", Names = new[] { "localpath" }, Get = s => s.LocalPath, Set = (s, v) => { s.LocalPath = v; return null; } },
             new Column { Header = "Remote path", Names = new[] { "remotepath" }, Get = s => s.RemotePath, Set = (s, v) => { s.RemotePath = v; return null; } },
             new Column { Header = "Jump host", Names = new[] { "jumphost", "bastion", "proxyjump" }, Get = s => s.JumpHost, Set = (s, v) => { s.JumpHost = v.Trim(); return null; } },
+            new Column { Header = "Highlighting", Names = new[] { "highlighting", "highlightrules", "rules" }, Get = s => s.HighlightRules, Set = (s, v) => { s.HighlightRules = v.Trim(); return null; } },
             new Column { Header = "Colour", Names = new[] { "colour", "color", "environmentcolour", "environmentcolor" },
                 Get = s => s.Color,
                 Set = (s, v) =>
@@ -493,6 +494,7 @@ namespace SuperPutty.Data
                 current.RemotePath = from.RemotePath;
                 current.Color = from.Color;
                 current.JumpHost = from.JumpHost;
+                current.HighlightRules = from.HighlightRules;
                 done++;
             }
             SuperPuTTY.SaveSessions();

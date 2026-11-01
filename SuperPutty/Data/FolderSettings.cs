@@ -34,6 +34,10 @@ namespace SuperPutty.Data
         [XmlAttribute]
         public string JumpHost { get; set; }
 
+        /// <summary>Highlighting rules for sessions below with none: a rule set's id, "auto" or "none" (SessionData.HighlightRules)</summary>
+        [XmlAttribute]
+        public string HighlightRules { get; set; }
+
         /// <summary>XmlSerializer: write Port only when it's set</summary>
         /// <returns>true to write <see cref="Port"/></returns>
         public bool ShouldSerializePort()
@@ -48,7 +52,7 @@ namespace SuperPutty.Data
             get
             {
                 return string.IsNullOrEmpty(this.Color) && string.IsNullOrEmpty(this.Username) && string.IsNullOrEmpty(this.PuttyProfile)
-                    && this.Port <= 0 && string.IsNullOrEmpty(this.JumpHost);
+                    && this.Port <= 0 && string.IsNullOrEmpty(this.JumpHost) && string.IsNullOrEmpty(this.HighlightRules);
             }
         }
 
@@ -327,13 +331,15 @@ namespace SuperPutty.Data
                     copy.Port = setting.Port;
                 if (string.IsNullOrEmpty(copy.JumpHost) && !string.IsNullOrEmpty(setting.JumpHost))
                     copy.JumpHost = setting.JumpHost;
+                if (string.IsNullOrEmpty(copy.HighlightRules) && !string.IsNullOrEmpty(setting.HighlightRules))
+                    copy.HighlightRules = setting.HighlightRules;
             }
             return copy;
         }
 
         /// <summary>The default a session would get for a field from its folders, for showing in Edit Session</summary>
         /// <param name="session">The session (its ID gives the folder)</param>
-        /// <param name="field">"Username", "PuttyProfile", "Port" or "JumpHost"</param>
+        /// <param name="field">"Username", "PuttyProfile", "Port", "JumpHost" or "HighlightRules"</param>
         /// <returns>The value and the folder it's from, e.g. "netops (from HQ/Core)"; null if no folder sets it</returns>
         public static string Describe(SessionData session, string field)
         {
@@ -341,7 +347,7 @@ namespace SuperPutty.Data
             foreach (FolderSetting setting in Along(StoreOf(session), folder))
             {
                 string value = field == "Username" ? setting.Username : field == "PuttyProfile" ? setting.PuttyProfile : field == "JumpHost" ? setting.JumpHost
-                    : setting.Port > 0 ? setting.Port.ToString() : null;
+                    : field == "HighlightRules" ? setting.HighlightRules : setting.Port > 0 ? setting.Port.ToString() : null;
                 if (!string.IsNullOrEmpty(value))
                     return value + " (from " + setting.Path + ")";
             }

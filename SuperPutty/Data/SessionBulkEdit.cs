@@ -42,6 +42,9 @@ namespace SuperPutty.Data
             /// <summary>Jump host: a session's path or "user@host:port"; "" for none</summary>
             public string JumpHost { get; set; }
 
+            /// <summary>Highlighting rules: a rule set's id, "auto" or "none"; "" to take the folder's</summary>
+            public string HighlightRules { get; set; }
+
             /// <summary>The table's column names of the fields being changed, to check against locked_fields</summary>
             /// <returns>e.g. "username", "port"</returns>
             public List<string> Columns()
@@ -55,6 +58,7 @@ namespace SuperPutty.Data
                 if (this.Color != null) columns.Add("color");
                 if (this.ExtraArgs != null) columns.Add("extra_args");
                 if (this.JumpHost != null) columns.Add("jump_host");
+                if (this.HighlightRules != null) columns.Add("highlight_rules");
                 return columns;
             }
 
@@ -70,6 +74,7 @@ namespace SuperPutty.Data
                 if (this.Color != null) session.Color = this.Color;
                 if (this.ExtraArgs != null) session.ExtraArgs = this.ExtraArgs;
                 if (this.JumpHost != null) session.JumpHost = this.JumpHost;
+                if (this.HighlightRules != null) session.HighlightRules = this.HighlightRules;
             }
         }
 

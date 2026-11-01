@@ -12,8 +12,12 @@
  * so SPSL's WAITFOR can match a prompt before Enter is pressed.
  *
  * Messages from TerminalControl: config, data, notice, paste, focus, action, cursorColor. To it: ready, size, input,
- * ack, log, copy, pasteRequest, document, bell, tab, openInPutty, cleared (the screen was cleared here, so the pseudo
- * console's own copy of it is cleared too and a resize can't bring the text back).
+ * ack, log, copy, pasteRequest (every paste, so TerminalControl can ask first; with "text" for one not from the
+ * clipboard), document, bell, tab, openInPutty, openLink (a link Ctrl+clicked), pref, cleared (the screen was cleared
+ * here, so the pseudo console's own copy of it is cleared too and a resize can't bring the text back).
+ *
+ * xterm.js add-ons: web links (Ctrl+click opens) and WebGL drawing (Options > Terminal > Drawing; the DOM renderer
+ * takes over without it).
  */
 (function () {
     'use strict';
@@ -37,6 +41,11 @@
     var bellFromProfile = 'visual'; // the PuTTY profile's bell, from TerminalControl
     var cursorFromProfile = { style: 'block', blink: false }; // the PuTTY profile's cursor, from TerminalControl
     var localShell = false;         // cmd, PowerShell or WSL rather than a connection through plink
+    var keysFromProfile = { backspace: 'del', homeEnd: 'standard', functionKeys: 'tilde' }; // the PuTTY profile's keys, from TerminalControl
+    var sessionRules = '';          // the session's or its folder's highlighting rules; empty: Options > Terminal's
+    var tabRules = null;            // rules chosen in this tab's menu, for this tab only; null: the session's or default
+    var unlimitedScrollback = 1000000; // scrollback when the preference is 0, from TerminalControl
+    var webgl = null;               // xterm.js's WebGL renderer while it's drawing the terminal
     var cursorColor = null;         // the session's environment colour (#rrggbb) for the cursor, or null
     var settleTimer = null;
     var scanFrom = null;        // marker: first line to look at for highlighting next time
@@ -191,9 +200,24 @@
         }
     }
 
+    /** The rules this tab uses: its menu's choice, else the session's or its folder's, else Options > Terminal's */
+    function chosenRules() {
+        return tabRules || sessionRules || loadPref('ruleSet') || 'auto';
+    }
+
+    /** A rules choice's name for the menu: Auto (with its pick), None, or the rule set's name */
+    function rulesName(id) {
+        if (id === 'auto') { return 'Auto' + (autoSet ? ': ' + autoSet.name : ''); }
+        if (id === 'none') { return 'None'; }
+        for (var i = 0; i < ruleSets.length; i++) {
+            if (ruleSets[i].id === id) { return ruleSets[i].name; }
+        }
+        return id;
+    }
+
     /** The rule set in use: the chosen one, Auto's pick, or none */
     function currentSet() {
-        var chosen = loadPref('ruleSet') || 'auto';
+        var chosen = chosenRules();
         if (chosen === 'auto') { return autoSet; }
         for (var i = 0; i < ruleSets.length; i++) {
             if (ruleSets[i].id === chosen) { return ruleSets[i]; }
@@ -530,12 +554,14 @@
     /** The menu's items: {label, key, action, enabled, checked, items (a submenu)} or '-' for a separator */
     function menuItems() {
         var selected = selectedText() !== '';
-        var chosenRules = loadPref('ruleSet') || 'auto';
-        var ruleItems = [{ label: 'Auto' + (autoSet ? ' (' + autoSet.name + ')' : ''), checked: chosenRules === 'auto', action: function () { chooseRules('auto'); } }]
+        // a choice here is for this tab only; the session's (Edit Session), folder's or Options' rules are the default
+        var defaultRules = sessionRules || loadPref('ruleSet') || 'auto';
+        var ruleItems = [{ label: 'Default (' + rulesName(defaultRules) + ')', checked: tabRules === null, action: function () { chooseRules(null); } }, '-']
+            .concat([{ label: 'Auto' + (autoSet ? ' (' + autoSet.name + ')' : ''), checked: tabRules === 'auto', action: function () { chooseRules('auto'); } }])
             .concat(ruleSets.map(function (set) {
-                return { label: set.name, checked: chosenRules === set.id, action: function () { chooseRules(set.id); } };
+                return { label: set.name, checked: tabRules === set.id, action: function () { chooseRules(set.id); } };
             }))
-            .concat([{ label: 'None', checked: chosenRules === 'none', action: function () { chooseRules('none'); } }]);
+            .concat([{ label: 'None', checked: tabRules === 'none', action: function () { chooseRules('none'); } }]);
         var themeItems = themes.map(function (t) {
             return { label: t.name, checked: theme && theme.name === t.name, action: function () { savePref('theme', t.name); applyTheme(); } };
         });
@@ -570,7 +596,8 @@
         return [
             { label: 'Copy', key: 'Ctrl+Insert', enabled: selected, action: copy },
             { label: 'Paste', key: 'Shift+Insert', action: paste },
-            { label: 'Copy and Paste', enabled: selected, action: function () { var text = selectedText(); copy(); term.paste(text); } },
+            // through TerminalControl, like every paste, so several lines are asked about first
+            { label: 'Copy and Paste', enabled: selected, action: function () { var text = selectedText(); copy(); post({ type: 'pasteRequest', text: text }); } },
             '-',
             { label: 'Find...', key: 'Ctrl+Shift+F', action: openFind },
             { label: 'Select All', action: function () { term.selectAll(); } },
@@ -703,9 +730,9 @@
         savePref(name, prefOn(name) ? 'false' : 'true');
     }
 
-    /** Choose the highlighting rules for every terminal tab */
+    /** Choose this tab's highlighting rules; null goes back to the session's or default */
     function chooseRules(id) {
-        savePref('ruleSet', id);
+        tabRules = id;
         highlight(true);
     }
 
@@ -884,9 +911,49 @@
      */
     function applyPrefs(changed) {
         prefs = changed || {};
+        applyScrollback();
+        applyRenderer();
         applyTheme();
         applyCursor();
         markSelectionMatches();
+    }
+
+    /** Keep the preference's number of lines (Options > Terminal); 0 or less: as many as unlimitedScrollback */
+    function applyScrollback() {
+        var lines = parseInt(loadPref('scrollback'), 10);
+        var wanted = lines > 0 ? lines : unlimitedScrollback;
+        if (term.options.scrollback !== wanted) { term.options.scrollback = wanted; }
+    }
+
+    /**
+     * Draw with xterm.js's WebGL renderer (the default; much faster with a lot of output) or its DOM renderer
+     * (renderer "dom" in Options > Terminal). Without WebGL, or when the graphics driver drops its context, the DOM
+     * renderer takes over.
+     */
+    function applyRenderer() {
+        var wanted = loadPref('renderer') !== 'dom';
+        if (wanted && !webgl && window.WebglAddon) {
+            try {
+                var addon = new window.WebglAddon.WebglAddon();
+                addon.onContextLoss(dropWebgl);
+                term.loadAddon(addon);
+                webgl = addon;
+            } catch (e) {
+                webgl = null;
+            }
+            fit();
+        } else if (!wanted && webgl) {
+            dropWebgl();
+        }
+    }
+
+    /** Stop using the WebGL renderer; xterm.js goes back to the DOM one */
+    function dropWebgl() {
+        if (!webgl) { return; }
+        var addon = webgl;
+        webgl = null;
+        try { addon.dispose(); } catch (e) { /* already gone with its context */ }
+        fit();
     }
 
     /** Apply a config message: rule sets, themes and whether SuperPuTTY is dark; then fit and report the size */
@@ -899,13 +966,17 @@
         if (config.bellOverload) { bellOverload = config.bellOverload; }
         if (config.cursor) { cursorFromProfile = config.cursor; }
         localShell = !!config.local;
+        if (config.keys) { keysFromProfile = config.keys; }
+        sessionRules = config.sessionRules || '';
+        if (config.unlimitedScrollback) { unlimitedScrollback = config.unlimitedScrollback; }
         applyCursor();
         cursorColor = config.cursorColor || null;
         themes = config.themes || [];
         var compiled = SpRules.compile(config.ruleSets || []);
         ruleSets = compiled.sets;
         autoSet = null;
-        if (config.scrollback) { term.options.scrollback = config.scrollback; }
+        applyScrollback();
+        applyRenderer();
         applyTheme();
         fit();
         if (compiled.problems.length) {
@@ -963,7 +1034,42 @@
         if (e.ctrlKey && e.shiftKey && key === 'c') { copy(); return false; }
         if (e.ctrlKey && e.shiftKey && key === 'v') { paste(); return false; }
         if (e.ctrlKey && e.shiftKey && key === 'f') { openFind(); return false; }
+        var sequence = profileKey(e);
+        if (sequence !== null) {
+            // also stops the browser's own F5 (reload) and F12
+            e.preventDefault();
+            post({ type: 'input', data: sequence });
+            return false;
+        }
         return true;
+    }
+
+    /** xterm's codes for F1-F12 in PuTTY's default "ESC[n~" mode (Terminal > Keyboard > Function keys) */
+    var TILDE_CODES = [11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 23, 24];
+
+    /**
+     * What PuTTY would send for Backspace, Home, End or F1-F12 with this session's profile (Terminal > Keyboard), where
+     * that differs from xterm.js: Backspace as Control-H, Home/End as ESC[1~ / ESC[4~ (or rxvt's), function keys in the
+     * profile's style. Only for connections through plink, and not when Options > Terminal says to use xterm's keys.
+     */
+    function profileKey(e) {
+        if (localShell || loadPref('keys') === 'xterm' || e.altKey || e.metaKey) { return null; }
+        var keys = keysFromProfile;
+        if (e.key === 'Backspace' && !e.shiftKey && keys.backspace === 'bs') { return e.ctrlKey ? '\x7f' : '\x08'; }
+        if (e.ctrlKey || e.shiftKey) { return null; }
+        if (e.key === 'Home') { return keys.homeEnd === 'rxvt' ? '\x1b[H' : '\x1b[1~'; }
+        if (e.key === 'End') { return keys.homeEnd === 'rxvt' ? '\x1bOw' : '\x1b[4~'; }
+        var f = /^F(\d+)$/.exec(e.key);
+        var n = f ? parseInt(f[1], 10) : 0;
+        if (n < 1 || n > 12) { return null; }
+        switch (keys.functionKeys) {
+            case 'linux': if (n <= 5) { return '\x1b[[' + 'ABCDE'.charAt(n - 1); } break;
+            case 'xtermr6':
+            case 'xterm216': if (n <= 4) { return '\x1bO' + 'PQRS'.charAt(n - 1); } break;
+            case 'vt100': return '\x1bO' + 'PQRSTUVWXYZ['.charAt(n - 1);
+            case 'sco': return '\x1b[' + 'MNOPQRSTUVWX'.charAt(n - 1);
+        }
+        return '\x1b[' + TILDE_CODES[n - 1] + '~';
     }
 
     /** Create the terminal, wire up input, mouse, menu and messages, then tell TerminalControl the page is ready */
@@ -986,6 +1092,12 @@
         term.onResize(function (size) { if (sized) { post({ type: 'size', cols: size.cols, rows: size.rows }); } });
         term.onScroll(function () { scheduleSettle(); });
         term.onBell(ring);
+        // links in the output open with Ctrl+click, as in Windows Terminal, so selecting text never opens a browser
+        if (window.WebLinksAddon) {
+            term.loadAddon(new window.WebLinksAddon.WebLinksAddon(function (event, uri) {
+                if (event.ctrlKey) { post({ type: 'openLink', uri: uri }); }
+            }));
+        }
 
         // PuTTY copies as soon as text is selected (an option in the menu), and the selection's other matches are marked
         var selectionTimer = null;
@@ -997,6 +1109,14 @@
             }, 150);
         });
 
+        // the browser's own paste (Ctrl+V, Shift+Insert on the text box) goes through TerminalControl too, which
+        // asks before several lines in a production session (capture: before xterm.js pastes it)
+        element.addEventListener('paste', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var text = e.clipboardData ? e.clipboardData.getData('text/plain') : '';
+            if (text) { post({ type: 'pasteRequest', text: text }); }
+        }, true);
         // capture phase: before xterm.js or SuperPuTTY's focus handling sees the click
         element.addEventListener('mousedown', function (e) {
             if (e.button === 2) { rememberSelection(); }

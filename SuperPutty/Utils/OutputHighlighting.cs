@@ -125,6 +125,69 @@ namespace SuperPutty.Utils
             return problems;
         }
 
+        /// <summary>A highlighting choice in a drop-down: the text shown, and the value stored (SessionData.HighlightRules)</summary>
+        public class RuleChoice
+        {
+            /// <summary>The text shown</summary>
+            public string Text;
+
+            /// <summary>A rule set's id, "auto", "none", or empty to inherit</summary>
+            public string Value;
+
+            /// <summary>Show the text in the drop-down</summary>
+            /// <returns>The text</returns>
+            public override string ToString()
+            {
+                return this.Text;
+            }
+        }
+
+        /// <summary>
+        /// Fill a drop-down with the highlighting choices for a session or folder (Edit Session, Folder settings, bulk
+        /// edit): inherit, Auto, each rule set by name, None. A value no longer among the rule sets is kept, marked.
+        /// </summary>
+        /// <param name="combo">A drop-down list</param>
+        /// <param name="inheritText">What the empty choice says, e.g. "Default (Tools > Options)"</param>
+        /// <param name="value">The value to select</param>
+        public static void FillRuleChoices(System.Windows.Forms.ComboBox combo, string inheritText, string value)
+        {
+            JArray ruleSets, themes;
+            Load(out ruleSets, out themes);
+            combo.Items.Clear();
+            combo.Items.Add(new RuleChoice { Text = inheritText, Value = string.Empty });
+            combo.Items.Add(new RuleChoice { Text = "Auto (picked from the output)", Value = "auto" });
+            foreach (JToken set in ruleSets)
+            {
+                combo.Items.Add(new RuleChoice { Text = (string)set["name"] ?? (string)set["id"], Value = (string)set["id"] });
+            }
+            combo.Items.Add(new RuleChoice { Text = "None (no highlighting)", Value = "none" });
+            value = value ?? string.Empty;
+            RuleChoice selected = null;
+            foreach (RuleChoice choice in combo.Items)
+            {
+                if (string.Equals(choice.Value, value, StringComparison.OrdinalIgnoreCase))
+                {
+                    selected = choice;
+                    break;
+                }
+            }
+            if (selected == null)
+            {
+                selected = new RuleChoice { Text = value + " (not found)", Value = value };
+                combo.Items.Add(selected);
+            }
+            combo.SelectedItem = selected;
+        }
+
+        /// <summary>The value of the choice selected in a drop-down filled by <see cref="FillRuleChoices"/></summary>
+        /// <param name="combo">The drop-down</param>
+        /// <returns>A rule set's id, "auto", "none", or empty to inherit</returns>
+        public static string SelectedRuleChoice(System.Windows.Forms.ComboBox combo)
+        {
+            RuleChoice choice = combo.SelectedItem as RuleChoice;
+            return choice != null ? choice.Value ?? string.Empty : string.Empty;
+        }
+
         /// <summary>Read every matching JSON file in a folder; files that aren't a JSON object are reported and skipped</summary>
         /// <param name="folder">The folder; may be null or missing</param>
         /// <param name="pattern">e.g. "*.rules.json"</param>

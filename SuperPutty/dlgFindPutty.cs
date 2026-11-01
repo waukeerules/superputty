@@ -559,7 +559,7 @@ namespace SuperPutty
         {
             this.terminalDefaults = new GroupBox
             {
-                Text = "Defaults for terminal tabs (each terminal's right-click menu changes them too)",
+                Text = "Defaults for terminal tabs (a terminal's right-click menu changes some of them too)",
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Padding = new Padding(8)
@@ -567,6 +567,8 @@ namespace SuperPutty
             this.terminalOptions = new TerminalOptionsPanel { Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
             this.terminalDefaults.Controls.Add(this.terminalOptions);
             this.tabPageHighlighting.Controls.Add(this.terminalDefaults);
+            // more rows than the dialog has room for: the page scrolls
+            this.tabPageHighlighting.AutoScroll = true;
             this.tabPageHighlighting.Layout += (s, e) => this.LayOutTerminalPage();
         }
 

@@ -9,8 +9,8 @@ using SuperPutty.Data;
 namespace SuperPutty.Gui
 {
     /// <summary>
-    /// A folder's settings: its environment colour, and the username, PuTTY profile and port that sessions below it
-    /// use when they have none of their own (Data.FolderSettings.WithDefaults). Opened from a folder's "Folder
+    /// A folder's settings: its environment colour, and the username, PuTTY profile, port, jump host and highlighting
+    /// rules that sessions below it use when they have none of their own (Data.FolderSettings.WithDefaults). Opened from a folder's "Folder
     /// settings..." in SessionTreeview, which saves the result (Folders.xml, PrivateFolders.xml or the table). Built in
     /// code like dlgDatabaseSettings.
     /// </summary>
@@ -25,6 +25,7 @@ namespace SuperPutty.Gui
         private readonly ComboBox comboProfile = new ComboBox { DropDownStyle = ComboBoxStyle.DropDown };
         private readonly NumericUpDown numericPort = new NumericUpDown { Minimum = 0, Maximum = 65535 };
         private readonly TextBox textJumpHost = new TextBox();
+        private readonly ComboBox comboRules = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
 
         /// <summary>The settings as edited, read after OK</summary>
         public FolderSetting Setting { get; private set; }
@@ -58,9 +59,10 @@ namespace SuperPutty.Gui
             this.comboProfile.Text = this.Setting.PuttyProfile ?? string.Empty;
             this.numericPort.Value = Math.Max(0, Math.Min(65535, this.Setting.Port));
             this.textJumpHost.Text = this.Setting.JumpHost ?? string.Empty;
+            Utils.OutputHighlighting.FillRuleChoices(this.comboRules, "None (use a parent's or Tools > Options')", this.Setting.HighlightRules);
             HintText.Set(this.textUsername, "e.g. netops, or {user}");
             HintText.Set(this.textJumpHost, "e.g. Bastions/bastion1, or admin@10.0.0.1:22");
-            foreach (Control box in new Control[] { this.comboColor, this.textUsername, this.comboProfile, this.textJumpHost })
+            foreach (Control box in new Control[] { this.comboColor, this.textUsername, this.comboProfile, this.textJumpHost, this.comboRules })
             {
                 box.Width = this.LogicalToDeviceUnits(300);
             }
@@ -70,7 +72,7 @@ namespace SuperPutty.Gui
             Label intro = new Label
             {
                 Text = "Sessions in this folder and its subfolders use these when they have none of their own (an empty username or jump host, "
-                    + "port 0, or no PuTTY profile / Default Settings). A nearer folder's value wins.",
+                    + "port 0, no PuTTY profile / Default Settings, or no highlighting of their own). A nearer folder's value wins.",
                 AutoSize = true,
                 MaximumSize = new Size(this.LogicalToDeviceUnits(420), 0),
                 Margin = new Padding(0, 0, 0, this.LogicalToDeviceUnits(8))
@@ -82,6 +84,7 @@ namespace SuperPutty.Gui
             AddRow(grid, 3, "PuTTY profile:", this.comboProfile);
             AddRow(grid, 4, "Port (0 = none):", this.numericPort);
             AddRow(grid, 5, "Jump host:", this.textJumpHost);
+            AddRow(grid, 6, "Highlighting:", this.comboRules);
 
             FlowLayoutPanel close = new FlowLayoutPanel { Dock = DockStyle.Bottom, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, Padding = new Padding(0, this.LogicalToDeviceUnits(8), 0, 0) };
             Button cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true, MinimumSize = new Size(this.LogicalToDeviceUnits(88), 0) };
@@ -122,6 +125,7 @@ namespace SuperPutty.Gui
             this.Setting.PuttyProfile = this.comboProfile.Text.Trim();
             this.Setting.Port = (int)this.numericPort.Value;
             this.Setting.JumpHost = this.textJumpHost.Text.Trim();
+            this.Setting.HighlightRules = Utils.OutputHighlighting.SelectedRuleChoice(this.comboRules);
         }
     }
 }

@@ -58,6 +58,7 @@ namespace SuperPutty.Data
             new[] { "remote_path", "text" },
             new[] { "color", "text" },
             new[] { "jump_host", "text" },
+            new[] { "highlight_rules", "text" },
             new[] { "locked", "boolean NOT NULL DEFAULT false" },
             new[] { "locked_fields", "text[] NOT NULL DEFAULT '{}'" },
             new[] { "managed_by", "text" },
@@ -81,7 +82,7 @@ namespace SuperPutty.Data
         public static readonly string[] LockableFields =
         {
             "folder", "name", "protocol", "host", "port", "username", "putty_profile", "extra_args", "icon", "notes",
-            "spsl_script", "rdp_options", "local_path", "remote_path", "color", "jump_host"
+            "spsl_script", "rdp_options", "local_path", "remote_path", "color", "jump_host", "highlight_rules"
         };
 
         /// <summary>
@@ -96,6 +97,7 @@ namespace SuperPutty.Data
             new[] { "putty_profile", "text" },
             new[] { "port", "integer" },
             new[] { "jump_host", "text" },
+            new[] { "highlight_rules", "text" },
             new[] { "updated_at", "timestamptz NOT NULL DEFAULT now()" },
             new[] { "updated_by", "text NOT NULL DEFAULT current_user" }
         };
@@ -104,7 +106,7 @@ namespace SuperPutty.Data
         /// Session columns added after the first writable schema, written only when the table has them, so a table not
         /// yet upgraded can still be written: <see cref="AddSessionParameters"/> and <see cref="WriteColumnList"/>
         /// </summary>
-        private static readonly string[] OptionalWriteColumns = { "color", "jump_host" };
+        private static readonly string[] OptionalWriteColumns = { "color", "jump_host", "highlight_rules" };
 
         /// <summary>Which of <see cref="OptionalWriteColumns"/> the table had at the last read (or in the cache)</summary>
         private static HashSet<string> optionalPresent = new HashSet<string>();
@@ -770,7 +772,8 @@ namespace SuperPutty.Data
                     + ", " + (present.Contains("managed_by") ? "managed_by" : "NULL::text")
                     + ", " + (present.Contains("updated_by") ? "updated_by" : "NULL::text")
                     + ", " + (present.Contains("color") ? "color" : "NULL::text")
-                    + ", " + (present.Contains("jump_host") ? "jump_host" : "NULL::text");
+                    + ", " + (present.Contains("jump_host") ? "jump_host" : "NULL::text")
+                    + ", " + (present.Contains("highlight_rules") ? "highlight_rules" : "NULL::text");
                 optionalPresent = new HashSet<string>(OptionalWriteColumns.Where(present.Contains));
                 folders = FetchFolders(connection, c);
                 // rows given a deleted_at (by the scripts that manage the table) are hidden, not removed
@@ -847,7 +850,8 @@ namespace SuperPutty.Data
                 DatabaseManagedBy = Text(reader, 18),
                 DatabaseUpdatedBy = Text(reader, 19),
                 Color = Text(reader, 20),
-                JumpHost = Text(reader, 21)
+                JumpHost = Text(reader, 21),
+                HighlightRules = Text(reader, 22)
             };
             session.SessionId = MakeSessionId(folder, name);
             return session;
@@ -876,7 +880,8 @@ namespace SuperPutty.Data
                             Username = (string)row["username"],
                             PuttyProfile = (string)row["putty_profile"],
                             Port = (int?)row["port"] ?? 0,
-                            JumpHost = (string)row["jump_host"]
+                            JumpHost = (string)row["jump_host"],
+                            HighlightRules = (string)row["highlight_rules"]
                         });
                     }
                 }
@@ -904,10 +909,10 @@ namespace SuperPutty.Data
                     throw new InvalidOperationException("The database has no folder settings table yet. Run Create / upgrade schema in Tools > Database sessions.");
                 string sql = setting.IsEmpty
                     ? "DELETE FROM " + c.QualifiedFoldersTable + " WHERE folder = @folder"
-                    : "INSERT INTO " + c.QualifiedFoldersTable + " (folder, color, username, putty_profile, port, jump_host) "
-                        + "VALUES (@folder, @color, @username, @putty_profile, @port, @jump_host) "
+                    : "INSERT INTO " + c.QualifiedFoldersTable + " (folder, color, username, putty_profile, port, jump_host, highlight_rules) "
+                        + "VALUES (@folder, @color, @username, @putty_profile, @port, @jump_host, @highlight_rules) "
                         + "ON CONFLICT (folder) DO UPDATE SET color = EXCLUDED.color, username = EXCLUDED.username, putty_profile = EXCLUDED.putty_profile, "
-                        + "port = EXCLUDED.port, jump_host = EXCLUDED.jump_host";
+                        + "port = EXCLUDED.port, jump_host = EXCLUDED.jump_host, highlight_rules = EXCLUDED.highlight_rules";
                 using (NpgsqlCommand command = new NpgsqlCommand(sql, connection))
                 {
                     command.Parameters.AddWithValue("folder", path);
@@ -916,6 +921,7 @@ namespace SuperPutty.Data
                     command.Parameters.AddWithValue("putty_profile", (object)NullIfEmpty(setting.PuttyProfile) ?? DBNull.Value);
                     command.Parameters.AddWithValue("port", setting.Port > 0 ? (object)setting.Port : DBNull.Value);
                     command.Parameters.AddWithValue("jump_host", (object)NullIfEmpty(setting.JumpHost) ?? DBNull.Value);
+                    command.Parameters.AddWithValue("highlight_rules", (object)NullIfEmpty(setting.HighlightRules) ?? DBNull.Value);
                     try
                     {
                         return command.ExecuteNonQuery();
@@ -1037,6 +1043,10 @@ namespace SuperPutty.Data
             if (HasColumn("jump_host"))
             {
                 command.Parameters.AddWithValue("jump_host", (object)NullIfEmpty(session.JumpHost) ?? DBNull.Value);
+            }
+            if (HasColumn("highlight_rules"))
+            {
+                command.Parameters.AddWithValue("highlight_rules", (object)NullIfEmpty(session.HighlightRules) ?? DBNull.Value);
             }
         }
 
@@ -1299,7 +1309,7 @@ namespace SuperPutty.Data
             /// <summary>The folders' settings (colours) at the last read</summary>
             public List<FolderSetting> Folders { get; set; } = new List<FolderSetting>();
 
-            /// <summary>The optional columns (color, jump_host) the table had, so changes queued offline before the first read include them</summary>
+            /// <summary>The optional columns (color, jump_host, highlight_rules) the table had, so changes queued offline before the first read include them</summary>
             public List<string> OptionalColumns { get; set; } = new List<string>();
         }
 

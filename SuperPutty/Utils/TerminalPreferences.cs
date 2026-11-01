@@ -22,7 +22,10 @@ namespace SuperPutty.Utils
         /// empty for PuTTY's), fontFamily (empty for the theme's, "profile" for the PuTTY profile's, or a font's name),
         /// fontSize (in pixels; "0" for the theme's or profile's), cursorShape and cursorBlink and bell ("profile" for the
         /// PuTTY profile's, or block/underline/bar, on/off, visual/sound/none), copyOnSelect and markMatches ("true" or
-        /// "false")
+        /// "false"), pasteCheck (ask before pasting several lines: "production" for sessions coloured red, "always" or
+        /// "never"), scrollback (lines kept; "0" for as many as <see cref="UnlimitedScrollback"/>), keys ("profile" for the
+        /// PuTTY profile's Backspace, Home/End and function keys, "xterm" for xterm's), logTimestamps (seconds between
+        /// time stamps in the session log; "0" for none) and renderer ("webgl", or "dom" for xterm.js's slower one)
         /// </summary>
         public static readonly IReadOnlyDictionary<string, string> Defaults = new Dictionary<string, string>
         {
@@ -35,7 +38,19 @@ namespace SuperPutty.Utils
             { "bell", "profile" },
             { "copyOnSelect", "true" },
             { "markMatches", "true" },
+            { "pasteCheck", "production" },
+            { "scrollback", "10000" },
+            { "keys", "profile" },
+            { "logTimestamps", "30" },
+            { "renderer", "webgl" },
         };
+
+        /// <summary>
+        /// The scrollback kept when the preference is 0 (or negative), "unlimited". xterm.js needs a number; a line
+        /// takes about 12 bytes per column, so a million 120-column lines is over a gigabyte, reached only by a tab
+        /// that really prints that much.
+        /// </summary>
+        public const int UnlimitedScrollback = 1000000;
 
         /// <summary>Raised on the UI thread after any preference changes, so open terminals can apply it</summary>
         public static event EventHandler Changed;

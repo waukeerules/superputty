@@ -70,6 +70,10 @@ namespace SuperPutty
             HintText.Set(this.textBoxJumpHost, inheritedJump ?? "none; or a session, e.g. Bastions/bastion1, or admin@10.0.0.1:22");
             this.toolTip.SetToolTip(this.textBoxJumpHost, "Connect through this SSH server (SSH, Telnet, Rlogin, Raw): a saved session's path, or user@host:port. "
                 + "Uses plink beside PuTTY; the jump host must accept a key (Pageant, or a key in its PuTTY profile).");
+            // left on the first choice, the session takes its folder's rules (Folder settings), else Options -> Terminal's
+            string inheritedRules = string.IsNullOrEmpty(session.SessionId) ? null : FolderSettings.Describe(session, "HighlightRules");
+            OutputHighlighting.FillRuleChoices(this.comboBoxHighlightRules, inheritedRules != null ? "Folder's: " + inheritedRules : "Default (Tools > Options)", session.HighlightRules);
+            this.toolTip.SetToolTip(this.comboBoxHighlightRules, "The built-in terminal's highlighting rules for this session (Tools > Options > Terminal turns the terminal on)");
             this.color = session.Color;
             this.ShowColor();
 
@@ -341,6 +345,7 @@ namespace SuperPutty
                 { "putty_profile", new Control[] { this.comboBoxPuttyProfile } },
                 { "extra_args", new Control[] { this.textBoxExtraArgs } },
                 { "jump_host", new Control[] { this.textBoxJumpHost } },
+                { "highlight_rules", new Control[] { this.comboBoxHighlightRules } },
                 { "color", new Control[] { this.buttonColor } },
                 { "icon", new Control[] { this.buttonImageSelect } },
                 { "notes", new Control[] { this.textBoxNote } },
@@ -473,7 +478,8 @@ namespace SuperPutty
             Session.Host         = textBoxHostname.Text.Trim();
             Session.ExtraArgs    = textBoxExtraArgs.Text.Trim();
             Session.JumpHost     = textBoxJumpHost.Text.Trim();
-            Session.Color        = this.color ?? string.Empty;
+            Session.HighlightRules = OutputHighlighting.SelectedRuleChoice(comboBoxHighlightRules);
+            Session.Color       = this.color ?? string.Empty;
             // open tabs of this session show the new colour now, not at the next change
             EnvironmentColors.RaiseChanged();
             if (!Int32.TryParse(this.textBoxPort.Text, out val))

@@ -35,6 +35,8 @@ namespace SuperPutty
             this.buttonColor = new System.Windows.Forms.Button();
             this.labelColor = new System.Windows.Forms.Label();
             this.labelJumpHost = new System.Windows.Forms.Label();
+            this.labelHighlightRules = new System.Windows.Forms.Label();
+            this.comboBoxHighlightRules = new System.Windows.Forms.ComboBox();
             this.buttonRdpOptions = new System.Windows.Forms.Button();
             this.label6 = new System.Windows.Forms.Label();
             this.buttonSave = new System.Windows.Forms.Button();
@@ -221,10 +223,30 @@ namespace SuperPutty
             this.textBoxUsername.Location = new System.Drawing.Point(151, 168);
             this.textBoxUsername.Margin = new System.Windows.Forms.Padding(5);
             this.textBoxUsername.Name = "textBoxUsername";
-            this.textBoxUsername.Size = new System.Drawing.Size(486, 27);
+            this.textBoxUsername.Size = new System.Drawing.Size(236, 27);
             this.textBoxUsername.TabIndex = 5;
             this.toolTip.SetToolTip(this.textBoxUsername, "Enter username or placeholder (e.g., {user})");
             this.textBoxUsername.TextChanged += new System.EventHandler(this.placeholderField_TextChanged);
+            //
+            // labelHighlightRules
+            //
+            this.labelHighlightRules.AutoSize = true;
+            this.labelHighlightRules.Location = new System.Drawing.Point(397, 171);
+            this.labelHighlightRules.Margin = new System.Windows.Forms.Padding(5, 0, 5, 0);
+            this.labelHighlightRules.Name = "labelHighlightRules";
+            this.labelHighlightRules.Size = new System.Drawing.Size(73, 20);
+            this.labelHighlightRules.TabIndex = 33;
+            this.labelHighlightRules.Text = "Highlight:";
+            //
+            // comboBoxHighlightRules
+            //
+            this.comboBoxHighlightRules.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxHighlightRules.FormattingEnabled = true;
+            this.comboBoxHighlightRules.Location = new System.Drawing.Point(477, 167);
+            this.comboBoxHighlightRules.Margin = new System.Windows.Forms.Padding(5);
+            this.comboBoxHighlightRules.Name = "comboBoxHighlightRules";
+            this.comboBoxHighlightRules.Size = new System.Drawing.Size(161, 28);
+            this.comboBoxHighlightRules.TabIndex = 5;
             //
             // labelPlaceholderPreview
             //
@@ -233,7 +255,7 @@ namespace SuperPutty
             this.labelPlaceholderPreview.Location = new System.Drawing.Point(151, 196);
             this.labelPlaceholderPreview.Margin = new System.Windows.Forms.Padding(5, 0, 5, 0);
             this.labelPlaceholderPreview.Name = "labelPlaceholderPreview";
-            this.labelPlaceholderPreview.Size = new System.Drawing.Size(486, 19);
+            this.labelPlaceholderPreview.Size = new System.Drawing.Size(236, 19);
             this.labelPlaceholderPreview.TabIndex = 31;
             this.labelPlaceholderPreview.Click += new System.EventHandler(this.labelPlaceholderPreview_Click);
             //
@@ -501,6 +523,8 @@ namespace SuperPutty
             this.groupBox1.Controls.Add(this.buttonColor);
             this.groupBox1.Controls.Add(this.labelColor);
             this.groupBox1.Controls.Add(this.labelJumpHost);
+            this.groupBox1.Controls.Add(this.labelHighlightRules);
+            this.groupBox1.Controls.Add(this.comboBoxHighlightRules);
             this.groupBox1.Controls.Add(this.buttonRdpOptions);
             this.groupBox1.Controls.Add(this.buttonBrowse);
             this.groupBox1.Controls.Add(this.textBoxUsername);
@@ -575,6 +599,8 @@ namespace SuperPutty
         private System.Windows.Forms.Button buttonColor;
         private System.Windows.Forms.Label labelColor;
         private System.Windows.Forms.Label labelJumpHost;
+        private System.Windows.Forms.Label labelHighlightRules;
+        private System.Windows.Forms.ComboBox comboBoxHighlightRules;
         private System.Windows.Forms.Button buttonRdpOptions;
         private System.Windows.Forms.Button buttonImageSelect;
         private System.Windows.Forms.ToolTip toolTip;

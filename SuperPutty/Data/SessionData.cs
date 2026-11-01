@@ -183,6 +183,26 @@ namespace SuperPutty.Data
             return !string.IsNullOrEmpty(this.JumpHost);
         }
 
+        private string _HighlightRules;
+        /// <summary>
+        /// The built-in terminal's highlighting rules for this session: a rule set's id (e.g. "cisco"), "auto" (picked
+        /// from the output) or "none"; empty to take its folder's (Data.FolderSettings), else Tools -> Options -> Terminal's.
+        /// </summary>
+        [XmlAttribute]
+        [Browsable(false)]
+        public string HighlightRules
+        {
+            get { return _HighlightRules; }
+            set { UpdateField(ref _HighlightRules, value, "HighlightRules"); }
+        }
+
+        /// <summary>XmlSerializer: write HighlightRules only when it's set</summary>
+        /// <returns>true to write <see cref="HighlightRules"/></returns>
+        public bool ShouldSerializeHighlightRules()
+        {
+            return !string.IsNullOrEmpty(this.HighlightRules);
+        }
+
         /// <summary>XmlSerializer: write Color only when it's set, so Sessions.xml stays as it was for other sessions</summary>
         /// <returns>true to write <see cref="Color"/></returns>
         public bool ShouldSerializeColor()
