@@ -279,6 +279,22 @@ namespace SuperPutty
             this.Close();
         }
 
+        /// <summary>
+        /// The tab menu's Close, Close others, Close others to the right and Close all, for the built-in terminal's
+        /// own right-click menu (TerminalControl), so both close tabs the same way
+        /// </summary>
+        /// <param name="command">"close", "closeOthers", "closeRight" or "closeAll"</param>
+        public void RunTabCommand(string command)
+        {
+            switch (command)
+            {
+                case "close": this.closeSessionToolStripMenuItem_Click(this, EventArgs.Empty); break;
+                case "closeOthers": this.closeOthersToolStripMenuItem_Click(this, EventArgs.Empty); break;
+                case "closeRight": this.closeOthersToTheRightToolStripMenuItem_Click(this, EventArgs.Empty); break;
+                case "closeAll": this.closeAllToolStripMenuItem_Click(this, EventArgs.Empty); break;
+            }
+        }
+
         private void closeOthersToolStripMenuItem_Click(object sender, EventArgs e)
         {
             var docs = from doc in this.DockPanel.DocumentsToArray()

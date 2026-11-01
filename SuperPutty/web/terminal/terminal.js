@@ -549,7 +549,15 @@
             { label: 'Bell', items: bellItems },
             '-',
             { label: 'Copy on Select', checked: prefOn('copyOnSelect'), action: function () { togglePref('copyOnSelect'); } },
-            { label: 'Mark Matches of Selection', checked: prefOn('markMatches'), action: function () { togglePref('markMatches'); markSelectionMatches(); } }
+            { label: 'Mark Matches of Selection', checked: prefOn('markMatches'), action: function () { togglePref('markMatches'); markSelectionMatches(); } },
+            '-',
+            // plink can't send PuTTY's Special Commands (Break, signals...); PuTTY's own window can
+            { label: 'Open in PuTTY (Special Commands)', action: function () { post({ type: 'openInPutty' }); } },
+            '-',
+            { label: 'Close Tab', action: function () { post({ type: 'tab', command: 'close' }); } },
+            { label: 'Close Other Tabs', action: function () { post({ type: 'tab', command: 'closeOthers' }); } },
+            { label: 'Close Tabs to the Right', action: function () { post({ type: 'tab', command: 'closeRight' }); } },
+            { label: 'Close All Tabs', action: function () { post({ type: 'tab', command: 'closeAll' }); } }
         ];
     }
 

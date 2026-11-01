@@ -120,7 +120,7 @@ namespace SuperPutty.Gui
         /// <returns>true to use the built-in terminal</returns>
         public static bool ShouldUse(SessionData session)
         {
-            if (!SuperPuTTY.Settings.BuiltInTerminal || Array.IndexOf(Protocols, session.Proto) < 0)
+            if (puttyForNextTab || !SuperPuTTY.Settings.BuiltInTerminal || Array.IndexOf(Protocols, session.Proto) < 0)
                 return false;
             if (JumpHosts.PlinkPath() == null)
             {
@@ -133,6 +133,28 @@ namespace SuperPutty.Gui
                 return false;
             }
             return true;
+        }
+
+        /// <summary>Set while <see cref="OpenInPutty"/> opens a tab, so that tab gets PuTTY's window</summary>
+        [ThreadStatic]
+        private static bool puttyForNextTab;
+
+        /// <summary>
+        /// Open a session in a classic PuTTY tab even though the built-in terminal is on: for what only PuTTY's window
+        /// can do, such as its Special Commands (Break, signals), which plink has no way to send
+        /// </summary>
+        /// <param name="session">The stored session (not a resolved copy: opening resolves it again)</param>
+        public static void OpenInPutty(SessionData session)
+        {
+            puttyForNextTab = true;
+            try
+            {
+                SuperPuTTY.OpenProtoSession(session);
+            }
+            finally
+            {
+                puttyForNextTab = false;
+            }
         }
 
         /// <summary>Create the terminal for a session; nothing connects until <see cref="Start"/></summary>
@@ -286,6 +308,23 @@ namespace SuperPutty.Gui
                     break;
                 case "pasteRequest":
                     this.Post(new { type = "paste", text = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty });
+                    break;
+                case "openInPutty":
+                    ctlPuttyPanel owner = this.FindForm() as ctlPuttyPanel;
+                    if (owner != null)
+                    {
+                        SessionData stored = owner.Session;
+                        this.BeginInvokeSafe(() => OpenInPutty(stored));
+                    }
+                    break;
+                case "tab":
+                    // closing happens after this message is handled, not while the page is still in its handler
+                    string command = (string)message["command"];
+                    ctlPuttyPanel tab = this.FindForm() as ctlPuttyPanel;
+                    if (tab != null)
+                    {
+                        this.BeginInvokeSafe(() => tab.RunTabCommand(command));
+                    }
                     break;
                 case "document":
                     ctlPuttyPanel panel = this.FindForm() as ctlPuttyPanel;
