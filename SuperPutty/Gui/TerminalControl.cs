@@ -76,6 +76,16 @@ namespace SuperPutty.Gui
         /// <summary>Schedules automatic reconnects</summary>
         private readonly Timer reconnectTimer;
 
+        /// <summary>Sends output held back by <see cref="HoldForNextLine"/> once nothing more has come</summary>
+        private readonly Timer lineBreakTimer;
+
+        /// <summary>
+        /// The longest output ending in a line break waits for the next line. cmd's pseudo console sends Enter's line
+        /// break at once and the new prompt in its next frame, about 16 ms later; drawn apart, the screen showed a blank
+        /// line where the prompt belonged, sometimes for a second or two before WebView2 put the next frame on screen.
+        /// </summary>
+        private static readonly TimeSpan LineBreakHold = TimeSpan.FromMilliseconds(40);
+
         /// <summary>Output from plink not yet sent to the page; guarded by itself</summary>
         private readonly MemoryStream pending = new MemoryStream();
 
@@ -199,6 +209,8 @@ namespace SuperPutty.Gui
             this.Controls.Add(this.webView);
             this.reconnectTimer = new Timer();
             this.reconnectTimer.Tick += (s, e) => { this.reconnectTimer.Stop(); this.Reconnect(); };
+            this.lineBreakTimer = new Timer();
+            this.lineBreakTimer.Tick += (s, e) => { this.lineBreakTimer.Stop(); this.SendPending(); };
             TerminalPreferences.Changed += this.OnPreferencesChanged;
         }
 
@@ -663,6 +675,21 @@ namespace SuperPutty.Gui
             }
         }
 
+        /// <summary>
+        /// How much longer queued output should wait before going to the page: output that ends in a line break waits
+        /// up to <see cref="LineBreakHold"/> for what follows, so a new prompt is drawn together with the line break
+        /// before it rather than one frame later. Anything else (typed characters echoed back) goes at once.
+        /// </summary>
+        /// <param name="lastByte">The last byte queued</param>
+        /// <param name="waited">How long the oldest queued output has waited</param>
+        /// <returns>The time left to wait; zero to send now</returns>
+        public static TimeSpan HoldForNextLine(byte lastByte, TimeSpan waited)
+        {
+            if (lastByte != (byte)'\n' || waited >= LineBreakHold)
+                return TimeSpan.Zero;
+            return LineBreakHold - waited;
+        }
+
         /// <summary>Send queued output to the page, one chunk at a time</summary>
         private void SendPending()
         {
@@ -670,19 +697,38 @@ namespace SuperPutty.Gui
                 return;
             byte[] chunk;
             DateTime queuedSince;
+            TimeSpan hold;
             lock (this.pending)
             {
                 if (this.pending.Length == 0)
                     return;
                 queuedSince = this.pendingSince;
-                byte[] all = this.pending.ToArray();
-                int take = Math.Min(all.Length, ChunkBytes);
-                chunk = new byte[take];
-                Buffer.BlockCopy(all, 0, chunk, 0, take);
-                this.pending.SetLength(0);
-                this.pending.Write(all, take, all.Length - take);
-                // what's left waits for the page by design, not because it was held up here
-                this.pendingSince = DateTime.UtcNow;
+                hold = HoldForNextLine(this.pending.GetBuffer()[this.pending.Length - 1], DateTime.UtcNow - queuedSince);
+                if (hold > TimeSpan.Zero)
+                {
+                    chunk = null;
+                }
+                else
+                {
+                    byte[] all = this.pending.ToArray();
+                    int take = Math.Min(all.Length, ChunkBytes);
+                    chunk = new byte[take];
+                    Buffer.BlockCopy(all, 0, chunk, 0, take);
+                    this.pending.SetLength(0);
+                    this.pending.Write(all, take, all.Length - take);
+                    // what's left waits for the page by design, not because it was held up here
+                    this.pendingSince = DateTime.UtcNow;
+                }
+            }
+            if (chunk == null)
+            {
+                // more output (the prompt) calls this again and goes with it; otherwise the timer sends it
+                if (!this.lineBreakTimer.Enabled)
+                {
+                    this.lineBreakTimer.Interval = Math.Max(1, (int)Math.Ceiling(hold.TotalMilliseconds));
+                    this.lineBreakTimer.Start();
+                }
+                return;
             }
             this.Delay("Output waited {0} ms in SuperPuTTY before going to the page ({1} bytes)", queuedSince, chunk.Length);
             this.waitingForAck = true;
@@ -1021,6 +1067,7 @@ namespace SuperPutty.Gui
                 this.closing = true;
                 TerminalPreferences.Changed -= this.OnPreferencesChanged;
                 this.reconnectTimer.Dispose();
+                this.lineBreakTimer.Dispose();
                 this.pty?.Dispose();
                 this.pty = null;
                 this.log?.Dispose();
