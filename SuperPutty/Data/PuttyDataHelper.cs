@@ -129,7 +129,7 @@ namespace SuperPutty.Data
         /// </summary>
         /// <param name="profile">The saved session's name; empty means "Default Settings", as PuTTY loads it</param>
         /// <param name="name">The setting, e.g. "PublicKeyFile"</param>
-        /// <returns>Its value, or null if the session or setting isn't there</returns>
+        /// <returns>Its value (a number as text), or null if the session or setting isn't there</returns>
         public static string GetProfileValue(string profile, string name)
         {
             if (string.IsNullOrEmpty(profile))
@@ -159,7 +159,8 @@ namespace SuperPutty.Data
                         return null;
                     using (RegistryKey session = root.OpenSubKey(keyName))
                     {
-                        return session?.GetValue(name) as string;
+                        // numbers (REG_DWORD, e.g. BellType) as text, as KiTTY's session files hold them
+                        return session?.GetValue(name)?.ToString();
                     }
                 }
             }

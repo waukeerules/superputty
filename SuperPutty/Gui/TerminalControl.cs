@@ -281,6 +281,9 @@ namespace SuperPutty.Gui
                 case "copy":
                     this.SetClipboard((string)message["text"]);
                     break;
+                case "bell":
+                    System.Media.SystemSounds.Beep.Play();
+                    break;
                 case "pasteRequest":
                     this.Post(new { type = "paste", text = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty });
                     break;
@@ -314,7 +317,44 @@ namespace SuperPutty.Gui
                 Log.Warn("Highlighting files skipped: " + string.Join("; ", problems));
             }
             bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
-            this.Post(new { type = "config", ruleSets, themes, dark });
+            this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), promptColor = this.promptColor });
+        }
+
+        /// <summary>The session's environment colour as #rrggbb, for the prompt; null for none</summary>
+        private string promptColor;
+
+        /// <summary>
+        /// Colour the device's prompt with the session's environment colour (red for production), or the theme's
+        /// prompt colour when it has none. ctlPuttyPanel calls this when the tab opens and whenever colours change.
+        /// </summary>
+        /// <param name="color">The colour (EnvironmentColors.For), or null</param>
+        public void SetPromptColor(System.Drawing.Color? color)
+        {
+            this.promptColor = color.HasValue ? string.Format("#{0:x2}{1:x2}{2:x2}", color.Value.R, color.Value.G, color.Value.B) : null;
+            if (this.pageLoaded)
+            {
+                this.Post(new { type = "promptColor", color = this.promptColor });
+            }
+        }
+
+        /// <summary>
+        /// What the bell should do, from the session's PuTTY profile (Terminal > Bell) as PuTTY would: "none",
+        /// "visual" (flash) or "sound" (the system's alert sound, also used for PuTTY's PC-speaker and custom-file
+        /// choices). A profile that doesn't set it gets PuTTY's default as shown in its settings: visual.
+        /// </summary>
+        /// <param name="profile">The PuTTY profile; empty for Default Settings</param>
+        /// <returns>"none", "visual" or "sound"</returns>
+        public static string BellStyle(string profile)
+        {
+            int type;
+            if (!int.TryParse(PuttyDataHelper.GetProfileValue(profile, "BellType"), out type))
+                return "visual";
+            switch (type)
+            {
+                case 0: return "none";
+                case 2: return "visual";
+                default: return "sound";
+            }
         }
 
         /// <summary>The page knows its size: start the session the first time, then pass changes on to plink</summary>

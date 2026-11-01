@@ -112,6 +112,8 @@ namespace SuperPutty
         public void ApplyEnvironmentColor()
         {
             System.Drawing.Color? color = EnvironmentColors.For(this.Session);
+            // the built-in terminal also draws the device's prompt in it
+            this.Terminal?.SetPromptColor(color);
             if (this.normalBackColor == null)
             {
                 this.normalBackColor = this.BackColor;
@@ -149,6 +151,7 @@ namespace SuperPutty
                 {
                     TerminalControl terminal = new TerminalControl(resolved, logPath);
                     terminal.StateChanged += this.OnTerminalStateChanged;
+                    terminal.SetPromptColor(EnvironmentColors.For(this.Session));
                     return terminal;
                 };
             }

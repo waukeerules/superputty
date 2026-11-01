@@ -20,6 +20,16 @@ html, body {
   inset: 0 0 0 4px;
 }
 
+/* the visual bell: a short flash, like PuTTY's (terminal.js ring) */
+#terminal.bell {
+  animation: bell-flash 150ms ease-out;
+}
+
+@keyframes bell-flash {
+  0% { filter: invert(0.85); }
+  100% { filter: none; }
+}
+
 .menu {
   position: fixed;
   z-index: 10;

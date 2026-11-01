@@ -33,6 +33,8 @@
     var theme = null;
     var autoSet = null;
     var darkDefault = true;
+    var bellFromProfile = 'visual'; // the PuTTY profile's bell, from TerminalControl
+    var promptColor = null;         // the session's environment colour (#rrggbb) for the prompt, or null
     var settleTimer = null;
     var scanFrom = null;        // marker: first line to look at for highlighting next time
     var logged = null;          // marker: first line not yet sent to the log
@@ -225,7 +227,7 @@
             if (!marker) { continue; }
             var decorations = [];
             found.forEach(function (m) {
-                var style = theme && theme.styles ? theme.styles[m.style] : null;
+                var style = styleFor(m.style);
                 if (!style || (!style.color && !style.background)) { return; }
                 var options = {
                     marker: marker,
@@ -290,12 +292,15 @@
      * Put a background on part of a buffer line (find and selection matches)
      * @returns {{marker, decoration}|null} to pass to unmark
      */
-    function mark(row, x, width, colour) {
+    function mark(row, x, width, colour, textColour) {
         var marker = markLine(row);
         if (!marker) { return null; }
-        var decoration = term.registerDecoration({
+        var options = {
             marker: marker, x: x, width: Math.max(1, Math.min(width, term.cols - x)), backgroundColor: colour, layer: 'top'
-        });
+        };
+        // a bright mark needs dark text, whatever colour the rules gave it
+        if (textColour) { options.foregroundColor = textColour; }
+        var decoration = term.registerDecoration(options);
         return { marker: marker, decoration: decoration };
     }
 
@@ -306,6 +311,7 @@
      */
     function unmark(marks) {
         marks.forEach(function (m) {
+            if (!m) { return; }
             if (m.decoration) { m.decoration.dispose(); }
             m.marker.dispose();
         });
@@ -412,7 +418,7 @@
 
     /** Remove the marks on every match, and on the current one */
     function clearFindMarks() {
-        unmark(find.decorations.concat(find.current ? [find.current] : []));
+        unmark(find.decorations.filter(Boolean).concat(find.current && find.current.mark ? [find.current.mark] : []));
         find.decorations = [];
         find.current = null;
     }
@@ -454,12 +460,13 @@
             document.getElementById('findCount').textContent = 'No results';
             return;
         }
-        find.matches.forEach(function (m) {
-            var marked = mark(m.row, m.col, m.length, '#806000');
-            if (marked) { find.decorations.push(marked); }
-        });
+        // one mark per match (find.decorations[i] is match i's; null while it's the current one)
+        find.decorations = find.matches.map(function (m) { return mark(m.row, m.col, m.length, FIND_MATCH_COLOUR); });
         showMatch(find.matches.length - 1);
     }
+
+    /** Background of every find match, and of the current one */
+    var FIND_MATCH_COLOUR = '#806000', FIND_CURRENT_COLOUR = '#ffb000';
 
     /** Select a match and scroll it into the middle of the view */
     function showMatch(index) {
@@ -467,9 +474,18 @@
         find.index = (index + find.matches.length) % find.matches.length;
         var m = find.matches[find.index];
         term.select(m.col, m.row, m.length);
-        // the matches' marks cover the selection, so the current one gets a brighter mark of its own
-        if (find.current) { unmark([find.current]); }
-        find.current = mark(m.row, m.col, m.length, '#e0a000');
+        // marks cover the selection, so the current match gets a brighter mark instead of its usual one (with both,
+        // xterm.js draws the one registered first on top, which is the usual one)
+        if (find.current) {
+            unmark([find.current.mark]);
+            var previous = find.matches[find.current.index];
+            find.decorations[find.current.index] = mark(previous.row, previous.col, previous.length, FIND_MATCH_COLOUR);
+        }
+        if (find.decorations[find.index]) {
+            unmark([find.decorations[find.index]]);
+            find.decorations[find.index] = null;
+        }
+        find.current = { index: find.index, mark: mark(m.row, m.col, m.length, FIND_CURRENT_COLOUR, '#000000') };
         term.scrollToLine(Math.max(0, m.row - Math.floor(term.rows / 2)));
         document.getElementById('findCount').textContent = (find.index + 1) + ' of ' + find.matches.length;
     }
@@ -509,6 +525,12 @@
         var themeItems = themes.map(function (t) {
             return { label: t.name, checked: theme && theme.name === t.name, action: function () { savePref('theme', t.name); applyTheme(); } };
         });
+        var chosenBell = loadPref('bell') || 'profile';
+        var bellNames = { visual: 'Flash', sound: 'Sound', none: 'None' };
+        var bellItems = [['profile', 'From PuTTY Profile (' + bellNames[bellFromProfile] + ')'], ['visual', 'Flash'], ['sound', 'Sound'], ['none', 'None']]
+            .map(function (choice) {
+                return { label: choice[1], checked: chosenBell === choice[0], action: function () { savePref('bell', choice[0]); } };
+            });
         return [
             { label: 'Copy', key: 'Ctrl+Insert', enabled: selected, action: copy },
             { label: 'Paste', key: 'Shift+Insert', action: paste },
@@ -524,6 +546,7 @@
             { label: 'Open as Document', action: function () { post({ type: 'document' }); } },
             { label: 'Highlighting', items: ruleItems },
             { label: 'Theme', items: themeItems },
+            { label: 'Bell', items: bellItems },
             '-',
             { label: 'Copy on Select', checked: prefOn('copyOnSelect'), action: function () { togglePref('copyOnSelect'); } },
             { label: 'Mark Matches of Selection', checked: prefOn('markMatches'), action: function () { togglePref('markMatches'); markSelectionMatches(); } }
@@ -670,9 +693,72 @@
 
     // ---- messages and start ---------------------------------------------------------------------------------------
 
+    /**
+     * A highlighting style from the theme; the prompt takes the session's environment colour when it has one
+     * (red for production), lightened on dark backgrounds so it stays readable
+     */
+    function styleFor(name) {
+        var style = theme && theme.styles ? theme.styles[name] : null;
+        if (name !== 'prompt' || !promptColor) { return style; }
+        var dark = !theme || theme.base !== 'vs';
+        return { color: dark ? lighten(promptColor, 0.3) : promptColor, bold: true };
+    }
+
+    /** Mix a #rrggbb colour with white */
+    function lighten(hex, amount) {
+        var n = parseInt(hex.substring(1), 16);
+        var parts = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (c) {
+            return Math.round(c + (255 - c) * amount);
+        });
+        return '#' + parts.map(function (c) { return ('0' + c.toString(16)).slice(-2); }).join('');
+    }
+
+    // ---- bell -----------------------------------------------------------------------------------------------------
+
+    /** Bell times within the over-use window, and when the bell went quiet for over-use (PuTTY's defaults) */
+    var bellTimes = [], bellMutedUntil = 0;
+    var BELL_LIMIT = 5, BELL_WINDOW_MS = 2000, BELL_QUIET_MS = 5000;
+
+    /** What the bell does: the menu's choice, else the PuTTY profile's ("none", "visual" or "sound") */
+    function bellStyle() {
+        var chosen = loadPref('bell') || 'profile';
+        return chosen === 'profile' ? bellFromProfile : chosen;
+    }
+
+    /**
+     * The device rang the bell (e.g. Backspace at the start of a line): flash the terminal or play the system's
+     * alert sound, as PuTTY does. Like PuTTY, more than 5 bells in 2 seconds silence it until 5 quiet seconds.
+     */
+    function ring() {
+        var now = Date.now();
+        if (now < bellMutedUntil) {
+            bellMutedUntil = now + BELL_QUIET_MS;
+            return;
+        }
+        bellTimes = bellTimes.filter(function (t) { return now - t < BELL_WINDOW_MS; });
+        bellTimes.push(now);
+        if (bellTimes.length > BELL_LIMIT) {
+            bellMutedUntil = now + BELL_QUIET_MS;
+            bellTimes = [];
+            return;
+        }
+        var style = bellStyle();
+        if (style === 'sound') {
+            post({ type: 'bell' });
+        } else if (style === 'visual') {
+            var element = document.getElementById('terminal');
+            element.classList.remove('bell');
+            // restart the animation even when bells come quickly
+            void element.offsetWidth;
+            element.classList.add('bell');
+        }
+    }
+
     /** Apply a config message: rule sets, themes and whether SuperPuTTY is dark; then fit and report the size */
     function configure(config) {
         darkDefault = !!config.dark;
+        bellFromProfile = config.bell || 'visual';
+        promptColor = config.promptColor || null;
         themes = config.themes || [];
         var compiled = SpRules.compile(config.ruleSets || []);
         ruleSets = compiled.sets;
@@ -703,6 +789,7 @@
             case 'paste': if (message.text) { term.paste(message.text); } break;
             case 'focus': term.focus(); break;
             case 'action': runAction(message.name); break;
+            case 'promptColor': promptColor = message.color || null; highlight(true); break;
         }
     }
 
@@ -754,6 +841,7 @@
         term.onData(function (data) { post({ type: 'input', data: data }); });
         term.onResize(function (size) { if (sized) { post({ type: 'size', cols: size.cols, rows: size.rows }); } });
         term.onScroll(function () { scheduleSettle(); });
+        term.onBell(ring);
 
         // PuTTY copies as soon as text is selected (an option in the menu), and the selection's other matches are marked
         var selectionTimer = null;
