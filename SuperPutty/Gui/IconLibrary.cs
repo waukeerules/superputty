@@ -375,6 +375,55 @@ namespace SuperPutty.Gui
         }
 
         /// <summary>
+        /// The key of an icon drawn on a circle of an environment colour (production in red), drawn into the list on
+        /// first use (e.g. "switch#1E63B4|env#C62828"). Used by the Sessions tree, so the colour shows without
+        /// colouring the name, which then stays readable. <see cref="EnsureWithState"/> can add its dot on top.
+        /// </summary>
+        /// <param name="list">The tree's image list</param>
+        /// <param name="baseKey">The icon's key; it must be in the list or drawable</param>
+        /// <param name="color">The environment colour, or null for none</param>
+        /// <returns>The key to show: <paramref name="baseKey"/> itself without a colour</returns>
+        public static string EnsureWithEnvironment(ImageList list, string baseKey, Color? color)
+        {
+            if (!color.HasValue || !Ensure(list, baseKey))
+                return baseKey;
+            string key = string.Format("{0}|env#{1:X2}{2:X2}{3:X2}", baseKey, color.Value.R, color.Value.G, color.Value.B);
+            if (!list.Images.ContainsKey(key))
+            {
+                using (Image icon = list.Images[baseKey])
+                {
+                    list.Images.Add(key, DrawOnCircle(icon, color.Value));
+                }
+            }
+            return key;
+        }
+
+        /// <summary>
+        /// An icon drawn smaller, centred on a filled circle of a colour that takes the whole square, so the colour
+        /// shows around it
+        /// </summary>
+        /// <param name="icon">The icon</param>
+        /// <param name="color">The circle's colour</param>
+        /// <returns>A new image the icon's size</returns>
+        public static Bitmap DrawOnCircle(Image icon, Color color)
+        {
+            int size = icon.Width;
+            Bitmap bitmap = new Bitmap(size, icon.Height);
+            float inner = size * 0.72f;
+            float offset = (size - inner) / 2;
+            using (Graphics g = Graphics.FromImage(bitmap))
+            using (Brush fill = new SolidBrush(color))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                g.FillEllipse(fill, 0, 0, size - 1, icon.Height - 1);
+                g.DrawImage(icon, offset, offset, inner, inner);
+            }
+            return bitmap;
+        }
+
+        /// <summary>
         /// Draw a status dot in an icon's bottom-right corner, with a ring in the background colour so it stands off
         /// the icon beneath
         /// </summary>

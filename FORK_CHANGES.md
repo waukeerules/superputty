@@ -1213,7 +1213,7 @@ A session can have a colour (e.g. red for production), so you notice before typi
 **Where it shows:**
 - **On its tab:** the selected tab is filled with the colour instead of the theme's (blue in Light), with its text and close button drawn again in white or black, whichever reads better (`TabIcons.FillSelectedTab`). Unselected coloured tabs are tinted with it and have a stripe along the top edge; **hovering** one fills it with a stronger mix of its colour and the theme's tab background, with its text and close button redrawn, because the theme's hover colour (blue) showed through the tint (`TabIcons.Blend`, `HoverMix`). It's painted over the tab strip by `TabIcons`, which already does that for the icons, because DockPanelSuite picks tab colours per theme, not per tab. The close button is placed where the strip puts it (its own `GetCloseButtonRect`) and still works, but it loses its hover highlight on a filled tab. Classic has one close button for the whole strip, and its slanted left edge is covered by the fill.
 - **Around the terminal:** a 3 px frame (`ctlPuttyPanel.ApplyEnvironmentColor`: the tab's padding, in the colour, around the docked terminal).
-- **In the Sessions tree:** the folder where a colour starts (set on it, or matched by a rule) and a session with its own colour are shown in it, lightened on the dark theme. Folders don't colour every folder under them, so the tree stays readable.
+- **In the Sessions tree:** the folder where a colour starts (set on it, or matched by a rule) and a session with its own colour have their icon on a circle of the colour; their names keep the tree's text colour (see "Environment colours in the tree as a circle behind the icon"). Folders don't colour every folder under them, so the tree stays readable.
 
 **Where a session's colour comes from**, first found wins (`Gui/EnvironmentColors.For`):
 1. **Its own colour:** right-click the session → **Colour**, or Edit Session's **Colour** button (beside Icon; a swatch, or a slashed box for none, with a tooltip naming the colour it gets from its folder or a rule when it has none of its own). Saved as a `Color` attribute in Sessions.xml (written only when set, so other sessions' lines are unchanged), or the `color` column for Database sessions.
@@ -1538,6 +1538,21 @@ Manual tests:
 - **After the fix:** every line kept its colour, and closing the find bar left no stuck marks.
 - **Not checked:** the full app (the page is the same one).
 
+## Environment colours in the tree as a circle behind the icon
+
+The Sessions tree showed an environment colour as the name's text colour, and red or orange names were hard to read, on the dark theme especially. Now the names keep the tree's text colour and the colour is a filled circle behind the icon, which is drawn a little smaller on it (`IconLibrary.EnsureWithEnvironment`, `DrawOnCircle`). It's another drawn variant of the icon, like the open-tab dot, which still goes on top (key `switch#1E63B4|env#C62828|connected`). The same nodes get it as before: folders where a colour starts, and sessions with their own colour. Favorites and Recent entries now show their session's colour too; before, they weren't coloured.
+
+| File | Change |
+|---|---|
+| `Gui/IconLibrary.cs` | `EnsureWithEnvironment`, `DrawOnCircle` |
+| `SessionTreeview.cs` | `ColorNode` sets the icon instead of the text colour; `SessionImageKey` adds the circle |
+| `Gui/EnvironmentColors.cs` | `ForText` removed (it lightened the text colour on the dark theme) |
+
+**Checked:** built, and the real main window on the dark theme: Favorites, Recent and Saved sessions showed red, green, orange and grey circles behind the icons, the open-tab dot kept its place, and every name was in the normal text colour.
+**Not checked:** the light theme (the drawing doesn't depend on it), icon sizes other than the one set here, and coloured Database folders. An icon of the same colour as its circle (a green icon on green) stands out less.
+
+Manual test: colour a session red and a folder green: both icons sit on circles of their colour and the names stay white (dark theme) or black (light). Open the red session: the green dot shows on top of the circle. Change Options → Icon size: the circles are redrawn at the new size.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
@@ -1647,7 +1662,7 @@ Favorites, Recent and private sessions:
 13. Open View → Log Viewer, then point the settings folder at a large Sessions.xml: the window stays responsive. Close SuperXPuTTY: no error.
 14. With an SSH tab open, switch to another program, then click straight into the toolbar's Host box and type: the text goes into the box, not the terminal. Do the same with the Sessions search box. Switch away and come back with Alt+Tab: the terminal has the focus.
 15. File → Export sessions to CSV..., open it in Excel: one row per session, Extra args like `-L ...` shown as text, `-pw` passwords as `********`. Change a host and add a row with Folder, Name and Host, save as CSV, then File → Import sessions → From CSV file...: the summary says 1 new and the rest updated; Yes, and the host is changed and the new session is in its folder. A session with `-pw` still connects with its password.
-16. Make a folder named Prod with a session in it and open it: its tab is red (tinted with a red stripe when another tab is selected) and the terminal has a red frame, and Prod is red in the tree. Right-click another folder → Colour → Green: its sessions' tabs turn green. Right-click a session in it → Colour → Blue: that one turns blue. Rename and drag the green folder: it stays green. Tools → Environment colours..., add `Lab*` purple: folders named Lab... turn purple. Do the same under Database sessions (after Create / upgrade schema): a second copy of SuperXPuTTY shows the folder's colour within 30 seconds.
+16. Make a folder named Prod with a session in it and open it: its tab is red (tinted with a red stripe when another tab is selected) and the terminal has a red frame, and Prod's icon in the tree sits on a red circle, its name in the normal text colour. Right-click another folder → Colour → Green: its sessions' tabs turn green. Right-click a session in it → Colour → Blue: that one turns blue. Rename and drag the green folder: it stays green. Tools → Environment colours..., add `Lab*` purple: folders named Lab... turn purple. Do the same under Database sessions (after Create / upgrade schema): a second copy of SuperXPuTTY shows the folder's colour within 30 seconds.
 17. Right-click a folder → Edit sessions...: untick one session, tick Username and type `{user}`, tick Port and set 2222, Change: every ticked session has the new username and port, the unticked one doesn't. Under Database sessions, lock `username` on one row (`locked_fields = '{username}'`) and repeat: it's listed as left alone.
 18. Add a button with `interface {prompt:Interface}\rshow this\r`, open a session on a switch and click it: it asks for Interface, then types both lines. Click it again: the last interface is offered. Cancel: nothing is typed. Type `show interface {prompt:Port}` in Send Commands and press Enter: it asks, sends, and the history keeps `{prompt:Port}`.
 19. Right-click a folder → Folder settings...: Username `netops`, Port 2222. A session in a subfolder with no username and port 0 connects as netops on 2222; Edit Session shows "netops (from ...)" in the empty Username box. A session with its own username keeps it.

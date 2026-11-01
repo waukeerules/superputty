@@ -201,17 +201,6 @@ namespace SuperPutty.Gui
             return null;
         }
 
-        /// <summary>A colour made readable as text on the tree's background: lightened on a dark one</summary>
-        /// <param name="color">The environment colour</param>
-        /// <param name="background">The tree's background</param>
-        /// <returns>The text colour</returns>
-        public static Color ForText(Color color, Color background)
-        {
-            if (background.GetBrightness() >= 0.5f)
-                return color;
-            return Color.FromArgb((color.R + 2 * 255) / 3, (color.G + 2 * 255) / 3 - 20, (color.B + 2 * 255) / 3 - 20);
-        }
-
         /// <summary>A small square of a colour, for menus</summary>
         /// <param name="color">The colour</param>
         /// <returns>The image</returns>

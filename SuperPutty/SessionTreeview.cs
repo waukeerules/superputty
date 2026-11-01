@@ -1074,28 +1074,30 @@ namespace SuperPutty
         }
 
         /// <summary>
-        /// Show a node's environment colour as its text colour: a session's own colour, or a folder's own setting or
-        /// a rule matching its name. Sessions that only inherit a colour aren't coloured here; their tabs are.
+        /// Show a node's environment colour as a circle behind its icon, leaving its name in the tree's own colour so
+        /// it stays readable: a session's own colour, or a folder's own setting or a rule matching its name. Sessions
+        /// that only inherit a colour aren't coloured here; their tabs are.
         /// </summary>
         /// <param name="node">A session or folder node</param>
         void ColorNode(TreeNode node)
         {
             if (node == null || node.Parent == null || IsQuickNode(node))
                 return;
-            Color? color;
+            string key;
             if (IsSessionNode(node))
             {
-                color = EnvironmentColors.Parse(((SessionData)node.Tag).Color);
+                key = SessionImageKey((SessionData)node.Tag);
             }
             else
             {
                 FolderSettings.Store? store = StoreOf(node);
-                color = store == null ? null : EnvironmentColors.ForFolder(store.Value, NodePath(node));
+                Color? color = store == null ? null : EnvironmentColors.ForFolder(store.Value, NodePath(node));
+                key = this.treeView1.ImageList == null ? ImageKeyFolder : IconLibrary.EnsureWithEnvironment(this.treeView1.ImageList, ImageKeyFolder, color);
             }
-            Color text = color == null ? Color.Empty : EnvironmentColors.ForText(color.Value, this.treeView1.BackColor);
-            if (node.ForeColor != text)
+            if (node.ImageKey != key)
             {
-                node.ForeColor = text;
+                node.ImageKey = key;
+                node.SelectedImageKey = key;
             }
         }
 
@@ -2060,14 +2062,19 @@ namespace SuperPutty
         #region Open tabs
 
         /// <summary>
-        /// A session's icon as the tree shows it: its own icon (or the default), with a green dot while a tab for it is
-        /// open and connected, or a red one while its tabs have dropped
+        /// A session's icon as the tree shows it: its own icon (or the default), on a circle of the session's own
+        /// environment colour if it has one, with a green dot while a tab for it is open and connected, or a red one
+        /// while its tabs have dropped
         /// </summary>
         /// <param name="session">The session</param>
         /// <returns>The image key</returns>
         string SessionImageKey(SessionData session)
         {
             string baseKey = IsValidImage(session.ImageKey) ? session.ImageKey : ImageKeySession;
+            if (this.treeView1.ImageList != null)
+            {
+                baseKey = IconLibrary.EnsureWithEnvironment(this.treeView1.ImageList, baseKey, EnvironmentColors.Parse(session.Color));
+            }
             IconLibrary.OpenState state;
             if (session.SessionId == null || !this.openStates.TryGetValue(session.SessionId, out state))
                 return baseKey;
