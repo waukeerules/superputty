@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using DarkModeForms;
@@ -449,26 +448,27 @@ namespace SuperPutty.Gui
         }
 
         /// <summary>
-        /// Paste into the session, asking first when it's several lines and Options -> Terminal says to ask for this
-        /// session (by default: sessions coloured red, for production). Each line runs as it arrives, so 40 lines of
-        /// config pasted by mistake into a production switch would all be applied.
+        /// Paste into the session. A paste of at least Options -> Terminal's number of lines (2 by default) is shown first
+        /// in <see cref="dlgPasteCheck"/>, where it can be checked and changed: each line runs as it arrives, so 40 lines
+        /// of config pasted by mistake into a switch would all be applied.
         /// </summary>
         /// <param name="text">The text to paste; nothing happens when it's empty</param>
         private void Paste(string text)
         {
             if (string.IsNullOrEmpty(text))
                 return;
-            int lines = PasteLineCount(text);
-            if (ShouldConfirmPaste(TerminalPreferences.Get("pasteCheck"), lines, this.environmentColor))
+            int threshold;
+            int.TryParse(TerminalPreferences.Get("pasteLines"), out threshold);
+            if (ShouldCheckPaste(threshold, PasteLineCount(text)))
             {
-                IEnumerable<string> first = text.Replace("\r\n", "\n").Split('\n', '\r').Take(3)
-                    .Select(line => line.Length > 80 ? line.Substring(0, 80) + "..." : line);
-                string question = string.Format("Paste {0} lines into {1}?\n\n{2}{3}", lines, this.session.SessionName,
-                    string.Join("\n", first), lines > 3 ? "\n..." : string.Empty);
-                DialogResult answer = Messenger.MessageBox(question, "Paste", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
-                this.Post(new { type = "focus" });
-                if (answer != DialogResult.Yes)
-                    return;
+                using (dlgPasteCheck dialog = new dlgPasteCheck(text, this.session.SessionName))
+                {
+                    DialogResult answer = dialog.ShowDialog(this.FindForm());
+                    text = dialog.PasteText;
+                    this.Post(new { type = "focus" });
+                    if (answer != DialogResult.OK || text.Length == 0)
+                        return;
+                }
             }
             this.Post(new { type = "paste", text });
         }
@@ -517,31 +517,13 @@ namespace SuperPutty.Gui
             return lines.Split('\n').Length;
         }
 
-        /// <summary>Whether to ask before a paste</summary>
-        /// <param name="mode">The pasteCheck preference: "production", "always" or "never"</param>
+        /// <summary>Whether to show a paste in <see cref="dlgPasteCheck"/> before typing it</summary>
+        /// <param name="threshold">The pasteLines preference: the fewest lines that are shown first; 0 or less never</param>
         /// <param name="lines">How many lines the paste is (<see cref="PasteLineCount"/>)</param>
-        /// <param name="environmentColor">The session's environment colour, or null</param>
-        /// <returns>true to ask: several lines, and "always", or "production" in a session coloured red</returns>
-        public static bool ShouldConfirmPaste(string mode, int lines, System.Drawing.Color? environmentColor)
+        /// <returns>true when the paste has at least <paramref name="threshold"/> lines</returns>
+        public static bool ShouldCheckPaste(int threshold, int lines)
         {
-            if (lines < 2 || mode == "never")
-                return false;
-            return mode == "always" || IsProductionColor(environmentColor);
-        }
-
-        /// <summary>
-        /// Whether an environment colour is a red, as production is coloured (EnvironmentColors' "Red (production)",
-        /// #C62828, or any other clear red); orange (staging) and the rest aren't
-        /// </summary>
-        /// <param name="color">The colour, or null</param>
-        /// <returns>true for a red</returns>
-        public static bool IsProductionColor(System.Drawing.Color? color)
-        {
-            if (!color.HasValue)
-                return false;
-            float hue = color.Value.GetHue();
-            float brightness = color.Value.GetBrightness();
-            return (hue <= 15 || hue >= 345) && color.Value.GetSaturation() >= 0.5f && brightness >= 0.2f && brightness <= 0.8f;
+            return threshold > 0 && lines >= threshold;
         }
 
         /// <summary>
@@ -561,9 +543,6 @@ namespace SuperPutty.Gui
         /// <summary>The session's environment colour as #rrggbb, for the cursor; null for none</summary>
         private string cursorColor;
 
-        /// <summary>The session's environment colour, for asking before a paste into production; null for none</summary>
-        private System.Drawing.Color? environmentColor;
-
         /// <summary>When the session log last got a time stamp (<see cref="LogStamp"/>)</summary>
         private DateTime lastLogStamp = DateTime.MinValue;
 
@@ -575,7 +554,6 @@ namespace SuperPutty.Gui
         /// <param name="color">The colour (EnvironmentColors.For), or null</param>
         public void SetCursorColor(System.Drawing.Color? color)
         {
-            this.environmentColor = color;
             this.cursorColor = color.HasValue ? string.Format("#{0:x2}{1:x2}{2:x2}", color.Value.R, color.Value.G, color.Value.B) : null;
             if (this.pageLoaded)
             {

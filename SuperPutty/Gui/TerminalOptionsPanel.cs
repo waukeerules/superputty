@@ -10,8 +10,8 @@ namespace SuperPutty.Gui
 {
     /// <summary>
     /// The built-in terminal's defaults on Tools -> Options -> Terminal (dlgFindPutty): highlighting rules, theme, font,
-    /// font size, cursor, blinking, bell, copy on select, marking the selection's matches, asking before a multi-line
-    /// paste, scrollback, keys, session log time stamps and the renderer. These are the same
+    /// font size, cursor, blinking, bell, copy on select, marking the selection's matches, showing a paste of several
+    /// lines first, scrollback, keys, session log time stamps and the renderer. These are the same
     /// preferences each terminal's right-click menu changes (Utils.TerminalPreferences), so a change in either shows in
     /// the other and in every open terminal tab. Built in code: a label and a control per row.
     /// </summary>
@@ -43,7 +43,7 @@ namespace SuperPutty.Gui
         private readonly ComboBox bell = NewCombo();
         private readonly CheckBox copyOnSelect = new CheckBox { Text = "Copy on select (as PuTTY does)", AutoSize = true };
         private readonly CheckBox markMatches = new CheckBox { Text = "Mark the other matches of the selected text (as Notepad++ does)", AutoSize = true };
-        private readonly ComboBox pasteCheck = NewCombo();
+        private readonly NumericUpDown pasteLines = new NumericUpDown { Minimum = 0, Maximum = 10000, Width = 80 };
         private readonly NumericUpDown scrollback = new NumericUpDown { Minimum = 0, Maximum = TerminalPreferences.UnlimitedScrollback, Increment = 1000, Width = 110, ThousandsSeparator = true };
         private readonly ComboBox keys = NewCombo();
         private readonly NumericUpDown logTimestamps = new NumericUpDown { Minimum = 0, Maximum = 3600, Increment = 10, Width = 80 };
@@ -73,7 +73,7 @@ namespace SuperPutty.Gui
             AddRow(table, "Cursor:", this.cursorShape);
             AddRow(table, "Cursor blinks:", this.cursorBlink);
             AddRow(table, "Bell:", this.bell);
-            AddRow(table, "Before a paste:", this.pasteCheck);
+            AddRow(table, "Check pastes of:", WithNote(this.pasteLines, "lines or more before typing them (0: never)"));
             AddRow(table, "Scrollback:", WithNote(this.scrollback, "lines (0: unlimited)"));
             AddRow(table, "Keys:", this.keys);
             AddRow(table, "Log time stamps:", WithNote(this.logTimestamps, "seconds apart, with output (0: none)"));
@@ -163,7 +163,8 @@ namespace SuperPutty.Gui
             Fill(this.bell, new[] { C("From the PuTTY profile", "profile"), C("Flash", "visual"), C("Sound", "sound"), C("None", "none") }, prefs["bell"]);
             this.copyOnSelect.Checked = prefs["copyOnSelect"] != "false";
             this.markMatches.Checked = prefs["markMatches"] != "false";
-            Fill(this.pasteCheck, new[] { C("Ask for several lines in production (red) sessions", "production"), C("Ask for several lines in any session", "always"), C("Don't ask", "never") }, prefs["pasteCheck"]);
+            int pasteLines;
+            this.pasteLines.Value = int.TryParse(prefs["pasteLines"], out pasteLines) ? Math.Max(0, Math.Min(10000, pasteLines)) : 0;
             int lines;
             this.scrollback.Value = int.TryParse(prefs["scrollback"], out lines) && lines > 0 ? Math.Min(lines, TerminalPreferences.UnlimitedScrollback) : 0;
             Fill(this.keys, new[] { C("Backspace, Home/End and F1-F12 from the PuTTY profile", "profile"), C("xterm's (as Windows Terminal)", "xterm") }, prefs["keys"]);
@@ -187,7 +188,7 @@ namespace SuperPutty.Gui
                 { "bell", value(this.bell) },
                 { "copyOnSelect", this.copyOnSelect.Checked ? "true" : "false" },
                 { "markMatches", this.markMatches.Checked ? "true" : "false" },
-                { "pasteCheck", value(this.pasteCheck) },
+                { "pasteLines", ((int)this.pasteLines.Value).ToString() },
                 { "scrollback", ((int)this.scrollback.Value).ToString() },
                 { "keys", value(this.keys) },
                 { "logTimestamps", ((int)this.logTimestamps.Value).ToString() },

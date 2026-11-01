@@ -143,6 +143,9 @@
     <Compile Include="Gui\dlgPendingChanges.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Gui\dlgPasteCheck.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Gui\ImageListPopup.cs">
       <SubType>Form</SubType>
     </Compile>
