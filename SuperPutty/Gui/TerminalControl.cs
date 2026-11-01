@@ -317,23 +317,24 @@ namespace SuperPutty.Gui
                 Log.Warn("Highlighting files skipped: " + string.Join("; ", problems));
             }
             bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
-            this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), promptColor = this.promptColor });
+            this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), cursorColor = this.cursorColor });
         }
 
-        /// <summary>The session's environment colour as #rrggbb, for the prompt; null for none</summary>
-        private string promptColor;
+        /// <summary>The session's environment colour as #rrggbb, for the cursor; null for none</summary>
+        private string cursorColor;
 
         /// <summary>
-        /// Colour the device's prompt with the session's environment colour (red for production), or the theme's
-        /// prompt colour when it has none. ctlPuttyPanel calls this when the tab opens and whenever colours change.
+        /// Draw the cursor in the session's environment colour (red for production), like its tab, or the theme's
+        /// cursor colour when it has none. The cursor rather than the prompt: it's the same on every device, where
+        /// prompts can't be recognised reliably. ctlPuttyPanel calls this when the tab opens and whenever colours change.
         /// </summary>
         /// <param name="color">The colour (EnvironmentColors.For), or null</param>
-        public void SetPromptColor(System.Drawing.Color? color)
+        public void SetCursorColor(System.Drawing.Color? color)
         {
-            this.promptColor = color.HasValue ? string.Format("#{0:x2}{1:x2}{2:x2}", color.Value.R, color.Value.G, color.Value.B) : null;
+            this.cursorColor = color.HasValue ? string.Format("#{0:x2}{1:x2}{2:x2}", color.Value.R, color.Value.G, color.Value.B) : null;
             if (this.pageLoaded)
             {
-                this.Post(new { type = "promptColor", color = this.promptColor });
+                this.Post(new { type = "cursorColor", color = this.cursorColor });
             }
         }
 

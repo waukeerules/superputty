@@ -34,7 +34,7 @@
     var autoSet = null;
     var darkDefault = true;
     var bellFromProfile = 'visual'; // the PuTTY profile's bell, from TerminalControl
-    var promptColor = null;         // the session's environment colour (#rrggbb) for the prompt, or null
+    var cursorColor = null;         // the session's environment colour (#rrggbb) for the cursor, or null
     var settleTimer = null;
     var scanFrom = null;        // marker: first line to look at for highlighting next time
     var logged = null;          // marker: first line not yet sent to the log
@@ -677,7 +677,8 @@
         var xtermTheme = {
             background: colors.background,
             foreground: colors.foreground,
-            cursor: colors.cursor || colors.foreground,
+            // the session's environment colour (red for production) when it has one, as on its tab
+            cursor: cursorColor || colors.cursor || colors.foreground,
             cursorAccent: colors.background,
             selectionBackground: colors.selection
         };
@@ -693,24 +694,9 @@
 
     // ---- messages and start ---------------------------------------------------------------------------------------
 
-    /**
-     * A highlighting style from the theme; the prompt takes the session's environment colour when it has one
-     * (red for production), lightened on dark backgrounds so it stays readable
-     */
+    /** A highlighting style from the theme */
     function styleFor(name) {
-        var style = theme && theme.styles ? theme.styles[name] : null;
-        if (name !== 'prompt' || !promptColor) { return style; }
-        var dark = !theme || theme.base !== 'vs';
-        return { color: dark ? lighten(promptColor, 0.3) : promptColor, bold: true };
-    }
-
-    /** Mix a #rrggbb colour with white */
-    function lighten(hex, amount) {
-        var n = parseInt(hex.substring(1), 16);
-        var parts = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (c) {
-            return Math.round(c + (255 - c) * amount);
-        });
-        return '#' + parts.map(function (c) { return ('0' + c.toString(16)).slice(-2); }).join('');
+        return theme && theme.styles ? theme.styles[name] : null;
     }
 
     // ---- bell -----------------------------------------------------------------------------------------------------
@@ -758,7 +744,7 @@
     function configure(config) {
         darkDefault = !!config.dark;
         bellFromProfile = config.bell || 'visual';
-        promptColor = config.promptColor || null;
+        cursorColor = config.cursorColor || null;
         themes = config.themes || [];
         var compiled = SpRules.compile(config.ruleSets || []);
         ruleSets = compiled.sets;
@@ -789,7 +775,7 @@
             case 'paste': if (message.text) { term.paste(message.text); } break;
             case 'focus': term.focus(); break;
             case 'action': runAction(message.name); break;
-            case 'promptColor': promptColor = message.color || null; highlight(true); break;
+            case 'cursorColor': cursorColor = message.color || null; applyTheme(); break;
         }
     }
 
