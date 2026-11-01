@@ -80,7 +80,7 @@
             this.treeView1.SelectedImageIndex = 0;
             this.treeView1.ShowLines = false;
             this.treeView1.ShowNodeToolTips = true;
-            this.treeView1.ShowRootLines = false;
+            this.treeView1.ShowRootLines = true;
             this.treeView1.Size = new System.Drawing.Size(430, 478);
             this.treeView1.TabIndex = 0;
             this.treeView1.ItemDrag += new System.Windows.Forms.ItemDragEventHandler(this.treeView1_ItemDrag);

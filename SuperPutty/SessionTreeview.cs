@@ -2550,7 +2550,7 @@ namespace SuperPutty
                 group.Tag = kind;
                 group.ContextMenuStrip = kind == RootKind.Recent ? this.contextMenuStripRecentGroup : null;
             }
-            // the count shows there's something inside while it's closed, as top-level nodes have no arrow
+            // the count tells how much is inside while it's closed
             group.Text = string.Format("{0} ({1})", text, sessions.Count);
             group.Nodes.Clear();
             for (int i = 0; i < sessions.Count; i++)
