@@ -204,7 +204,7 @@ columns, `error:`).
 
 ### Where users configure it
 
-- **Tools → Options → Highlighting** (new page): turn the feature on, pick the default rule sets, edit themes.
+- **Tools → Options → Terminal** (new page): turn the feature on, pick the default rule sets, edit themes.
 - **Rules and themes are files** in `<SettingsFolder>\highlighting\` (`*.rules.json`, `*.theme.json`). The
   SettingsFolder can be shared, so a team gets the same rules. A per-user folder next to `SuperXPuTTY.settings` overrides
   them. The options page has a list with a test box: paste output, see it coloured.
@@ -249,7 +249,7 @@ is how the test log was recorded.
 
 **Built** as the built-in terminal; see FORK_CHANGES.md for the files, checks and manual tests. What changed from the
 plan below:
-- it's one global option (Options → Highlighting), not per session or folder yet;
+- it's one global option (Options → Terminal), not per session or folder yet;
 - **logging comes from the screen.** ConPTY's passthrough mode (`PSEUDOCONSOLE_PASSTHROUGH_MODE`, 0x8), which would
   forward plink's bytes unchanged, isn't in this Windows build's ConPTY: the flag is ignored and the stream is still
   rewritten. So the page logs each line once the cursor leaves it, and WAITFOR also reads the cursor's line. That

@@ -48,11 +48,15 @@ namespace SuperPutty
         /// <summary>The session fields the search box looks in, as chosen with "Search in..."; saved on OK</summary>
         private SessionTreeview.SearchFields searchFields;
 
+        /// <summary>The built-in terminal's defaults, on the Terminal page (Gui.TerminalOptionsPanel)</summary>
+        private TerminalOptionsPanel terminalOptions;
+
         public dlgFindPutty()
         {
             //this.Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
 
             InitializeComponent();
+            this.AddTerminalOptions();
 
             FixDpiScalingIssues();
 
@@ -204,6 +208,7 @@ namespace SuperPutty
             this.textBoxSessionLogFolder.Text = SuperPuTTY.Settings.SessionLogFolder;
             this.checkHighlightedOutput.Checked = SuperPuTTY.Settings.HighlightedOutputEnabled;
             this.checkBuiltInTerminal.Checked = SuperPuTTY.Settings.BuiltInTerminal;
+            this.terminalOptions.LoadPreferences();
             string webView2 = OutputHighlighting.RuntimeVersion();
             this.labelHighlightingRuntime.Text = webView2 != null
                 ? "WebView2 runtime: " + webView2
@@ -450,6 +455,7 @@ namespace SuperPutty
                 SuperPuTTY.Settings.SessionLogFolder = this.textBoxSessionLogFolder.Text.Trim();
                 SuperPuTTY.Settings.HighlightedOutputEnabled = this.checkHighlightedOutput.Checked;
                 SuperPuTTY.Settings.BuiltInTerminal = this.checkBuiltInTerminal.Checked;
+                this.terminalOptions.SavePreferences();
                 SuperPuTTY.Settings.AutoReconnect = this.checkAutoReconnect.Checked;
                 SuperPuTTY.Settings.AutoReconnectDelaySeconds = (int)this.numericReconnectDelay.Value;
                 SuperPuTTY.Settings.AutoReconnectAttempts = (int)this.numericReconnectAttempts.Value;
@@ -545,6 +551,25 @@ namespace SuperPutty
         /// <summary>Pick the folder kept session logs go to</summary>
         /// <param name="sender">The Browse button</param>
         /// <param name="e">Not used</param>
+        /// <summary>
+        /// Put the built-in terminal's defaults on the Terminal page, between the switches and the note on rule files.
+        /// They're a control of their own (TerminalOptionsPanel), shared with nothing else on the page.
+        /// </summary>
+        private void AddTerminalOptions()
+        {
+            GroupBox group = new GroupBox
+            {
+                Text = "Defaults for terminal tabs (each terminal's right-click menu changes them too)",
+                Location = new System.Drawing.Point(12, 74),
+                Size = new System.Drawing.Size(748, 334),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                Padding = new Padding(8)
+            };
+            this.terminalOptions = new TerminalOptionsPanel { Dock = DockStyle.Fill };
+            group.Controls.Add(this.terminalOptions);
+            this.tabPageHighlighting.Controls.Add(group);
+        }
+
         /// <summary>Open the folder for the user's own highlighting rules and themes, creating it with a README</summary>
         /// <param name="sender">The Open Rules Folder button</param>
         /// <param name="e">Not used</param>

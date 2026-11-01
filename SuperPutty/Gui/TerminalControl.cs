@@ -19,7 +19,7 @@ namespace SuperPutty.Gui
     /// device output can be highlighted live (the Highlighted Output rules) and themed. plink.exe, beside PuTTY, makes
     /// the connection with the session's PuTTY profile, keys and jump host (PuttyStartInfo.PlinkCommandLine), running
     /// in a pseudo console (Utils.ConPty); its output is drawn by xterm.js in a WebView2 (web\terminal\index.html).
-    /// ctlPuttyPanel creates it as its ApplicationPanel's embedded application when Tools -> Options -> Highlighting ->
+    /// ctlPuttyPanel creates it as its ApplicationPanel's embedded application when Tools -> Options -> Terminal ->
     /// "Use the built-in terminal" is on, as Gui.RdpControl is for RDP. It writes the session log (from what the page
     /// shows, see docs/MonacoTerminal.md), keeps the text WAITFOR matches against, types Send Commands and button-bar
     /// text, and reconnects a dropped session in the same tab.
@@ -187,6 +187,7 @@ namespace SuperPutty.Gui
             this.Controls.Add(this.webView);
             this.reconnectTimer = new Timer();
             this.reconnectTimer.Tick += (s, e) => { this.reconnectTimer.Stop(); this.Reconnect(); };
+            TerminalPreferences.Changed += this.OnPreferencesChanged;
         }
 
         /// <summary>Whether the session is connected (or connecting); false while it's down</summary>
@@ -327,6 +328,10 @@ namespace SuperPutty.Gui
                 case "pasteRequest":
                     this.Post(new { type = "paste", text = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty });
                     break;
+                case "pref":
+                    // saved for every terminal tab; TerminalPreferences.Changed sends it to all of them
+                    TerminalPreferences.Set((string)message["name"], (string)message["value"]);
+                    break;
                 case "cleared":
                     // the pseudo console repaints its own copy of the screen after a resize; clear that copy too
                     this.pty?.ClearScreen();
@@ -378,7 +383,22 @@ namespace SuperPutty.Gui
                 Log.Warn("Highlighting files skipped: " + string.Join("; ", problems));
             }
             bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
-            this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursor = CursorFromProfile(this.session.PuttySession), local = IsLocalShell(this.session.Proto), cursorColor = this.cursorColor });
+            this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursor = CursorFromProfile(this.session.PuttySession), local = IsLocalShell(this.session.Proto),
+                profileFont = FontFromProfile(this.session.PuttySession), fonts = MonospaceFonts(), prefs = TerminalPreferences.All(), cursorColor = this.cursorColor });
+        }
+
+        /// <summary>
+        /// A terminal preference changed (in this tab's menu, another tab's, or Tools -> Options -> Terminal): send them
+        /// all to the page, which applies them
+        /// </summary>
+        /// <param name="sender">Not used</param>
+        /// <param name="e">Not used</param>
+        private void OnPreferencesChanged(object sender, EventArgs e)
+        {
+            if (this.pageLoaded)
+            {
+                this.Post(new { type = "prefs", prefs = TerminalPreferences.All() });
+            }
         }
 
         /// <summary>The session's environment colour as #rrggbb, for the cursor; null for none</summary>
@@ -434,6 +454,64 @@ namespace SuperPutty.Gui
             if (!int.TryParse(PuttyDataHelper.GetProfileValue(profile, "BlinkCur"), out blink))
                 blink = 0;
             return new { style = type == 1 ? "underline" : type == 2 ? "bar" : "block", blink = blink != 0 };
+        }
+
+        /// <summary>
+        /// The font from the session's PuTTY profile (Window > Appearance), as PuTTY saves it: "Font" (its name) and
+        /// "FontHeight" (in points). Missing values get PuTTY's default, Courier New 10 point.
+        /// </summary>
+        /// <param name="profile">The PuTTY profile; empty for Default Settings</param>
+        /// <returns>An object for the page: family, points</returns>
+        public static object FontFromProfile(string profile)
+        {
+            string family = PuttyDataHelper.GetProfileValue(profile, "Font");
+            int points;
+            if (!int.TryParse(PuttyDataHelper.GetProfileValue(profile, "FontHeight"), out points) || points <= 0)
+                points = 10;
+            return new { family = string.IsNullOrWhiteSpace(family) ? "Courier New" : family, points };
+        }
+
+        /// <summary>The installed fonts whose letters are all the same width, for the Font menu; found once</summary>
+        private static List<string> monospaceFonts;
+
+        /// <summary>
+        /// The installed monospaced fonts (an "i" as wide as a "W"), for the terminal's Font menu and Tools -> Options ->
+        /// Terminal. Variable-width fonts are left out: the terminal lays characters out on a grid.
+        /// </summary>
+        /// <returns>The font names, sorted</returns>
+        public static List<string> MonospaceFonts()
+        {
+            if (monospaceFonts != null)
+                return monospaceFonts;
+            List<string> found = new List<string>();
+            using (System.Drawing.Text.InstalledFontCollection installed = new System.Drawing.Text.InstalledFontCollection())
+            {
+                foreach (System.Drawing.FontFamily family in installed.Families)
+                {
+                    if (!family.IsStyleAvailable(System.Drawing.FontStyle.Regular) || family.Name.StartsWith("@", StringComparison.Ordinal))
+                        continue;
+                    try
+                    {
+                        using (System.Drawing.Font font = new System.Drawing.Font(family, 12))
+                        {
+                            TextFormatFlags flags = TextFormatFlags.NoPadding;
+                            int narrow = TextRenderer.MeasureText("iiiiiiiiii", font, System.Drawing.Size.Empty, flags).Width;
+                            int wide = TextRenderer.MeasureText("WWWWWWWWWW", font, System.Drawing.Size.Empty, flags).Width;
+                            if (narrow == wide)
+                            {
+                                found.Add(family.Name);
+                            }
+                        }
+                    }
+                    catch (ArgumentException)
+                    {
+                        // a font that can't be created in this style
+                    }
+                }
+            }
+            found.Sort(StringComparer.OrdinalIgnoreCase);
+            monospaceFonts = found;
+            return found;
         }
 
         /// <summary>
@@ -886,6 +964,7 @@ namespace SuperPutty.Gui
             if (disposing)
             {
                 this.closing = true;
+                TerminalPreferences.Changed -= this.OnPreferencesChanged;
                 this.reconnectTimer.Dispose();
                 this.pty?.Dispose();
                 this.pty = null;

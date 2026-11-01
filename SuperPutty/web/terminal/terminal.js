@@ -57,14 +57,23 @@
         }
     }
 
-    /** Read a per-user preference from the WebView2 profile; null when there's none */
+    /**
+     * The terminal preferences (Utils/TerminalPreferences.cs): rule set, theme, font, cursor, bell, copy on select,
+     * marking matches. SuperPuTTY keeps them, so Tools > Options > Terminal and every tab share them; they arrive in
+     * "config" and again in "prefs" whenever they change.
+     */
+    var prefs = {};
+
+    /** One preference, or null when it isn't set (empty counts as not set) */
     function loadPref(name) {
-        try { return window.localStorage.getItem('terminal.' + name); } catch (e) { return null; }
+        var value = prefs[name];
+        return value === undefined || value === null || value === '' ? null : String(value);
     }
 
-    /** Remember a per-user preference (rule set, theme) for every terminal tab */
+    /** Change a preference here and have SuperPuTTY save it for every terminal tab */
     function savePref(name, value) {
-        try { window.localStorage.setItem('terminal.' + name, value); } catch (e) { /* not essential */ }
+        prefs[name] = String(value);
+        post({ type: 'pref', name: name, value: String(value) });
     }
 
     // ---- size -------------------------------------------------------------------------------------------------
@@ -530,6 +539,19 @@
         var themeItems = themes.map(function (t) {
             return { label: t.name, checked: theme && theme.name === t.name, action: function () { savePref('theme', t.name); applyTheme(); } };
         });
+        var chosenFamily = loadPref('fontFamily') || '';
+        var setFamily = function (value) { return function () { savePref('fontFamily', value); applyFont(); }; };
+        var fontItems = [
+            { label: 'Larger', key: 'Ctrl+Wheel', action: function () { stepFontSize(1); } },
+            { label: 'Smaller', key: 'Ctrl+Wheel', action: function () { stepFontSize(-1); } },
+            { label: 'Default Size (' + chosenFontDefaultSize() + ' px)', checked: !(parseInt(loadPref('fontSize'), 10) > 0), action: function () { savePref('fontSize', '0'); applyFont(); } },
+            '-',
+            { label: 'From Theme (' + themeFont().family.split(',')[0].replace(/"/g, '') + ')', checked: chosenFamily === '', action: setFamily('') },
+            { label: 'From PuTTY Profile (' + profileFont.family + ', ' + profileFont.points + ' pt)', checked: chosenFamily === 'profile', action: setFamily('profile') },
+            '-'
+        ].concat(installedFonts.map(function (name) {
+            return { label: name, checked: chosenFamily === name, action: setFamily(name) };
+        }));
         var shapeNames = { block: 'Block', underline: 'Underline', bar: 'Vertical Line' };
         var chosenShape = loadPref('cursorShape') || 'profile';
         var chosenBlink = loadPref('cursorBlink') || 'profile';
@@ -561,6 +583,7 @@
             { label: 'Highlighting', items: ruleItems },
             { label: 'Theme', items: themeItems },
             { label: 'Bell', items: bellItems },
+            { label: 'Font', items: fontItems },
             { label: 'Cursor', items: cursorItems },
             '-',
             { label: 'Copy on Select', checked: prefOn('copyOnSelect'), action: function () { togglePref('copyOnSelect'); } },
@@ -709,9 +732,7 @@
         };
         (colors.ansi || []).slice(0, 16).forEach(function (c, i) { xtermTheme[names[i]] = c; });
         term.options.theme = xtermTheme;
-        var font = theme.font || {};
-        term.options.fontFamily = font.family || 'Consolas, "Courier New", monospace';
-        term.options.fontSize = font.size || 14;
+        applyFont();
         document.documentElement.style.setProperty('--bg', colors.background || '#000000');
         window.setTimeout(fit, 0);
         highlight(true);
@@ -770,6 +791,68 @@
         }
     }
 
+    // ---- font -----------------------------------------------------------------------------------------------------
+
+    /** The PuTTY profile's font (Window > Appearance), from TerminalControl */
+    var profileFont = { family: 'Courier New', points: 10 };
+
+    /** The installed monospaced fonts, from TerminalControl */
+    var installedFonts = [];
+
+    /** Smallest and largest font size, in pixels */
+    var MIN_FONT = 6, MAX_FONT = 48;
+
+    /** The theme's font, used when the preference doesn't name one */
+    function themeFont() {
+        var font = theme && theme.font ? theme.font : {};
+        return { family: font.family || 'Consolas, "Courier New", monospace', size: font.size || 14 };
+    }
+
+    /**
+     * The font to draw with: the preference's family (the theme's, the PuTTY profile's, or a named font) and size
+     * (the preference's, else the profile's points as pixels at 96 dpi, else the theme's)
+     */
+    function chosenFont() {
+        var family = loadPref('fontFamily');
+        var size = parseInt(loadPref('fontSize'), 10) || 0;
+        var font;
+        if (family === 'profile') {
+            font = { family: '"' + profileFont.family + '", monospace', size: Math.round(profileFont.points * 96 / 72) };
+        } else if (family) {
+            font = { family: '"' + family + '", monospace', size: themeFont().size };
+        } else {
+            font = themeFont();
+        }
+        if (size > 0) { font.size = size; }
+        return font;
+    }
+
+    /** Draw with the chosen font, and refit the columns and rows to it */
+    function applyFont() {
+        var font = chosenFont();
+        term.options.fontFamily = font.family;
+        term.options.fontSize = Math.max(MIN_FONT, Math.min(MAX_FONT, font.size));
+        window.setTimeout(fit, 0);
+    }
+
+    /** The size the font has when no size is chosen: the profile's or the theme's */
+    function chosenFontDefaultSize() {
+        var saved = prefs.fontSize;
+        prefs.fontSize = '0';
+        var size = chosenFont().size;
+        prefs.fontSize = saved;
+        return size;
+    }
+
+    /** Make the font a step larger or smaller (the menu, Ctrl+mouse wheel), for every terminal tab */
+    function stepFontSize(step) {
+        var size = Math.max(MIN_FONT, Math.min(MAX_FONT, term.options.fontSize + step));
+        if (size !== term.options.fontSize) {
+            savePref('fontSize', size);
+            applyFont();
+        }
+    }
+
     // ---- cursor ---------------------------------------------------------------------------------------------------
 
     /** The cursor's shape: the menu's choice, else the PuTTY profile's ("block", "underline" or "bar") */
@@ -795,9 +878,23 @@
         term.options.cursorBlink = cursorBlinks();
     }
 
+    /**
+     * The preferences changed (this tab's menu, another tab's, or Tools > Options > Terminal): apply them all. The
+     * theme also applies the font and redoes the highlighting.
+     */
+    function applyPrefs(changed) {
+        prefs = changed || {};
+        applyTheme();
+        applyCursor();
+        markSelectionMatches();
+    }
+
     /** Apply a config message: rule sets, themes and whether SuperPuTTY is dark; then fit and report the size */
     function configure(config) {
         darkDefault = !!config.dark;
+        prefs = config.prefs || {};
+        if (config.profileFont) { profileFont = config.profileFont; }
+        installedFonts = config.fonts || [];
         bellFromProfile = config.bell || 'visual';
         if (config.bellOverload) { bellOverload = config.bellOverload; }
         if (config.cursor) { cursorFromProfile = config.cursor; }
@@ -835,6 +932,7 @@
             case 'focus': term.focus(); break;
             case 'action': runAction(message.name); break;
             case 'cursorColor': cursorColor = message.color || null; applyTheme(); break;
+            case 'prefs': applyPrefs(message.prefs); break;
         }
     }
 
@@ -903,6 +1001,13 @@
         element.addEventListener('mousedown', function (e) {
             if (e.button === 2) { rememberSelection(); }
         }, true);
+        // Ctrl+mouse wheel makes the font larger or smaller, as in Windows Terminal (capture: before xterm.js scrolls)
+        element.addEventListener('wheel', function (e) {
+            if (!e.ctrlKey) { return; }
+            e.preventDefault();
+            e.stopPropagation();
+            stepFontSize(e.deltaY < 0 ? 1 : -1);
+        }, { capture: true, passive: false });
         element.addEventListener('contextmenu', function (e) {
             e.preventDefault();
             restoreSelection();

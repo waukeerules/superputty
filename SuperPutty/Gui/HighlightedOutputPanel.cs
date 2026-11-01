@@ -19,7 +19,7 @@ namespace SuperPutty.Gui
     /// that are up drawn green), next to the PuTTY tab it comes from. PuTTY keeps running as always; this panel only
     /// reads the session log PuTTY writes (Utils.SessionLog) and hands its bytes to a page in a WebView2
     /// (web\output\index.html), which rebuilds the screen with xterm.js and shows it. Opened from the tab menu
-    /// (ctlPuttyPanel) when Tools -> Options -> Highlighting is on. Rule and theme files come from
+    /// (ctlPuttyPanel) when Tools -> Options -> Terminal is on. Rule and theme files come from
     /// Utils.OutputHighlighting. Not saved in layouts. See docs/MonacoTerminal.md.
     /// </summary>
     public class HighlightedOutputPanel : ToolWindow

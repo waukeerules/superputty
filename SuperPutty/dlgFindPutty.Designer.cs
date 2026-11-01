@@ -2097,16 +2097,16 @@
             this.tabPageHighlighting.Padding = new System.Windows.Forms.Padding(4);
             this.tabPageHighlighting.Size = new System.Drawing.Size(772, 514);
             this.tabPageHighlighting.TabIndex = 5;
-            this.tabPageHighlighting.Text = "Highlighting";
+            this.tabPageHighlighting.Text = "Terminal";
             this.tabPageHighlighting.UseVisualStyleBackColor = true;
             //
             // checkHighlightedOutput
             //
             this.checkHighlightedOutput.AutoSize = true;
-            this.checkHighlightedOutput.Location = new System.Drawing.Point(16, 20);
+            this.checkHighlightedOutput.Location = new System.Drawing.Point(16, 42);
             this.checkHighlightedOutput.Margin = new System.Windows.Forms.Padding(4);
             this.checkHighlightedOutput.Name = "checkHighlightedOutput";
-            this.checkHighlightedOutput.TabIndex = 0;
+            this.checkHighlightedOutput.TabIndex = 1;
             this.checkHighlightedOutput.Text = "Show \"Highlighted Output\" in the PuTTY tab menu";
             this.toolTip.SetToolTip(this.checkHighlightedOutput, "Shows a session's output beside its tab, with syntax highlighting. PuTTY itself is unchanged.");
             this.checkHighlightedOutput.UseVisualStyleBackColor = true;
@@ -2114,47 +2114,42 @@
             // checkBuiltInTerminal
             //
             this.checkBuiltInTerminal.AutoSize = true;
-            this.checkBuiltInTerminal.Location = new System.Drawing.Point(16, 50);
+            this.checkBuiltInTerminal.Location = new System.Drawing.Point(16, 14);
             this.checkBuiltInTerminal.Margin = new System.Windows.Forms.Padding(4);
             this.checkBuiltInTerminal.Name = "checkBuiltInTerminal";
-            this.checkBuiltInTerminal.TabIndex = 1;
+            this.checkBuiltInTerminal.TabIndex = 0;
             this.checkBuiltInTerminal.Text = "Use the built-in terminal for SSH, Telnet, Rlogin, Raw, Serial, cmd, PowerShell and WSL sessions";
             this.toolTip.SetToolTip(this.checkBuiltInTerminal, "Connects with plink (beside PuTTY) and draws the terminal in SuperPuTTY. Applies to tabs opened after OK.");
             this.checkBuiltInTerminal.UseVisualStyleBackColor = true;
             //
             // labelHighlighting
             //
-            this.labelHighlighting.Location = new System.Drawing.Point(16, 86);
+            this.labelHighlighting.Location = new System.Drawing.Point(16, 414);
             this.labelHighlighting.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.labelHighlighting.Name = "labelHighlighting";
-            this.labelHighlighting.Size = new System.Drawing.Size(740, 190);
-            this.labelHighlighting.TabIndex = 2;
-            this.labelHighlighting.Text = "Highlighted Output shows what a PuTTY session printed (from its session log) in an editor, coloured by rules: "
-    + "for example Cisco interfaces that are up in green and down in red. It has search, folding, Save As and a "
-    + "choice of rules and themes.\r\n\r\nThe built-in terminal replaces the PuTTY window: plink makes the connection "
-    + "with the same PuTTY profile, keys and jump host, and the output is coloured by the same rules as it arrives. "
-    + "Right-click it for Copy, Paste, Find, Clear and the highlighting and theme. It needs plink.exe beside PuTTY; "
-    + "sessions use PuTTY when it's missing.\r\n\r\nRules and themes are *.rules.json and *.theme.json files. Put your own in "
-    + "the \"highlighting\" folder of the settings folder (shared with your team) or of your own settings folder; "
-    + "the folder's README explains the format.";
+            this.labelHighlighting.Size = new System.Drawing.Size(740, 50);
+            this.labelHighlighting.TabIndex = 3;
+            this.labelHighlighting.Text = "Highlighting rules and themes are *.rules.json and *.theme.json files. Put your own in the \"highlighting\" "
+    + "folder of the settings folder (shared with your team) or of your own settings folder; its README explains the format.";
             //
             // labelHighlightingRuntime
             //
             this.labelHighlightingRuntime.AutoSize = true;
-            this.labelHighlightingRuntime.Location = new System.Drawing.Point(16, 286);
+            this.labelHighlightingRuntime.Location = new System.Drawing.Point(16, 474);
             this.labelHighlightingRuntime.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.labelHighlightingRuntime.Name = "labelHighlightingRuntime";
-            this.labelHighlightingRuntime.TabIndex = 3;
+            this.labelHighlightingRuntime.TabIndex = 4;
             this.labelHighlightingRuntime.Text = "WebView2 runtime:";
             //
             // buttonHighlightingFolder
             //
             this.buttonHighlightingFolder.AutoSize = true;
-            this.buttonHighlightingFolder.Location = new System.Drawing.Point(16, 320);
+            this.buttonHighlightingFolder.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.buttonHighlightingFolder.Location = new System.Drawing.Point(576, 466);
             this.buttonHighlightingFolder.Margin = new System.Windows.Forms.Padding(4);
             this.buttonHighlightingFolder.Name = "buttonHighlightingFolder";
             this.buttonHighlightingFolder.Size = new System.Drawing.Size(180, 32);
-            this.buttonHighlightingFolder.TabIndex = 4;
+            this.buttonHighlightingFolder.TabIndex = 5;
             this.buttonHighlightingFolder.Text = "Open Rules Folder";
             this.buttonHighlightingFolder.UseVisualStyleBackColor = true;
             this.buttonHighlightingFolder.Click += new System.EventHandler(this.buttonHighlightingFolder_Click);

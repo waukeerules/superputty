@@ -1054,7 +1054,7 @@ namespace SuperPutty
         /// <summary>
         /// Add "Search Output...", "Highlighted Output", "Watch for Activity" and "Watch for Silence" to the tab's menu,
         /// after "Accept Commands". They need a session log, so they're only enabled for PuTTY sessions. Highlighted
-        /// Output is only shown when it's turned on in Tools -> Options -> Highlighting.
+        /// Output is only shown when it's turned on in Tools -> Options -> Terminal.
         /// </summary>
         private void AddOutputMenuItems()
         {

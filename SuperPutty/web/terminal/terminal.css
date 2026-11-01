@@ -83,6 +83,12 @@ html, body {
   position: fixed;
 }
 
+/* long submenus (the installed fonts) scroll instead of running off the screen */
+.menu.submenu {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
 #find {
   position: absolute;
   top: 6px;

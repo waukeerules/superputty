@@ -1343,7 +1343,7 @@ For audits, and for teams that keep their device lists in a spreadsheet (`Data/S
 
 ## Highlighted Output: a session's output with syntax highlighting
 
-Phase 1 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:** turn it on in **Tools → Options → Highlighting**. Then right-click a PuTTY tab → **Highlighted Output** opens a panel beside it that shows everything the session printed, in a Monaco editor (the editor of VS Code), coloured by rules: on Cisco, `show ip interface brief` lines that are up/up in green and down/down in red, `connected` / `notconnect`, `is up, line protocol is up`, syslog severities, `%` errors, addresses and MACs. **PuTTY runs exactly as before**; the panel only reads the session log PuTTY already writes (`-sessionlog`, see [Session logs](#session-logs-and-spsl-waitfor)).
+Phase 1 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:** turn it on in **Tools → Options → Terminal**. Then right-click a PuTTY tab → **Highlighted Output** opens a panel beside it that shows everything the session printed, in a Monaco editor (the editor of VS Code), coloured by rules: on Cisco, `show ip interface brief` lines that are up/up in green and down/down in red, `connected` / `notconnect`, `is up, line protocol is up`, syslog severities, `%` errors, addresses and MACs. **PuTTY runs exactly as before**; the panel only reads the session log PuTTY already writes (`-sessionlog`, see [Session logs](#session-logs-and-spsl-waitfor)).
 
 - **What the panel shows is what you saw.** The log holds what the device sent, including the backspaces and spaces IOS uses to erase `--More--`, line editing and cursor moves, so it can't be read line by line. The page feeds the log to an xterm.js terminal that is never shown, which rebuilds the screen the way PuTTY drew it; lines that scroll off its screen are copied into the editor, and the lines still on its screen are rewritten as they change.
 - **Toolbar:** the rule set (Auto picks it from the prompt: `name#` is Cisco, `user@host>` is Junos), theme, Follow (keeps the newest line in view; scrolling up turns it off, scrolling to the end turns it on), Wrap, Find (also Ctrl+F; regex and match case), **Save As...** (the text as you saw it), **Open File...** (show a kept log or any text file instead, e.g. to try out rules), **Rules Folder** and **Reload Rules**. The editor is read-only, with folding (`show running-config` blocks), a minimap and copy.
@@ -1363,7 +1363,7 @@ Phase 1 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:**
 | `web/lib/xterm` | New. xterm.js 6.0.0 (MIT), its stylesheet and LICENSE; also used by the built-in terminal |
 | `Utils/SessionLog.cs` | `ReadBytesFrom`: raw bytes, so a UTF-8 character split between two reads isn't garbled |
 | `ctlPuttyPanel.cs` | The **Highlighted Output** tab menu item, shown only when the option is on |
-| `dlgFindPutty.cs` / `.Designer.cs` | The **Highlighting** page: the option, the WebView2 runtime's version, **Open Rules Folder** |
+| `dlgFindPutty.cs` / `.Designer.cs` | The **Terminal** page (formerly Highlighting): the option, the WebView2 runtime's version, **Open Rules Folder** |
 | `Properties/Settings.*`, `App.config` | `HighlightedOutputEnabled` (default off) |
 | `SuperPutty.csproj` | The new files, `Microsoft.Web.WebView2` 1.0.4258.31, and `web\**` copied to the output |
 | `SuperPuttyInstaller/Product.wxs` | `Microsoft.Web.WebView2.Core.dll`, `.WinForms.dll`, `runtimes\win-x64\|win-x86\|win-arm64\native\WebView2Loader.dll` (the exe is AnyCPU) and everything under `web\` |
@@ -1381,7 +1381,7 @@ Phase 1 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:**
 - Loading a very large existing log takes a while (about 1 MB a second); output arriving live is shown at once.
 
 Manual tests:
-1. **Tools → Options → Highlighting**: the runtime's version is shown. Tick the option and click OK.
+1. **Tools → Options → Terminal**: the runtime's version is shown. Tick the option and click OK.
 2. Open an SSH session to a Cisco device, right-click the tab → **Highlighted Output**: the panel opens to the right of the tab. Run `show ip interface brief`, `show interfaces status` and `show interfaces` (page through `--More--` with Space, then `q`): it should follow the output, with up interfaces green and down ones red, and no `--More--` left in the text.
 3. Scroll the panel up: Follow unticks and new output doesn't move the view. Scroll to the end: it ticks again.
 4. Ctrl+F in the panel, search for `down`. Try **Save As...** and open the file.
@@ -1394,7 +1394,7 @@ Manual tests:
 
 ## Built-in terminal: highlighted as you type
 
-Phase 2 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:** Tools → Options → Highlighting → **Use the built-in terminal for SSH, Telnet, Rlogin, Raw and Serial sessions**. Tabs opened after that show a terminal drawn by SuperPuTTY instead of a PuTTY window, coloured live by the same rules as Highlighted Output (up interfaces green, down ones red, and so on).
+Phase 2 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:** Tools → Options → Terminal → **Use the built-in terminal for SSH, Telnet, Rlogin, Raw and Serial sessions**. Tabs opened after that show a terminal drawn by SuperPuTTY instead of a PuTTY window, coloured live by the same rules as Highlighted Output (up interfaces green, down ones red, and so on).
 
 - **The connection is still PuTTY's.** plink.exe, beside PuTTY, connects with the session's PuTTY profile (`-load`), keys and Pageant, jump host (`-proxycmd`), default parameters and extra arguments: the same arguments PuTTY gets (`PuttyStartInfo.PlinkCommandLine`). It runs in a Windows pseudo console (ConPTY), so password, passphrase and host-key prompts appear in the terminal and are answered there, and the window size reaches the server. Without plink.exe or the WebView2 runtime the session opens in PuTTY as before.
 - **It feels like PuTTY:** the PuTTY theme (grey on black, green cursor, PuTTY's colours) by default; the cursor's shape and blinking come from the PuTTY profile (it only blinks while the tab has the keyboard); selecting copies (**Copy on Select** in the menu turns that off); **Shift+Insert** and middle-click paste; Ctrl+Insert copies. Ctrl+C, Ctrl+V and the like go to the device as usual.
@@ -1407,6 +1407,8 @@ Phase 2 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:**
 - **Find's current match** is bright amber with black text; the other matches stay dark amber. (xterm.js draws the first-registered of two marks on the same cells, so the current match's usual mark is removed while it's current.)
 - **cmd, PowerShell and WSL** use the built-in terminal too when the option is on, so every CLI tab looks and works the same (theme, find, menu, highlighting, Copy on Select). The shell runs directly in the pseudo console, as Windows Terminal runs it, starting in `%userprofile%` as before; history, arrows and PSReadLine work as in a console window. They get a session log like PuTTY's (so Search Output, WAITFOR and Watch for Activity work, which they didn't in their own window), and `exit` closes the tab. **Ctrl+C** stops a running command (`ping -t`): typing `0x03` into a pseudo console doesn't raise the console's Ctrl+C signal, so SuperPuTTY raises it (`ConPty.SendCtrlC`, attaching to the shell's console for a moment) after typing it. SuperPuTTY no longer uses the inheritable "ignore Ctrl+C" flag while attached (the arrow-key fix did; every shell started after it would have ignored Ctrl+C) but a handler, and clears the flag if it inherited it. Open in PuTTY is left out of their menu.
 - **The cursor follows the PuTTY profile** (Window → Appearance): its shape (`CurType`: block, underline or vertical line) and whether it blinks (`BlinkCur`), read like the bell (`TerminalControl.CursorFromProfile`); a profile that doesn't set them gets PuTTY's steady block. The menu's **Cursor** submenu overrides the shape and the blinking separately, for all terminal tabs. Without the keyboard a block shows as an outline, as in PuTTY.
+- **Font:** the menu's **Font** submenu has Larger, Smaller and Default Size (also Ctrl+mouse wheel, as in Windows Terminal), and the font: From Theme, From PuTTY Profile (Window → Appearance: `Font` and `FontHeight` in points, Courier New 10 pt by default) or any installed monospaced font (`TerminalControl.MonospaceFonts`: an "i" as wide as a "W"). Changing the font refits the columns and rows and tells the session.
+- **One set of preferences:** the highlighting rules, theme, font, font size, cursor, blinking, bell, copy on select and marking matches are kept in SuperPuTTY's settings (`TerminalPreferences`, one JSON setting), not in the browser view's own storage as before (choices made earlier start again from the defaults). Every tab's menu and **Tools → Options → Terminal** (formerly Highlighting) edit the same values, and every open terminal follows a change at once. The Terminal page has the two switches (the built-in terminal, Highlighted Output), a **Defaults for terminal tabs** box with all of these (`TerminalOptionsPanel`, built in code), the note on rule files, the WebView2 runtime's version and Open Rules Folder.
 - **Tabs from the terminal's menu:** Close Tab, Close Other Tabs, Close Tabs to the Right and Close All Tabs, the same as the tab's own menu (`ctlPuttyPanel.RunTabCommand`).
 - **PuTTY's Special Commands** (Break, SIGINT and the other signals, IGNORE, repeat key exchange) can't be sent: they're in PuTTY's window menu, and plink has no way to send them while it runs. They're protocol messages (an SSH "break" or "signal" request, Telnet's `IAC BRK`, a serial line held low), not characters, so no key produces them. Tried against the lab switch: a console Ctrl+Break, sent to plink as a key press or as the console signal, doesn't become a break; Windows ends plink and the session drops, with nothing in plink's `-v` event log. **Open in PuTTY (Special Commands)** in the menu opens the same session in a classic PuTTY tab for that (`TerminalControl.OpenInPutty`), e.g. for a Break during Cisco password recovery.
 - **Right-click keeps the selection.** The selection is remembered as the right button goes down and put back if the click cleared it, so Copy and Copy and Paste in the menu work on it.
@@ -1420,13 +1422,15 @@ Phase 2 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:**
 | File | Change |
 |---|---|
 | `Utils/ConPty.cs` | New. A program in a pseudo console: start, output, typing, resize, exit |
+| `Utils/TerminalPreferences.cs` | New. The terminal's preferences, kept in the `TerminalPreferences` setting, with a Changed event |
+| `Gui/TerminalOptionsPanel.cs` | New. The defaults on Options → Terminal |
 | `Gui/TerminalControl.cs` | New. The tab's terminal (`IEmbeddedApplication`, `ICommandReceiver`): the page, plink, the session log, WAITFOR's text, reconnecting, the clipboard |
 | `web/terminal/index.html`, `terminal.js`, `terminal.css` | New. The terminal page: xterm.js, fitting to the tab, live highlighting (decorations), the menu, find, PuTTY's keys and mouse, the log lines |
 | `web/output/themes/putty.theme.json` | New. PuTTY's default colours |
 | `Utils/PuttyStartInfo.cs` | `PlinkCommandLine` |
 | `ctlPuttyPanel.cs` | Creates the terminal when the option is on (`TerminalControl.ShouldUse`); WAITFOR, Reconnect, Stop Reconnecting, the PuTTY menu items and the connection badge go to it |
-| `dlgFindPutty.cs` / `.Designer.cs` | The option on the Highlighting page |
-| `Properties/Settings.*`, `App.config` | `BuiltInTerminal` (default off) |
+| `dlgFindPutty.cs` / `.Designer.cs` | The option on the Terminal page |
+| `Properties/Settings.*`, `App.config` | `BuiltInTerminal` (default off), `TerminalPreferences` (empty: all defaults) |
 | `SuperPutty.csproj` | The new files (the page is under `web\**`, already copied and installed) |
 
 **Checked** against the lab Cisco switch (IOS), with a test program hosting `TerminalControl` from the built exe and driving it the way ctlPuttyPanel's WAITFOR and Send Commands do:
@@ -1445,7 +1449,7 @@ Phase 2 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:**
 - Each terminal tab costs some memory for its browser view (tens of MB).
 
 Manual tests:
-1. Options → Highlighting: tick **Use the built-in terminal**, OK. Open an SSH session to a Cisco device: the tab shows a black terminal with a green cursor, and the login works as in PuTTY (password prompt, or none with a key).
+1. Options → Terminal: tick **Use the built-in terminal**, OK. Open an SSH session to a Cisco device: the tab shows a black terminal with a green cursor, and the login works as in PuTTY (password prompt, or none with a key).
 2. `show ip interface brief`, `show interfaces status`, `show interfaces` with Space and `q`: colours as you go, no `--More--` left on screen.
 3. Up/Down for history, Left/Right, Home/End, Delete, Ctrl+A, Ctrl+E, Tab completion and `?` at the device's prompt, as in PuTTY.
    - Select text (copied), Shift+Insert and middle-click paste it; Ctrl+C at the prompt reaches the device. Select text and right-click: Copy is enabled and copies it.
