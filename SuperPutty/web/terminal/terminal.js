@@ -39,6 +39,8 @@
     var lastCurrent = null;     // the cursor's line as last sent to the log
     var entries = [];           // highlighted lines: {marker, decorations, text}
     var find = { matches: [], index: -1, decorations: [] };
+    var menuSelection = null;   // the selection when the right button went down: {text, position}
+    var selectionMatches = [];  // markers on the other places the selected text appears
     var sized = false;
 
     /** Send a message to TerminalControl (ignored when the page is opened in a plain browser to test it) */
@@ -247,8 +249,79 @@
 
     /** Copy the selection to the clipboard (TerminalControl sets it, the page has no clipboard access) */
     function copy() {
-        if (term.hasSelection()) {
-            post({ type: 'copy', text: term.getSelection() });
+        var text = selectedText();
+        if (text) {
+            post({ type: 'copy', text: text });
+        }
+    }
+
+    /** The selection, or while the menu is open, the one there was when the right button went down (rememberSelection) */
+    function selectedText() {
+        if (term.hasSelection()) { return term.getSelection(); }
+        return menuSelection ? menuSelection.text : '';
+    }
+
+    /**
+     * Remember the selection as the right button goes down. In SuperPuTTY the click also moves the keyboard focus to
+     * the tab, and that can clear the selection before the menu opens; the menu then puts it back and copies it.
+     */
+    function rememberSelection() {
+        menuSelection = term.hasSelection()
+            ? { text: term.getSelection(), position: term.getSelectionPosition() }
+            : null;
+    }
+
+    /** Select again what was selected when the right button went down, if it has been cleared since */
+    function restoreSelection() {
+        if (!menuSelection || term.hasSelection() || !menuSelection.position) { return; }
+        var p = menuSelection.position;
+        var length = (p.end.y - p.start.y) * term.cols + (p.end.x - p.start.x);
+        if (length > 0) { term.select(p.start.x, p.start.y, length); }
+    }
+
+    // ---- selection: copy on select, and marking the other matches -------------------------------------------------
+
+    /** Whether an on/off preference is on; both default to on, as in PuTTY and Notepad++ */
+    function prefOn(name) {
+        return loadPref(name) !== 'false';
+    }
+
+    /** Remove the marks on the selection's other matches */
+    function clearSelectionMatches() {
+        selectionMatches.forEach(function (marker) { marker.dispose(); });
+        selectionMatches = [];
+    }
+
+    /**
+     * Mark everywhere else the selected text appears, as Notepad++ does: case-insensitive, and as a whole word when
+     * a whole word is selected. Only for a selection within one line, of 2 to 200 characters.
+     */
+    function markSelectionMatches() {
+        clearSelectionMatches();
+        // the find bar marks its own matches
+        if (!prefOn('markMatches') || !term.hasSelection() || !document.getElementById('find').hidden) { return; }
+        var text = term.getSelection();
+        if (text.indexOf('\n') >= 0 || text.trim().length < 2 || text.length > 200) { return; }
+        var escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var word = /^\w+$/.test(text);
+        var regex = new RegExp(word ? '\\b' + escaped + '\\b' : escaped, 'gi');
+        var colour = (theme && theme.colors && theme.colors.selectionMatch)
+            || (theme && theme.base === 'vs' ? '#c8e6a0' : '#4a5a28');
+        var buffer = term.buffer.active;
+        for (var row = 0; row < buffer.length && selectionMatches.length < MAX_FIND_MATCHES; row++) {
+            var line = buffer.getLine(row).translateToString(true);
+            var match;
+            regex.lastIndex = 0;
+            while ((match = regex.exec(line)) !== null && selectionMatches.length < MAX_FIND_MATCHES) {
+                var marker = markLine(row);
+                if (!marker) { break; }
+                term.registerDecoration({
+                    marker: marker, x: match.index, width: Math.min(match[0].length, term.cols - match.index),
+                    backgroundColor: colour, layer: 'top'
+                });
+                // disposing the marker removes its decoration too
+                selectionMatches.push(marker);
+            }
         }
     }
 
@@ -363,7 +436,7 @@
             if (!marker) { return; }
             var decoration = term.registerDecoration({
                 marker: marker, x: m.col, width: Math.min(m.length, term.cols - m.col),
-                backgroundColor: '#806000', layer: 'bottom'
+                backgroundColor: '#806000', layer: 'top'
             });
             // disposing the marker removes its decoration too
             find.decorations.push(marker);
@@ -406,7 +479,7 @@
 
     /** The menu's items: {label, key, action, enabled, checked, items (a submenu)} or '-' for a separator */
     function menuItems() {
-        var selected = term.hasSelection();
+        var selected = selectedText() !== '';
         var chosenRules = loadPref('ruleSet') || 'auto';
         var ruleItems = [{ label: 'Auto' + (autoSet ? ' (' + autoSet.name + ')' : ''), checked: chosenRules === 'auto', action: function () { chooseRules('auto'); } }]
             .concat(ruleSets.map(function (set) {
@@ -419,7 +492,7 @@
         return [
             { label: 'Copy', key: 'Ctrl+Insert', enabled: selected, action: copy },
             { label: 'Paste', key: 'Shift+Insert', action: paste },
-            { label: 'Copy and Paste', enabled: selected, action: function () { var text = term.getSelection(); copy(); term.paste(text); } },
+            { label: 'Copy and Paste', enabled: selected, action: function () { var text = selectedText(); copy(); term.paste(text); } },
             '-',
             { label: 'Find...', key: 'Ctrl+Shift+F', action: openFind },
             { label: 'Select All', action: function () { term.selectAll(); } },
@@ -430,7 +503,10 @@
             '-',
             { label: 'Open as Document', action: function () { post({ type: 'document' }); } },
             { label: 'Highlighting', items: ruleItems },
-            { label: 'Theme', items: themeItems }
+            { label: 'Theme', items: themeItems },
+            '-',
+            { label: 'Copy on Select', checked: prefOn('copyOnSelect'), action: function () { togglePref('copyOnSelect'); } },
+            { label: 'Mark Matches of Selection', checked: prefOn('markMatches'), action: function () { togglePref('markMatches'); markSelectionMatches(); } }
         ];
     }
 
@@ -460,8 +536,9 @@
                 row.addEventListener('mousedown', function (e) { e.preventDefault(); });
                 row.addEventListener('click', function () {
                     if (item.enabled === false) { return; }
-                    hideMenu();
+                    // before hiding: hiding forgets the selection remembered for Copy
                     item.action();
+                    hideMenu();
                     if (document.getElementById('find').hidden) { term.focus(); }
                 });
             }
@@ -501,10 +578,16 @@
         menu.style.top = Math.max(0, Math.min(y, window.innerHeight - menu.offsetHeight - 2)) + 'px';
     }
 
-    /** Hide the right-click menu and its submenu */
+    /** Hide the right-click menu and its submenu, and forget the selection remembered for it */
     function hideMenu() {
+        menuSelection = null;
         closeSubmenu();
         document.getElementById('menu').hidden = true;
+    }
+
+    /** Turn an on/off preference over, for every terminal tab */
+    function togglePref(name) {
+        savePref(name, prefOn(name) ? 'false' : 'true');
     }
 
     /** Choose the highlighting rules for every terminal tab */
@@ -630,17 +713,23 @@
         term.onResize(function (size) { if (sized) { post({ type: 'size', cols: size.cols, rows: size.rows }); } });
         term.onScroll(function () { scheduleSettle(); });
 
-        // PuTTY copies as soon as text is selected
+        // PuTTY copies as soon as text is selected (an option in the menu), and the selection's other matches are marked
         var selectionTimer = null;
         term.onSelectionChange(function () {
             window.clearTimeout(selectionTimer);
             selectionTimer = window.setTimeout(function () {
-                if (document.getElementById('find').hidden) { copy(); }
+                markSelectionMatches();
+                if (document.getElementById('find').hidden && prefOn('copyOnSelect') && term.hasSelection()) { copy(); }
             }, 150);
         });
 
+        // capture phase: before xterm.js or SuperPuTTY's focus handling sees the click
+        element.addEventListener('mousedown', function (e) {
+            if (e.button === 2) { rememberSelection(); }
+        }, true);
         element.addEventListener('contextmenu', function (e) {
             e.preventDefault();
+            restoreSelection();
             showMenu(e.clientX, e.clientY);
         });
         // middle-click pastes, as in PuTTY when the right button opens a menu
@@ -649,7 +738,8 @@
         });
         element.addEventListener('mousedown', function (e) { if (e.button === 1) { e.preventDefault(); } });
         document.addEventListener('mousedown', function (e) {
-            if (!(e.target.closest && e.target.closest('.menu'))) { hideMenu(); }
+            // a right-click reopens the menu itself; closing it here would forget the selection just remembered
+            if (e.button !== 2 && !(e.target.closest && e.target.closest('.menu'))) { hideMenu(); }
         });
         window.addEventListener('blur', hideMenu);
         document.addEventListener('keydown', function (e) {
