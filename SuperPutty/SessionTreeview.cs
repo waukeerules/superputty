@@ -104,6 +104,9 @@ namespace SuperPutty
 
             /// <summary>The subfolders of each folder that hold something the search shows</summary>
             public readonly Dictionary<string, SortedSet<string>> Subfolders = new Dictionary<string, SortedSet<string>>();
+
+            /// <summary>How many sessions the search shows in each folder and the folders below it ("" for the root)</summary>
+            public readonly Dictionary<string, int> Counts = new Dictionary<string, int>();
         }
 
         /// <summary>The index for each root; rebuilt from the session list when <see cref="indexDirty"/></summary>
@@ -413,7 +416,7 @@ namespace SuperPutty
             this.EnsureDatabaseRoot();
 
             // every root is filled on demand: only its top level now, each folder when it's first opened
-            this.indexDirty = true;
+            this.MarkIndexDirty();
             this.FillRoot(this.nodeRoot, null);
             this.FillRoot(this.nodePrivate, null);
             this.FillRoot(this.nodeDatabase, null);
@@ -429,7 +432,7 @@ namespace SuperPutty
         /// <param name="session">The session</param>
         private void TryAddSessionNode(SessionData session)
         {
-            this.indexDirty = true;
+            this.MarkIndexDirty();
             if (session.IsDatabase)
             {
                 // Database sessions is redrawn after each read (DatabaseSessions_Replaced)
@@ -528,7 +531,7 @@ namespace SuperPutty
                 }
                 // a renamed or moved favourite stays a favourite
                 SessionShortcuts.Rename(Session.OldSessionId, Session.SessionId);
-                this.indexDirty = true;
+                this.MarkIndexDirty();
             }
         }
 
@@ -555,7 +558,7 @@ namespace SuperPutty
 
         void Sessions_ListChanged(object sender, ListChangedEventArgs e)
         {
-            this.indexDirty = true;
+            this.MarkIndexDirty();
             if (isRenamingNode)
             {
                 return;
@@ -1005,12 +1008,12 @@ namespace SuperPutty
                 dlgRenameItem dialog = new dlgRenameItem
                 {
                     Text = "Rename Folder",
-                    ItemName = node.Text,
+                    ItemName = PlainName(node),
                     DetailName = "",
                     ItemNameValidator = delegate(string txt, out string error)
                     {
                         error = String.Empty;
-                        if (node.Parent.Nodes.ContainsKey(txt) && txt != node.Text)
+                        if (node.Parent.Nodes.ContainsKey(txt) && txt != PlainName(node))
                         {
                             error = "Node with same name exists";
                         }
@@ -1021,7 +1024,7 @@ namespace SuperPutty
                         return string.IsNullOrEmpty(error);
                     }
                 };
-                if (dialog.ShowDialog(this) == DialogResult.OK && node.Text != dialog.ItemName && IsDatabaseNode(node))
+                if (dialog.ShowDialog(this) == DialogResult.OK && PlainName(node) != dialog.ItemName && IsDatabaseNode(node))
                 {
                     // the sessions in it, at every level, move to the new path in the table
                     string from = DatabaseFolder(node);
@@ -1049,7 +1052,7 @@ namespace SuperPutty
                         }
                     }
                 }
-                else if (dialog.DialogResult == DialogResult.OK && node.Text != dialog.ItemName)
+                else if (dialog.DialogResult == DialogResult.OK && PlainName(node) != dialog.ItemName)
                 {
                     // the new path is given to every session below by walking the nodes, so they all have to be there
                     this.FillSubtree(node);
@@ -1057,6 +1060,7 @@ namespace SuperPutty
                     node.Text = dialog.ItemName;
                     node.Name = dialog.ItemName;
                     UpdateSessionId(node);
+                    this.MarkIndexDirty();
                     SuperPuTTY.SaveSessions();
                     // its colour (and its subfolders') goes with it
                     FolderSettings.Store store = StoreOf(node).Value;
@@ -1076,7 +1080,7 @@ namespace SuperPutty
                     List<SessionData> sessions = new List<SessionData>();
                     GetAllSessions(node, sessions);
                     if (DialogResult.Yes == Messenger.MessageBox(
-                        "Are you sure you want to remove folder \"" + node.Text + "\" and its " + sessions.Count + " sessions?",
+                        "Are you sure you want to remove folder \"" + PlainName(node) + "\" and its " + sessions.Count + " sessions?",
                         "Remove folder", 
                         MessageBoxButtons.YesNo,
                         MessageBoxIcon.Question))
@@ -1104,7 +1108,7 @@ namespace SuperPutty
                         }
                         FolderSettings.Remove(StoreOf(node).Value, NodePath(node));
                         node.Remove();
-                        SuperPuTTY.ReportStatus("Removed Folder, {0} and {1} sessions", node.Text, sessions.Count);
+                        SuperPuTTY.ReportStatus("Removed Folder, {0} and {1} sessions", PlainName(node), sessions.Count);
                         SuperPuTTY.SaveSessions();
                     }
                 }
@@ -1116,7 +1120,7 @@ namespace SuperPutty
                         FolderSettings.Remove(store.Value, NodePath(node));
                     }
                     node.Remove();
-                    SuperPuTTY.ReportStatus("Removed Folder, {0}", node.Text);
+                    SuperPuTTY.ReportStatus("Removed Folder, {0}", PlainName(node));
                 }
             }
         }
@@ -1325,7 +1329,7 @@ namespace SuperPutty
                 return;
             List<SessionData> sessions = new List<SessionData>();
             GetAllSessions(node, sessions);
-            SessionCsv.ExportWithDialog(this, sessions, node.Text + ".csv");
+            SessionCsv.ExportWithDialog(this, sessions, PlainName(node) + ".csv");
         }
 
         private void contextMenuStripFolder_Opening(object sender, CancelEventArgs e)
@@ -1361,10 +1365,10 @@ namespace SuperPutty
             GetAllSessions(node, sessions);
             if (sessions.Count == 0)
             {
-                Messenger.MessageBox("\"" + node.Text + "\" has no sessions.", "Edit sessions", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Messenger.MessageBox("\"" + PlainName(node) + "\" has no sessions.", "Edit sessions", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            using (dlgBulkEdit dialog = new dlgBulkEdit(node.Text, sessions))
+            using (dlgBulkEdit dialog = new dlgBulkEdit(PlainName(node), sessions))
             {
                 dialog.ShowDialog(this);
             }
@@ -1608,7 +1612,7 @@ namespace SuperPutty
                 GetAllSessions(payload, sessions);
             if (sessions.Count == 0)
             {
-                Messenger.MessageBox("\"" + payload.Text + "\" has no sessions to copy.", "Copy", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Messenger.MessageBox("\"" + PlainName(payload) + "\" has no sessions to copy.", "Copy", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             bool fromDatabase = IsDatabaseNode(payload);
@@ -1787,7 +1791,7 @@ namespace SuperPutty
                 this.ScheduleShortcutRebuild();
                 return;
             }
-            this.indexDirty = true;
+            this.MarkIndexDirty();
             this.FillRoot(this.nodeDatabase, null);
             this.ScheduleShortcutRebuild();
             this.RefreshOpenStates();
@@ -1895,7 +1899,7 @@ namespace SuperPutty
         {
             this.EnsureFolderFilled(target);
             if (DatabaseLocked(target) || !IsFolderNode(target) || target == payload || target == payload.Parent
-                || target.Nodes.ContainsKey(payload.Text))
+                || target.Nodes.ContainsKey(PlainName(payload)))
                 return false;
             for (TreeNode node = target; node != null; node = node.Parent)
             {
@@ -1954,7 +1958,7 @@ namespace SuperPutty
                 return;
             }
             string from = DatabaseFolder(payload);
-            string to = SessionData.CombineSessionIds(NullIfEmpty(toFolder), payload.Text);
+            string to = SessionData.CombineSessionIds(NullIfEmpty(toFolder), PlainName(payload));
             if (this.WriteDatabase(new DatabaseOutbox.PendingChange { Kind = DatabaseOutbox.ChangeKind.RenameFolder, From = from, To = to }))
             {
                 string oldPrefix = DatabaseSessions.IdPrefix + SessionIdDelim + from;
@@ -2026,6 +2030,13 @@ namespace SuperPutty
                 if (this.filter == null || this.filter(session))
                 {
                     AddToIndex(index.Shown, folder, session);
+                    // counted in its folder and every folder above it, up to the root ("")
+                    for (string counted = folder; counted != null; counted = counted.Length == 0 ? null : SessionData.GetSessionParentId(counted) ?? string.Empty)
+                    {
+                        int count;
+                        index.Counts.TryGetValue(counted, out count);
+                        index.Counts[counted] = count + 1;
+                    }
                     // every folder on the way down shows, so the session can be reached
                     for (string child = folder; child.Length > 0; )
                     {
@@ -2140,7 +2151,7 @@ namespace SuperPutty
                 foreach (string name in subfolders)
                 {
                     // directly, not AddFolderNode, which reports every folder in the status bar
-                    TreeNode folder = node.Nodes.Add(name, name, ImageKeyFolder, ImageKeyFolder);
+                    TreeNode folder = node.Nodes.Add(name, CountedName(index, string.IsNullOrEmpty(path) ? name : path + SessionIdDelim + name, name), ImageKeyFolder, ImageKeyFolder);
                     folder.ContextMenuStrip = this.contextMenuStripFolder;
                     folder.Nodes.Add(new TreeNode { Name = LazyPlaceholder });
                     this.ColorNode(folder);
@@ -2156,6 +2167,95 @@ namespace SuperPutty
             if (sortOnce)
             {
                 this.ResortNodes();
+            }
+            if (node.Parent == null)
+            {
+                this.ShowRootCount(node, index);
+            }
+        }
+
+        /// <summary>
+        /// A folder's or session's own name: a folder's text also shows its count ("Core (12)"), so its name is the node's
+        /// Name; anything else is named by its text. Use this, never Text, wherever the name matters (paths, renames,
+        /// sorting, lookups by key).
+        /// </summary>
+        /// <param name="node">The node</param>
+        /// <returns>Its name</returns>
+        string PlainName(TreeNode node)
+        {
+            return IsFolderNode(node) && node.Parent != null && !string.IsNullOrEmpty(node.Name) ? node.Name : node.Text;
+        }
+
+        /// <summary>A folder's text: its name with how many sessions it and its subfolders hold, or just the name for none</summary>
+        /// <param name="index">Its root's index</param>
+        /// <param name="path">Its path in the index</param>
+        /// <param name="name">Its name</param>
+        /// <returns>e.g. "Core (12)"</returns>
+        static string CountedName(FolderIndex index, string path, string name)
+        {
+            int count;
+            return index.Counts.TryGetValue(path, out count) && count > 0 ? string.Format("{0} ({1})", name, count) : name;
+        }
+
+        /// <summary>Show how many sessions Saved and Private sessions hold; Database sessions shows its own status</summary>
+        /// <param name="root">The root</param>
+        /// <param name="index">Its index</param>
+        void ShowRootCount(TreeNode root, FolderIndex index)
+        {
+            RootKind kind = (RootKind)root.Tag;
+            if (kind == RootKind.Database)
+                return;
+            string text = CountedName(index, string.Empty, RootName(kind));
+            if (root.Text != text)
+                root.Text = text;
+        }
+
+        /// <summary>Whether a count refresh is waiting (<see cref="MarkIndexDirty"/>)</summary>
+        bool countRefreshPending;
+
+        /// <summary>
+        /// Note that sessions were added, removed or moved: the index is rebuilt when next used, and the folders' counts
+        /// are shown again once the current change is done
+        /// </summary>
+        void MarkIndexDirty()
+        {
+            this.indexDirty = true;
+            if (this.countRefreshPending || !this.IsHandleCreated)
+                return;
+            this.countRefreshPending = true;
+            this.BeginInvoke((MethodInvoker)delegate
+            {
+                this.countRefreshPending = false;
+                this.RefreshFolderCounts();
+            });
+        }
+
+        /// <summary>Show the current counts on every folder in the tree (folders not filled yet get theirs when filled)</summary>
+        void RefreshFolderCounts()
+        {
+            foreach (TreeNode root in new[] { this.nodeRoot, this.nodePrivate, this.nodeDatabase })
+            {
+                if (root == null || root.TreeView == null)
+                    continue;
+                FolderIndex index = this.IndexFor((RootKind)root.Tag);
+                this.ShowRootCount(root, index);
+                this.RefreshFolderCounts(root.Nodes, index);
+            }
+        }
+
+        /// <summary>Show the current counts on the folders among some nodes, and below them</summary>
+        /// <param name="nodes">The nodes</param>
+        /// <param name="index">Their root's index</param>
+        void RefreshFolderCounts(TreeNodeCollection nodes, FolderIndex index)
+        {
+            foreach (TreeNode node in nodes)
+            {
+                if (!IsFolderNode(node) || node.Name == LazyPlaceholder)
+                    continue;
+                string text = CountedName(index, NodePath(node), node.Name);
+                if (node.Text != text)
+                    node.Text = text;
+                this.RefreshFolderCounts(node.Nodes, index);
             }
         }
 
@@ -2944,10 +3044,10 @@ namespace SuperPutty
             if (node == null || node.Parent == null || IsQuickNode(node) || IsDatabaseNode(node))
                 return;
             TreeNode otherRoot = IsPrivateNode(node) ? this.nodeRoot : this.nodePrivate;
-            TreeNode target = FindOrCreateParentNode(otherRoot, SessionData.CombineSessionIds(FolderPath(node.Parent), node.Text));
-            if (target.Nodes.ContainsKey(node.Text))
+            TreeNode target = FindOrCreateParentNode(otherRoot, SessionData.CombineSessionIds(FolderPath(node.Parent), PlainName(node)));
+            if (target.Nodes.ContainsKey(PlainName(node)))
             {
-                Messenger.MessageBox("\"" + node.Text + "\" is already in " + otherRoot.Text + ". Rename one of them first.",
+                Messenger.MessageBox("\"" + PlainName(node) + "\" is already in " + otherRoot.Text + ". Rename one of them first.",
                     "Move", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -2957,7 +3057,7 @@ namespace SuperPutty
                 SuperPuTTY.SaveSessions();
                 this.treeView1.SelectedNode = moved;
                 moved.EnsureVisible();
-                SuperPuTTY.ReportStatus("Moved {0} to {1}", moved.Text, otherRoot.Text);
+                SuperPuTTY.ReportStatus("Moved {0} to {1}", PlainName(moved), otherRoot.Text);
             }
         }
 
@@ -3256,7 +3356,7 @@ namespace SuperPutty
             List<string> names = new List<string>();
             for (TreeNode node = folder; node != null && node.Parent != null; node = node.Parent)
             {
-                names.Add(node.Text);
+                names.Add(PlainName(node));
             }
             names.Reverse();
             if (folder != null && RootOf(folder) == this.nodeDatabase && this.nodeDatabase != null)
@@ -3286,7 +3386,7 @@ namespace SuperPutty
             List<string> parentNodeNames = new List<string>();
             for (TreeNode node = addedNode; node.Parent != null; node = node.Parent)
             {
-                parentNodeNames.Add(node.Text);
+                parentNodeNames.Add(PlainName(node));
             }
             parentNodeNames.Reverse();
             String sessionId = String.Join(SessionIdDelim, parentNodeNames.ToArray());
@@ -3400,7 +3500,7 @@ namespace SuperPutty
                 return sx.Order.CompareTo(sy.Order);
             }
             bool foldersFirst = SuperPuTTY.Settings.SessiontreeShowFoldersFirst;
-            int order = CompareNodes(tx.Text, IsFolderNode(tx), ty.Text, IsFolderNode(ty), foldersFirst);
+            int order = CompareNodes(PlainName(tx), IsFolderNode(tx), PlainName(ty), IsFolderNode(ty), foldersFirst);
             // Z to A reverses names only; folders stay before sessions
             bool byKind = foldersFirst && IsFolderNode(tx) != IsFolderNode(ty);
             return this.sortDescending && !byKind ? -order : order;
@@ -3568,11 +3668,11 @@ namespace SuperPutty
                     e.Effect = DragDropEffects.Copy;
                 }
                 // Is the mouse over a valid node?
-                else if (node != null && node != nodePayload && nodePayload.Nodes.Find(node.Text, true).Length == 0)
+                else if (node != null && node != nodePayload && nodePayload.Nodes.Find(PlainName(node), true).Length == 0)
                 {
                     tree.SelectedNode = node;
                     // folder that is not the same parent and new node name is not already present
-                    if (IsFolderNode(node) && node != nodePayload.Parent && !node.Nodes.ContainsKey(nodePayload.Text)
+                    if (IsFolderNode(node) && node != nodePayload.Parent && !node.Nodes.ContainsKey(PlainName(nodePayload))
                         && !IsDatabaseNode(node) && !IsDatabaseNode(nodePayload))
                     {
                         e.Effect = DragDropEffects.Copy;

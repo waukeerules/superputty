@@ -1655,6 +1655,21 @@ The installer isn't rebuilt when only `License.rtf` changes, as its project does
 
 Manual test: on a Database session with a locked host, Local overrides... → tick Host, enter another address, OK; connect: it goes to that address, and the session still shows its stored host in Edit. Clear all: it goes back.
 
+## Session counts on folders
+
+Folders in the Sessions tree show how many sessions they hold, with their subfolders: "Core (12)". Saved sessions and Private sessions show their totals; Database sessions keeps its own status ("Database sessions (4)"). While searching, the counts are of the sessions the search shows.
+
+- **Counted** when the folder index is built (`SessionTreeview.FolderIndex.Counts`: each shown session counts for its folder and every folder above it), so folders not opened yet have theirs too. They're shown as a folder is filled, and again shortly after sessions are added, removed or moved (`MarkIndexDirty`, which the places that marked the index stale now call).
+- **A folder's name is its node's `Name`**, since its `Text` now has the count. Everything that used a folder's text as its name (paths, renames, sorting, drag and drop, lookups by key, messages) goes through `SessionTreeview.PlainName`. Code that needs a folder's name must use it, never `Text`.
+
+| File | Change |
+|---|---|
+| `SessionTreeview.cs` | `FolderIndex.Counts`, `CountedName`, `ShowRootCount`, `MarkIndexDirty`, `RefreshFolderCounts`, `PlainName` |
+
+**Checked** in the real window: Saved sessions (7), Test (5), Private sessions (2), Live Test (2) and Region 4 (2) under Database sessions (4), all matching what's in them. Opening Test (5) filled it with its five sessions (its path comes from the folder's name), and Edit on one of them had the right title.
+**Not checked:** renaming, moving and dragging folders with the new names, and counts while searching.
+**Found, not changed:** inside Test the sessions are in reverse order (RDP Test... down to cmd Test), the order they were added in, not sorted. The build before this change does the same.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
