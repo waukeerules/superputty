@@ -642,6 +642,13 @@ namespace SuperPutty
 
             ToolStripMenuItem menuItem = (ToolStripMenuItem)sender;
 
+            // Edit with several sessions selected changes them together, as a folder's Edit sessions... does
+            if (menuItem == settingsToolStripMenuItem && this.SelectedSessionNodes().Count > 1)
+            {
+                this.BulkEditSessions(this.SelectedSessionNodes());
+                return;
+            }
+
             if (menuItem == newSessionToolStripMenuItem)
             {
                 // create new session
@@ -1361,9 +1368,12 @@ namespace SuperPutty
             int count = this.SelectedSessionNodes().Count;
             this.connectToolStripMenuItem.Text = count > 1 ? string.Format("Connect {0} sessions", count) : "Connect";
             this.deleteToolStripMenuItem.Text = count > 1 ? string.Format("Delete {0} sessions", count) : "Delete";
+            this.settingsToolStripMenuItem.Text = count > 1 ? string.Format("Edit {0} sessions...", count) : "Edit";
             if (count > 1)
             {
+                // each one's lock is checked when it's deleted or edited
                 this.deleteToolStripMenuItem.Enabled = true;
+                this.settingsToolStripMenuItem.Enabled = true;
             }
             this.colorSessionToolStripMenuItem.Enabled = !locked && (session == null || !session.IsDatabaseFieldLocked("color"));
         }
@@ -2233,6 +2243,32 @@ namespace SuperPutty
             }
             this.multiSelection.Clear();
             this.multiSelection.AddRange(next);
+        }
+
+        /// <summary>
+        /// Change fields on the selected sessions at once, in the dialog a folder's Edit sessions... opens. Sessions
+        /// that can't be edited here (a database table that can't be written, or a row locked in it) are left out and
+        /// listed first.
+        /// </summary>
+        /// <param name="nodes">The selected session nodes</param>
+        void BulkEditSessions(List<TreeNode> nodes)
+        {
+            List<TreeNode> editable = nodes.Where(n => !DatabaseLocked(n) && !((SessionData)n.Tag).DatabaseLocked).ToList();
+            List<string> skipped = nodes.Except(editable).Select(n => ((SessionData)n.Tag).SessionName).ToList();
+            if (editable.Count == 0)
+            {
+                Messenger.MessageBox("None of these sessions can be edited here: they're locked in the database, or it can't be written.", "Edit sessions", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            if (skipped.Count > 0 && Messenger.MessageBox(string.Format("These can't be edited here and will be left out:\n\n{0}{1}\n\nEdit the other {2}?",
+                    string.Join("\n", skipped.Take(10)), skipped.Count > 10 ? "\n... and " + (skipped.Count - 10) + " more" : "", editable.Count),
+                    "Edit sessions", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+            using (dlgBulkEdit dialog = new dlgBulkEdit("the selection", editable.Select(n => (SessionData)n.Tag).ToList()))
+            {
+                dialog.Text = string.Format("Edit {0} selected sessions", editable.Count);
+                dialog.ShowDialog(this);
+            }
         }
 
         /// <summary>
@@ -3694,7 +3730,7 @@ namespace SuperPutty
                     treeView1_NodeMouseDoubleClick(null, null);
                     e.Handled = true;
                 }
-                else if (Control.ModifierKeys == Keys.Shift && !DatabaseLocked(this.treeView1.SelectedNode))
+                else if (Control.ModifierKeys == Keys.Shift && (this.SelectedSessionNodes().Count > 1 || !DatabaseLocked(this.treeView1.SelectedNode)))
                 {
                     CreateOrEditSessionToolStripMenuItem_Click(this.settingsToolStripMenuItem, e);
                     e.Handled = true;

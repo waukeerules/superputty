@@ -1580,17 +1580,18 @@ That alone left the cursor flickering as you moved over the edge: the splitter w
 
 - **Connect** (the menu, or Enter) opens them all; the menu says "Connect 5 sessions".
 - **Delete** (the menu, or the Delete key) asks once, listing them ("Delete 5 sessions"). Database sessions go to the table in one batch (`DatabaseSessions.SubmitBatch`); those locked, or in a table that can't be written, are left and listed. Sessions.xml is saved once.
-- The other menu items (Edit, Rename, Move to...) still act on the session right-clicked.
+- **Edit** (the menu, or Shift+Enter) opens the dialog a folder's Edit sessions... opens, for the selected sessions ("Edit 5 selected sessions"): tick the fields to set on them all (`SessionTreeview.BulkEditSessions`, `Gui/dlgBulkEdit`). Sessions in a database table that can't be written, or locked in it, are left out, after saying which.
+- The other menu items (Rename, Move to...) still act on the session right-clicked.
 - The WinForms tree selects one node only, so the others are kept in `SessionTreeview.multiSelection` and painted with a selection background; the last one clicked keeps the tree's own highlight. A right-click on a selected session keeps the selection; anywhere else resets it.
 
 | File | Change |
 |---|---|
-| `SessionTreeview.cs` | `treeView1_BeforeSelectMulti`, `SelectedSessionNodes`, `SessionsBetween`, `SetMultiSelection`, `DeleteSessions`; Connect, Enter, Delete and the menu's text use the selection |
+| `SessionTreeview.cs` | `treeView1_BeforeSelectMulti`, `SelectedSessionNodes`, `SessionsBetween`, `SetMultiSelection`, `DeleteSessions`, `BulkEditSessions`; Connect, Enter, Edit, Delete and the menu's text use the selection |
 
-**Checked** in the real window with real clicks on rows found by name: a click on 192.168.3.2-2, Shift+click on Media Server and Ctrl+click on Windows 7 Host selected those five; the menu read "Connect 5 sessions" and "Delete 5 sessions"; Delete asked about the five by name, and No left them all (Sessions.xml unchanged); a plain click went back to one. Ctrl+click on a folder reset the selection.
-**Not checked:** connecting several at once (it opens each as a double-click does), deleting for real, Database sessions in a selection, and the light theme's colours.
+**Checked** in the real window with real clicks on rows found by name: a click on 192.168.3.2-2, Shift+click on Media Server and Ctrl+click on Windows 7 Host selected those five; the menu read "Connect 5 sessions" and "Delete 5 sessions"; Delete asked about the five by name, and No left them all (Sessions.xml unchanged); a plain click went back to one. Ctrl+click on a folder reset the selection. Selecting Media Server and Windows 7 Host, the menu offered "Edit 2 sessions...", which opened "Edit 2 selected sessions" listing both; Cancel saved nothing. A real delete of three selected sessions (by the user) removed all three with one save.
+**Not checked:** connecting several at once (it opens each as a double-click does), changing fields through Edit on a selection (the dialog is the folder one, unchanged), Database sessions in a selection, and the light theme's colours.
 
-Manual test: select three sessions with Shift+click, right-click one → Connect 3 sessions: three tabs open. Ctrl+click one out, press Delete: one question for the two; Yes deletes both and Sessions.xml is saved once.
+Manual test: select three sessions with Shift+click, right-click one → Connect 3 sessions: three tabs open. Ctrl+click one out, right-click → Edit 2 sessions..., tick Username and set it: both get it. Press Delete: one question for the two; Yes deletes both and Sessions.xml is saved once.
 
 ## Open questions
 
