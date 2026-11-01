@@ -159,7 +159,7 @@ namespace SuperPutty.Data
                         return null;
                     using (RegistryKey session = root.OpenSubKey(keyName))
                     {
-                        // numbers (REG_DWORD, e.g. BellType) as text, as KiTTY's session files hold them
+                        // numbers (REG_DWORD, e.g. the bell's "Beep") as text, as KiTTY's session files hold them
                         return session?.GetValue(name)?.ToString();
                     }
                 }

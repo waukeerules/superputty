@@ -317,7 +317,7 @@ namespace SuperPutty.Gui
                 Log.Warn("Highlighting files skipped: " + string.Join("; ", problems));
             }
             bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
-            this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), cursorColor = this.cursorColor });
+            this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursorColor = this.cursorColor });
         }
 
         /// <summary>The session's environment colour as #rrggbb, for the cursor; null for none</summary>
@@ -339,16 +339,17 @@ namespace SuperPutty.Gui
         }
 
         /// <summary>
-        /// What the bell should do, from the session's PuTTY profile (Terminal > Bell) as PuTTY would: "none",
-        /// "visual" (flash) or "sound" (the system's alert sound, also used for PuTTY's PC-speaker and custom-file
-        /// choices). A profile that doesn't set it gets PuTTY's default as shown in its settings: visual.
+        /// What the bell should do, from the session's PuTTY profile (Terminal > Bell) as PuTTY would. PuTTY saves
+        /// it as "Beep": 0 none, 1 the default alert sound, 2 visual, 3 a sound file, 4 the PC speaker. Returns
+        /// "none", "visual" (flash) or "sound" (the system's alert sound, for all three sound choices). A profile
+        /// that doesn't set it gets visual.
         /// </summary>
         /// <param name="profile">The PuTTY profile; empty for Default Settings</param>
         /// <returns>"none", "visual" or "sound"</returns>
         public static string BellStyle(string profile)
         {
             int type;
-            if (!int.TryParse(PuttyDataHelper.GetProfileValue(profile, "BellType"), out type))
+            if (!int.TryParse(PuttyDataHelper.GetProfileValue(profile, "Beep"), out type))
                 return "visual";
             switch (type)
             {
@@ -356,6 +357,29 @@ namespace SuperPutty.Gui
                 case 2: return "visual";
                 default: return "sound";
             }
+        }
+
+        /// <summary>
+        /// The profile's bell over-use settings (Terminal > Bell): whether it applies, how many bells in how long
+        /// silence the bell, and how long a silence brings it back. Missing values get PuTTY's defaults: on, 5 bells
+        /// in 2 seconds, 5 seconds.
+        /// </summary>
+        /// <param name="profile">The PuTTY profile; empty for Default Settings</param>
+        /// <returns>An object for the page: on, count, windowMs, quietMs</returns>
+        public static object BellOverload(string profile)
+        {
+            Func<string, int, int> read = (name, fallback) =>
+            {
+                int value;
+                return int.TryParse(PuttyDataHelper.GetProfileValue(profile, name), out value) ? value : fallback;
+            };
+            return new
+            {
+                on = read("BellOverload", 1) != 0,
+                count = read("BellOverloadN", 5),
+                windowMs = read("BellOverloadT", 2000),
+                quietMs = read("BellOverloadS", 5000)
+            };
         }
 
         /// <summary>The page knows its size: start the session the first time, then pass changes on to plink</summary>

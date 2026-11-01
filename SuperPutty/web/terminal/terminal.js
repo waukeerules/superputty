@@ -701,9 +701,11 @@
 
     // ---- bell -----------------------------------------------------------------------------------------------------
 
-    /** Bell times within the over-use window, and when the bell went quiet for over-use (PuTTY's defaults) */
+    /** Bell times within the over-use window, and when the bell went quiet for over-use */
     var bellTimes = [], bellMutedUntil = 0;
-    var BELL_LIMIT = 5, BELL_WINDOW_MS = 2000, BELL_QUIET_MS = 5000;
+
+    /** The PuTTY profile's over-use settings (Terminal > Bell), from TerminalControl; PuTTY's defaults until then */
+    var bellOverload = { on: true, count: 5, windowMs: 2000, quietMs: 5000 };
 
     /** What the bell does: the menu's choice, else the PuTTY profile's ("none", "visual" or "sound") */
     function bellStyle() {
@@ -713,20 +715,23 @@
 
     /**
      * The device rang the bell (e.g. Backspace at the start of a line): flash the terminal or play the system's
-     * alert sound, as PuTTY does. Like PuTTY, more than 5 bells in 2 seconds silence it until 5 quiet seconds.
+     * alert sound, as PuTTY does. As in PuTTY's profile (5 bells in 2 seconds by default), over-use silences it
+     * until that many quiet seconds; the bell that reaches the count is the first one silenced, as in PuTTY.
      */
     function ring() {
         var now = Date.now();
-        if (now < bellMutedUntil) {
-            bellMutedUntil = now + BELL_QUIET_MS;
-            return;
-        }
-        bellTimes = bellTimes.filter(function (t) { return now - t < BELL_WINDOW_MS; });
-        bellTimes.push(now);
-        if (bellTimes.length > BELL_LIMIT) {
-            bellMutedUntil = now + BELL_QUIET_MS;
-            bellTimes = [];
-            return;
+        if (bellOverload.on) {
+            if (now < bellMutedUntil) {
+                bellMutedUntil = now + bellOverload.quietMs;
+                return;
+            }
+            bellTimes = bellTimes.filter(function (t) { return now - t < bellOverload.windowMs; });
+            bellTimes.push(now);
+            if (bellTimes.length >= bellOverload.count) {
+                bellMutedUntil = now + bellOverload.quietMs;
+                bellTimes = [];
+                return;
+            }
         }
         var style = bellStyle();
         if (style === 'sound') {
@@ -744,6 +749,7 @@
     function configure(config) {
         darkDefault = !!config.dark;
         bellFromProfile = config.bell || 'visual';
+        if (config.bellOverload) { bellOverload = config.bellOverload; }
         cursorColor = config.cursorColor || null;
         themes = config.themes || [];
         var compiled = SpRules.compile(config.ruleSets || []);
