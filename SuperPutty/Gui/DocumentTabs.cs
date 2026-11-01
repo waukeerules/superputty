@@ -66,6 +66,8 @@ namespace SuperPutty.Gui
                 {
                     // larger, centred tab icons
                     TabIcons.Hook(pane, strip);
+                    // floating windows aren't inside the main form, so their strips are hooked here
+                    ClickThrough.Apply(strip);
                     ContextMenuStrip menu = FindTabListMenu(strip);
                     if (menu != null && hookedMenus.Add(menu))
                     {

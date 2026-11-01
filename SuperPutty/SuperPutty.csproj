@@ -412,6 +412,7 @@
     <Compile Include="Utils\SessionLog.cs" />
     <Compile Include="Utils\OutputHighlighting.cs" />
     <Compile Include="Utils\ConPty.cs" />
+    <Compile Include="Gui\ClickThrough.cs" />
     <Compile Include="Utils\TerminalPreferences.cs" />
     <Compile Include="Gui\TerminalOptionsPanel.cs">
       <SubType>UserControl</SubType>

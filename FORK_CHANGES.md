@@ -1324,6 +1324,16 @@ For audits, and for teams that keep their device lists in a spreadsheet (`Data/S
   - coming back without clicking a box (like Alt+Tab) still put the focus in the terminal, twice out of twice.
 - **Not checked:** floating panes and a second monitor.
 
+## Fix: the menu and toolbars needed two clicks when another program was active
+
+**Symptom:** with another window active (Notepad++, or the embedded PuTTY window), clicking SuperPuTTY's menu (e.g. Tools) or a toolbar button only brought SuperPuTTY to the front; it took a second click to open the menu or press the button.
+
+**Cause:** a WinForms `ToolStrip` (and so a `MenuStrip`) answers `WM_MOUSEACTIVATE` with `MA_ACTIVATEANDEAT` when its window isn't active and the cursor is on it, so the click only activates the window. The button bar already worked around this in its own `WndProc`; the other strips didn't.
+
+**Fix:** `Gui/ClickThrough.cs` hooks every menu, toolbar and status strip in the main window (and those added later, such as in tool windows) and each pane's tab strip (also in floating windows, via `DocumentTabs`), turning `MA_ACTIVATEANDEAT` into `MA_ACTIVATE`. frmSuperPutty calls `ClickThrough.Apply(this)`.
+
+**Checked:** with another window active and the cursor over each strip, the menu bar and a toolbar answered "activate and discard the click" before and "activate" after; DockPanelSuite's tab strip already answered "activate". **Not checked:** clicking with the real mouse in SuperXPuTTY.
+
 ## Tabs as wide as their name, up to 30 characters
 
 **Before:** every document tab was cut off at 200 pixels, so with the larger tab font (and at 150 % DPI) a name like `192.168.0.50` showed as "192.168.0....". The limit is a private constant inside DockPanelSuite's tab strips, not scaled for DPI or the font, with no setting to change it.

@@ -144,6 +144,8 @@ namespace SuperPutty
             }
 
             FixDpiScalingIssues();
+            // the first click on a menu, toolbar or tab works even while another program has the focus
+            ClickThrough.Apply(this);
 
             // keep menubar first
             menuStrip1.Location = new System.Drawing.Point(0, 0);
