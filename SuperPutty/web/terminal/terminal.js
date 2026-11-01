@@ -11,8 +11,9 @@
  * a line is sent to TerminalControl ("log") once the cursor has left it, and the cursor's line is sent as "current",
  * so SPSL's WAITFOR can match a prompt before Enter is pressed.
  *
- * Messages from TerminalControl: config, data, notice, paste, focus. To it: ready, size, input, ack, log, copy,
- * pasteRequest, document.
+ * Messages from TerminalControl: config, data, notice, paste, focus, action, cursorColor. To it: ready, size, input,
+ * ack, log, copy, pasteRequest, document, bell, tab, openInPutty, cleared (the screen was cleared here, so the pseudo
+ * console's own copy of it is cleared too and a resize can't bring the text back).
  */
 (function () {
     'use strict';
@@ -386,6 +387,7 @@
         var x = buffer.cursorX;
         var line = readLines(logicalStart(buffer.baseY + buffer.cursorY), buffer.baseY + buffer.cursorY + 1).join('');
         term.write('\x1b[2J\x1b[H\x1b[2K' + line + '\x1b[' + (x + 1) + 'G', function () { skipLog(); highlight(true); });
+        post({ type: 'cleared' });
     }
 
     /** Clear Screen and Scrollback: only the cursor's line stays */
@@ -393,6 +395,7 @@
         term.clear();
         skipLog();
         highlight(true);
+        post({ type: 'cleared' });
     }
 
     // ---- find -----------------------------------------------------------------------------------------------------
@@ -843,6 +846,7 @@
                 term.reset();
                 skipLog();
                 highlight(true);
+                post({ type: 'cleared' });
                 break;
             case 'copyAll':
                 term.selectAll();

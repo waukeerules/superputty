@@ -1441,7 +1441,7 @@ Phase 2 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:**
 **Known limits:**
 - What's typed before plink has started (the first second or so) is dropped.
 - Full-screen programs (`vi`, `top`) work, but their screens are logged only as they first appear.
-- Clear Screen and Reset Terminal are local: a later resize can bring back what the pseudo console still has on its screen.
+- ~~Clear Screen and Reset Terminal are local: a later resize can bring back what the pseudo console still has on its screen.~~ Fixed: the pseudo console keeps its own copy of the screen and repaints it after every resize (a theme or font change, resizing the tab), so cleared text came back. Clear Screen, Clear Screen and Scrollback and Reset Terminal now clear that copy too, keeping the cursor's line at the top (`ConPty.ClearScreen`, through the console functions, since Windows' pseudo console has no clear call). Checked: on the switch, after clearing and then changing the theme and resizing the window, nothing came back; in cmd, a half-typed command moved to the top could still be edited and run.
 - Each terminal tab costs some memory for its browser view (tens of MB).
 
 Manual tests:

@@ -280,6 +280,63 @@ namespace SuperPutty.Utils
             }
         }
 
+        /// <summary>
+        /// Clear the pseudo console's own screen to match the terminal's Clear Screen: the cursor's line moves to the
+        /// top and the rest is blanked. The pseudo console keeps its own copy of the screen and repaints all of it after
+        /// a resize (a theme or font change, resizing the tab), so a clear made only in the terminal came back. There's
+        /// no API for this in Windows' pseudo console, so this attaches to it and uses the console functions. Safe to
+        /// call from any thread.
+        /// </summary>
+        public void ClearScreen()
+        {
+            int pid = this.process.dwProcessId;
+            if (pid == 0 || this.console == IntPtr.Zero)
+                return;
+            lock (ConsoleLock)
+            {
+                if (!AttachConsole(pid))
+                {
+                    Log.DebugFormat("Could not attach to the console of process {0}: error {1}", pid, Marshal.GetLastWin32Error());
+                    return;
+                }
+                try
+                {
+                    KeepRunningOnConsoleSignals();
+                    IntPtr output = CreateFile("CONOUT$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+                    if (output == INVALID_HANDLE_VALUE)
+                        return;
+                    try
+                    {
+                        CONSOLE_SCREEN_BUFFER_INFO info;
+                        if (!GetConsoleScreenBufferInfo(output, out info))
+                            return;
+                        short top = info.srWindow.Top;
+                        short line = info.dwCursorPosition.Y;
+                        CHAR_INFO blank = new CHAR_INFO { Char = ' ', Attributes = info.wAttributes };
+                        if (line > top)
+                        {
+                            SMALL_RECT source = new SMALL_RECT { Left = 0, Top = line, Right = (short)(info.dwSize.X - 1), Bottom = line };
+                            ScrollConsoleScreenBuffer(output, ref source, IntPtr.Zero, new COORD { X = 0, Y = top }, ref blank);
+                        }
+                        int cells = info.dwSize.X * (info.srWindow.Bottom - top);
+                        COORD below = new COORD { X = 0, Y = (short)(top + 1) };
+                        int written;
+                        FillConsoleOutputCharacter(output, ' ', cells, below, out written);
+                        FillConsoleOutputAttribute(output, info.wAttributes, cells, below, out written);
+                        SetConsoleCursorPosition(output, new COORD { X = info.dwCursorPosition.X, Y = top });
+                    }
+                    finally
+                    {
+                        CloseHandle(output);
+                    }
+                }
+                finally
+                {
+                    FreeConsole();
+                }
+            }
+        }
+
         /// <summary>Change the console's size; plink passes it on to the server</summary>
         /// <param name="columns">Width in characters</param>
         /// <param name="rows">Height in lines</param>
@@ -410,6 +467,32 @@ namespace SuperPutty.Utils
         private static extern bool SetConsoleCtrlHandler(ConsoleCtrlHandler handler, bool add);
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool GenerateConsoleCtrlEvent(int ctrlEvent, int processGroupId);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SMALL_RECT { public short Left, Top, Right, Bottom; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct CONSOLE_SCREEN_BUFFER_INFO
+        {
+            public COORD dwSize, dwCursorPosition;
+            public short wAttributes;
+            public SMALL_RECT srWindow;
+            public COORD dwMaximumWindowSize;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct CHAR_INFO { public char Char; public short Attributes; }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetConsoleScreenBufferInfo(IntPtr output, out CONSOLE_SCREEN_BUFFER_INFO info);
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool ScrollConsoleScreenBuffer(IntPtr output, ref SMALL_RECT scroll, IntPtr clip, COORD destination, ref CHAR_INFO fill);
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool FillConsoleOutputCharacter(IntPtr output, char character, int length, COORD start, out int written);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FillConsoleOutputAttribute(IntPtr output, short attribute, int length, COORD start, out int written);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetConsoleCursorPosition(IntPtr output, COORD position);
 
         /// <summary>A console signal handler; returns true when it has handled the signal</summary>
         /// <param name="signal">CTRL_C_EVENT, CTRL_BREAK_EVENT...</param>

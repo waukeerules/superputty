@@ -327,6 +327,10 @@ namespace SuperPutty.Gui
                 case "pasteRequest":
                     this.Post(new { type = "paste", text = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty });
                     break;
+                case "cleared":
+                    // the pseudo console repaints its own copy of the screen after a resize; clear that copy too
+                    this.pty?.ClearScreen();
+                    break;
                 case "openInPutty":
                     ctlPuttyPanel owner = this.FindForm() as ctlPuttyPanel;
                     if (owner != null)
