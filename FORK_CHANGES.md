@@ -1540,7 +1540,7 @@ Manual tests:
 
 ## Environment colours in the tree as a circle behind the icon
 
-The Sessions tree showed an environment colour as the name's text colour, and red or orange names were hard to read, on the dark theme especially. Now the names keep the tree's text colour and the colour is a filled circle behind the icon, which is drawn a little smaller on it (`IconLibrary.EnsureWithEnvironment`, `DrawOnCircle`). It's another drawn variant of the icon, like the open-tab dot, which still goes on top (key `switch#1E63B4|env#C62828|connected`). The same nodes get it as before: folders where a colour starts, and sessions with their own colour. Favorites and Recent entries now show their session's colour too; before, they weren't coloured.
+The Sessions tree showed an environment colour as the name's text colour, and red or orange names were hard to read, on the dark theme especially. Now the names keep the tree's text colour and the colour is a filled circle behind the icon, which is drawn at 78 % of its size on it with a thin dark outline following its shape, so it reads on any circle colour (an orange logo on red) (`IconLibrary.EnsureWithEnvironment`, `DrawOnCircle`). At 84 % square icons hid almost all of the circle. It's another drawn variant of the icon, like the open-tab dot, which still goes on top (key `switch#1E63B4|env#C62828|connected`). The same nodes get it as before: folders where a colour starts, and sessions with their own colour. Favorites and Recent entries now show their session's colour too; before, they weren't coloured.
 
 | File | Change |
 |---|---|
@@ -1549,7 +1549,8 @@ The Sessions tree showed an environment colour as the name's text colour, and re
 | `Gui/EnvironmentColors.cs` | `ForText` removed (it lightened the text colour on the dark theme) |
 
 **Checked:** built, and the real main window on the dark theme: Favorites, Recent and Saved sessions showed red, green, orange and grey circles behind the icons, the open-tab dot kept its place, and every name was in the normal text colour.
-**Not checked:** the light theme (the drawing doesn't depend on it), icon sizes other than the one set here, and coloured Database folders. An icon of the same colour as its circle (a green icon on green) stands out less.
+Then with the outline, at 84 % and at 78 %: the outline showed round every icon, including green on green.
+**Not checked:** the light theme (the drawing doesn't depend on it), icon sizes other than the one set here, and coloured Database folders.
 
 Manual test: colour a session red and a folder green: both icons sit on circles of their colour and the names stay white (dark theme) or black (light). Open the red session: the green dot shows on top of the circle. Change Options → Icon size: the circles are redrawn at the new size.
 

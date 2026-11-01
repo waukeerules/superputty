@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -399,8 +400,8 @@ namespace SuperPutty.Gui
         }
 
         /// <summary>
-        /// An icon drawn smaller, centred on a filled circle of a colour that takes the whole square, so the colour
-        /// shows around it
+        /// An icon drawn a little smaller, centred on a filled circle of a colour that takes the whole square, so the
+        /// colour shows around it, and outlined in dark so it reads on any circle (an orange logo on red, say)
         /// </summary>
         /// <param name="icon">The icon</param>
         /// <param name="color">The circle's colour</param>
@@ -409,15 +410,33 @@ namespace SuperPutty.Gui
         {
             int size = icon.Width;
             Bitmap bitmap = new Bitmap(size, icon.Height);
-            float inner = size * 0.72f;
+            float inner = size * 0.78f;
             float offset = (size - inner) / 2;
+            float outline = Math.Max(1f, size / 20f);
             using (Graphics g = Graphics.FromImage(bitmap))
             using (Brush fill = new SolidBrush(color))
+            using (ImageAttributes dark = new ImageAttributes())
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                 g.PixelOffsetMode = PixelOffsetMode.HighQuality;
                 g.FillEllipse(fill, 0, 0, size - 1, icon.Height - 1);
+                // the outline is the icon's own shape in near-black, drawn shifted all round beneath it
+                dark.SetColorMatrix(new ColorMatrix(new[]
+                {
+                    new float[] { 0, 0, 0, 0, 0 },
+                    new float[] { 0, 0, 0, 0, 0 },
+                    new float[] { 0, 0, 0, 0, 0 },
+                    new float[] { 0, 0, 0, 0.85f, 0 },
+                    new float[] { 0.08f, 0.08f, 0.08f, 0, 1 }
+                }));
+                for (int i = 0; i < 8; i++)
+                {
+                    double angle = i * Math.PI / 4;
+                    float x = offset + (float)Math.Cos(angle) * outline, y = offset + (float)Math.Sin(angle) * outline;
+                    g.DrawImage(icon, new[] { new PointF(x, y), new PointF(x + inner, y), new PointF(x, y + inner) },
+                        new RectangleF(0, 0, icon.Width, icon.Height), GraphicsUnit.Pixel, dark);
+                }
                 g.DrawImage(icon, offset, offset, inner, inner);
             }
             return bitmap;
