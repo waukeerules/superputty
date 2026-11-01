@@ -83,6 +83,9 @@ namespace SuperPutty.Gui
         /// <summary>How strongly an unselected tab is tinted with its environment colour, out of 255</summary>
         private const int TintAlpha = 70;
 
+        /// <summary>How much of the environment colour a hovered unselected tab gets: more than the tint, less than selected</summary>
+        private const float HoverMix = 0.55f;
+
         /// <summary>
         /// Size the icons for the tab font and work out the padding that makes room for them. frmSuperPutty calls this
         /// when it sets the tab font, before any tab opens.
@@ -231,9 +234,20 @@ namespace SuperPutty.Gui
                     {
                         DockContent dockContent = content as DockContent;
                         bool selected = dockContent?.Pane != null && dockContent.Pane.ActiveContent == content;
+                        // the theme's hover colour (blue) would show through the tint, so a hovered tab gets its
+                        // own colour, stronger, painted solid
+                        bool hovered = !selected && bounds.Value.Contains(strip.PointToClient(Control.MousePosition));
                         if (selected)
                         {
                             FillSelectedTab(g, strip, dockContent, bounds.Value, environment.Value);
+                        }
+                        else if (hovered)
+                        {
+                            FillSelectedTab(g, strip, dockContent, bounds.Value, Blend(environment.Value, TabBackground(dockContent), HoverMix));
+                            using (SolidBrush brush = new SolidBrush(environment.Value))
+                            {
+                                g.FillRectangle(brush, bounds.Value.X, bounds.Value.Y, bounds.Value.Width, stripe);
+                            }
                         }
                         else
                         {
@@ -258,9 +272,31 @@ namespace SuperPutty.Gui
             }
         }
 
+        /// <summary>The theme's background for unselected tabs, which a hovered tab's colour is mixed with</summary>
+        /// <param name="content">A tab's content, for its dock panel's theme</param>
+        /// <returns>The colour; a light grey if the theme doesn't say</returns>
+        private static Color TabBackground(DockContent content)
+        {
+            Color? background = content?.DockPanel?.Theme?.ColorPalette?.TabUnselected?.Background;
+            return background.HasValue && background.Value != Color.Empty ? background.Value : SystemColors.Control;
+        }
+
+        /// <summary>Mix two colours</summary>
+        /// <param name="color">The first colour</param>
+        /// <param name="with">The second colour</param>
+        /// <param name="amount">How much of the first, 0 to 1</param>
+        /// <returns>The mixed, opaque colour</returns>
+        public static Color Blend(Color color, Color with, float amount)
+        {
+            return Color.FromArgb(
+                (int)Math.Round(color.R * amount + with.R * (1 - amount)),
+                (int)Math.Round(color.G * amount + with.G * (1 - amount)),
+                (int)Math.Round(color.B * amount + with.B * (1 - amount)));
+        }
+
         /// <summary>
-        /// Fill the selected tab with its environment colour in place of the theme's, then draw its text and close
-        /// button again on top in white or black, whichever reads better. DockPanelSuite picks tab colours per theme,
+        /// Fill a tab with a colour in place of the theme's (the selected tab's environment colour, or a hovered tab's
+        /// stronger tint), then draw its text and close button again on top in white or black, whichever reads better. DockPanelSuite picks tab colours per theme,
         /// not per tab, so this paints over what it drew; the close button keeps working but loses its hover highlight.
         /// The icon is drawn afterwards by <see cref="Paint"/>.
         /// </summary>
