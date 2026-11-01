@@ -1523,6 +1523,19 @@ Manual tests:
 6. Options → Drawing → Compatible, then back: the terminal keeps working; `cat` a large file in each to compare speed.
 7. Leave a session idle, then run a command: the session log gets one time stamp before its output, and no more for 30 seconds.
 
+## Fix: finding text in a terminal tab took the colours off other lines
+
+**Symptom:** in a built-in terminal tab, after using the find bar (for example `unassigned` in `sh ip int bri`, moving between matches with Shift+Enter, then typing more or closing it), some lines lost both their highlighting and their find marks, while others kept theirs. They stayed uncoloured until the rules or theme were changed.
+
+**Cause:** xterm.js 6.0.0 keeps decorations in a list sorted by their marker's line and finds a line's decorations with a binary search. Disposing a decoration only queues its removal; the list is cleaned up later. The earlier fix disposed each decoration before its marker, but disposing the marker straight after sets its line to -1 while the decoration is still in the list. The next removal's binary search then runs over a list with a -1 among the real lines, and when the lines aren't removed top to bottom it misses. Find removed its current match last, wherever it was, so that one stayed in the list for good under line -1, and every later search for lines past it failed: their colours disappeared.
+
+**Fix:** marks and highlighted lines are removed in three steps: all their decorations, then `flushDecorations`, then the markers. `flushDecorations` adds a decoration and removes it again at once, because adding one makes xterm.js apply the queued removals first; it has no other way to ask for that. Changed in `web/terminal/terminal.js` (`unmark`, `disposeEntries`, `flushDecorations`).
+
+**Checked** in the terminal page (served locally, in a browser) with the switch's `sh ip int bri` output and the Cisco rules, typing `unassign` into the find bar, Shift+Enter four times, then typing and deleting a letter:
+- **Before the fix:** 8 of the 15 coloured lines had no decoration xterm.js could find, and 7 removed marks were stuck in the list.
+- **After the fix:** every line kept its colour, and closing the find bar left no stuck marks.
+- **Not checked:** the full app (the page is the same one).
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

@@ -55,6 +55,7 @@
     var find = { matches: [], index: -1, decorations: [], current: null };
     var menuSelection = null;   // the selection when the right button went down: {text, position}
     var selectionMatches = [];  // marks ({marker, decoration}) on the other places the selected text appears
+    var flushMarker = null;     // the marker flushDecorations adds its throwaway decoration on
     var sized = false;
 
     /** Send a message to TerminalControl (ignored when the page is opened in a plain browser to test it) */
@@ -225,10 +226,11 @@
         return null;
     }
 
-    /** Remove one highlighted line's decorations */
-    function disposeEntry(entry) {
-        entry.decorations.forEach(function (d) { d.dispose(); });
-        entry.marker.dispose();
+    /** Remove highlighted lines' decorations and markers (see unmark for the order) */
+    function disposeEntries(list) {
+        list.forEach(function (entry) { entry.decorations.forEach(function (d) { d.dispose(); }); });
+        flushDecorations();
+        list.forEach(function (entry) { entry.marker.dispose(); });
     }
 
     /**
@@ -239,7 +241,7 @@
         var buffer = term.buffer.active;
         var set = currentSet();
         if (all) {
-            entries.forEach(disposeEntry);
+            disposeEntries(entries);
             entries = [];
         }
         var from = all || !scanFrom || scanFrom.isDisposed ? 0 : scanFrom.line;
@@ -254,7 +256,7 @@
             var entry = byLine[i];
             if (entry && entry.text === text && entry.set === set) { continue; }
             if (entry) {
-                disposeEntry(entry);
+                disposeEntries([entry]);
                 entries.splice(entries.indexOf(entry), 1);
             }
             var found = set ? SpRules.matches(set, text, MAX_MATCH_LENGTH) : [];
@@ -341,16 +343,29 @@
     }
 
     /**
-     * Remove marks: each decoration before its marker. xterm.js 6.0.0 keeps decorations in a list sorted by their
-     * marker's line; disposing a marker first sets that line to -1 before the decoration is taken out, so it isn't
-     * found, stays in the list under the wrong line, and lookups for other lines fail: their colours disappear.
+     * Remove marks: every decoration, then flushDecorations, then the markers. xterm.js 6.0.0 keeps decorations in a
+     * list sorted by their marker's line, and a disposed marker's line becomes -1. A decoration disposed before its
+     * marker is only queued for removal and stays in the list until later; if its marker is disposed meanwhile, the
+     * list holds a -1 among the real lines, the next removal's binary search misses its decoration, and that one stays
+     * for good under the wrong line: lookups for other lines then fail and their colours disappear.
      */
     function unmark(marks) {
-        marks.forEach(function (m) {
-            if (!m) { return; }
-            if (m.decoration) { m.decoration.dispose(); }
-            m.marker.dispose();
-        });
+        marks = marks.filter(Boolean);
+        marks.forEach(function (m) { if (m.decoration) { m.decoration.dispose(); } });
+        flushDecorations();
+        marks.forEach(function (m) { m.marker.dispose(); });
+    }
+
+    /**
+     * Make xterm.js take queued decoration removals out of its list now. There's no API for it, but adding a
+     * decoration does it first; the one added here is removed again at once, on a marker that's never disposed by us.
+     */
+    function flushDecorations() {
+        if (!flushMarker || flushMarker.isDisposed) {
+            flushMarker = markLine(term.buffer.active.baseY + term.buffer.active.cursorY);
+        }
+        var decoration = flushMarker && term.registerDecoration({ marker: flushMarker });
+        if (decoration) { decoration.dispose(); }
     }
 
     /** Remove the marks on the selection's other matches */
