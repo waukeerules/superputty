@@ -250,6 +250,7 @@ namespace SuperPutty
             UpdateRdpOptionsButton();
             // after everything that enables controls, so a locked one stays locked
             ApplyLockedFields();
+            AddOverridesButton();
 
             this.BeginInvoke(new MethodInvoker(delegate { this.textBoxSessionName.Focus(); }));
         }
@@ -319,6 +320,118 @@ namespace SuperPutty
             menu.Closed += (s, args) => this.BeginInvoke((MethodInvoker)menu.Dispose);
             MenuCheckMarks.Apply(menu);
             menu.Show(this.buttonColor, new Point(0, this.buttonColor.Height));
+        }
+
+        /// <summary>
+        /// The ID of the saved session being edited, for its local overrides (Data.SessionOverrides); null for a new
+        /// session or a copy, which have none. Set by SessionTreeview before showing the dialog.
+        /// </summary>
+        public string OverridesSessionId { get; set; }
+
+        /// <summary>The "Local overrides" button, beside Save; null when there's no saved session to override</summary>
+        private Button buttonOverrides;
+
+        /// <summary>Each overridable field's own tooltip, put back when its override is removed</summary>
+        private readonly Dictionary<Control, string> fieldToolTips = new Dictionary<Control, string>();
+
+        /// <summary>
+        /// Add the "Local overrides" button to the left of Save, for a saved session: it opens the user's overrides for
+        /// it (dlgSessionOverrides) and saves them at once, whether or not the session is saved. Added here rather than
+        /// in the designer, after the form is scaled, so it lines up with Save at any DPI.
+        /// </summary>
+        private void AddOverridesButton()
+        {
+            if (string.IsNullOrEmpty(this.OverridesSessionId))
+                return;
+            int left = this.groupBoxFileTransferOptions.Left;
+            this.buttonOverrides = new Button
+            {
+                Location = new Point(left, this.buttonSave.Top),
+                Size = new Size(this.buttonSave.Left - left - this.LogicalToDeviceUnits(12), this.buttonSave.Height),
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoEllipsis = true,
+                FlatStyle = this.buttonSave.FlatStyle,
+                BackColor = this.buttonSave.BackColor,
+                UseVisualStyleBackColor = this.buttonSave.UseVisualStyleBackColor
+            };
+            this.buttonOverrides.FlatAppearance.BorderColor = this.buttonCancel.FlatAppearance.BorderColor;
+            this.buttonOverrides.Click += (s, e) => this.EditOverrides();
+            this.Controls.Add(this.buttonOverrides);
+            foreach (Control field in this.OverridableFields().Values)
+            {
+                this.fieldToolTips[field] = this.toolTip.GetToolTip(field);
+            }
+            this.ShowOverrides();
+        }
+
+        /// <summary>The fields a local override can replace, by the name the overrides use</summary>
+        /// <returns>"Host", "Port", "Username", "PuTTY profile", "Extra args" and "Jump host", with their editors</returns>
+        private Dictionary<string, Control> OverridableFields()
+        {
+            return new Dictionary<string, Control>
+            {
+                { "Host", this.textBoxHostname },
+                { "Port", this.textBoxPort },
+                { "Username", this.textBoxUsername },
+                { "PuTTY profile", this.comboBoxPuttyProfile },
+                { "Extra args", this.textBoxExtraArgs },
+                { "Jump host", this.textBoxJumpHost }
+            };
+        }
+
+        /// <summary>
+        /// Show the session's local overrides: the button names the fields, in an accent colour, and each overridden
+        /// field's tooltip says which value is used instead
+        /// </summary>
+        private void ShowOverrides()
+        {
+            SessionOverrides.Override local = SessionOverrides.Get(this.OverridesSessionId);
+            List<string> fields = local == null ? new List<string>() : local.Fields();
+            this.buttonOverrides.Text = fields.Count == 0 ? "Local overrides..." : "Local overrides: " + string.Join(", ", fields) + "...";
+            bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
+            this.buttonOverrides.ForeColor = fields.Count == 0 ? this.buttonSave.ForeColor
+                : dark ? Color.FromArgb(0xF0, 0xA8, 0x3C) : Color.FromArgb(0xB0, 0x5A, 0x00);
+            this.toolTip.SetToolTip(this.buttonOverrides, fields.Count == 0
+                ? "Your own values for this session, used when it opens without changing it; only you get them"
+                : "You have your own values for " + string.Join(", ", fields) + ": they're used when this session opens, instead of the ones here");
+            foreach (KeyValuePair<string, Control> field in this.OverridableFields())
+            {
+                string tip = this.fieldToolTips[field.Value];
+                if (fields.Contains(field.Key))
+                {
+                    tip = "Overridden locally: your value " + OverrideValue(local, field.Key) + " is used when this session opens"
+                        + (string.IsNullOrEmpty(tip) ? "" : Environment.NewLine + tip);
+                }
+                this.toolTip.SetToolTip(field.Value, tip);
+            }
+        }
+
+        /// <summary>An override's value for a field, quoted, for the field's tooltip</summary>
+        /// <param name="local">The overrides</param>
+        /// <param name="field">The field's name, as in <see cref="OverridableFields"/></param>
+        /// <returns>e.g. "admin", or "(none)" for an empty one</returns>
+        private static string OverrideValue(SessionOverrides.Override local, string field)
+        {
+            string value = field == "Host" ? local.Host : field == "Port" ? local.Port.ToString()
+                : field == "Username" ? local.Username : field == "PuTTY profile" ? local.PuttyProfile
+                : field == "Jump host" ? local.JumpHost : null;
+            // extra arguments can hold a -pw password: not shown
+            if (field == "Extra args")
+                return "(set in Local overrides)";
+            return string.IsNullOrEmpty(value) ? "(none)" : "\"" + value + "\"";
+        }
+
+        /// <summary>Edit the session's local overrides, save them at once, and show them</summary>
+        private void EditOverrides()
+        {
+            using (dlgSessionOverrides dialog = new dlgSessionOverrides(this.Session, SessionOverrides.Get(this.OverridesSessionId)))
+            {
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    SessionOverrides.Set(this.OverridesSessionId, dialog.Result);
+                    this.ShowOverrides();
+                }
+            }
         }
 
         /// <summary>

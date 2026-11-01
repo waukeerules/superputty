@@ -1631,6 +1631,7 @@ The installer isn't rebuilt when only `License.rtf` changes, as its project does
 - **Kept** in `SessionOverrides.json` beside your settings (`Data/SessionOverrides.cs`), by session ID; the session itself is never changed. They follow a session that's renamed or moved and are dropped when it's deleted (`SessionShortcuts.Rename` and `Forget` pass these on).
 - **Applied** by `SessionVariables.Resolve`, after the folders' defaults, so every launch gets them (PuTTY, the built-in terminal, SCP, WinSCP, RDP) and they beat both the session's and its folder's values; placeholders in them are filled in as usual.
 - **Shown** in the session's tooltip: "Your local overrides: Username, Host".
+- **In Edit Session** (a saved session, not a new one or a copy): a **Local overrides** button left of Save names the overridden fields in orange ("Local overrides: Username...") and opens the dialog; overrides changed there are saved at once, whether or not the session is. Each overridden field's tooltip says which value is used instead (extra arguments aren't shown, as they can hold a password). `dlgEditSession.OverridesSessionId`, set by the tree when editing.
 
 | File | Change |
 |---|---|
@@ -1639,11 +1640,14 @@ The installer isn't rebuilt when only `License.rtf` changes, as its project does
 | `Utils/SessionVariables.cs` | `Resolve` applies them |
 | `Data/SessionShortcuts.cs` | `Rename` and `Forget` pass renames and deletions on |
 | `SessionTreeview.cs` | The menu item, the tooltip line, and where a session is kept in the Edit title |
+| `dlgEditSession.cs` | The Local overrides button and the overridden fields' tooltips |
 
 **Checked:**
 - In the real window: Edit on Media Server read "Edit session: Media Server — Saved sessions (Sessions.xml)", on Lab Switch "— Private sessions (only yours)". Local overrides on Media Server showed the stored values; ticking Username and typing a name saved `{"Media Server": {"Username": ...}}` and the tooltip read "Your local overrides: Username". The test override was removed afterwards.
+- Edit on the Database session Live Test/192.168.3.2, which the user had overridden: the title read "— Database sessions" and the button "Local overrides: Username..." in orange; Cancel left the override as it was.
 - `SessionVariables.Resolve` on a session with overrides for host, username and port gave the overridden values, and the stored session kept its own; a rename kept them under the new ID and a delete dropped them.
-- **Not checked:** connecting with an override (the values reach the same launch copy as folder defaults), a Database session's title and overrides, and the light theme.
+- The user connected with an override and it was used.
+- **Not checked:** the light theme, and changing overrides from Edit Session's button.
 
 Manual test: on a Database session with a locked host, Local overrides... → tick Host, enter another address, OK; connect: it goes to that address, and the session still shows its stored host in Edit. Clear all: it goes back.
 

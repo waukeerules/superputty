@@ -772,6 +772,11 @@ namespace SuperPutty
                 // fields the database's locked_fields names are shown but can't be changed
                 form.LockedFields = session.DatabaseLockedFields;
             }
+            if (node != null)
+            {
+                // a saved session being edited: its local overrides can be shown and changed from the dialog
+                form.OverridesSessionId = session.SessionId;
+            }
             form.SessionNameValidator += delegate(string txt, out string error)
             {
                 bool IsValid = ValidateSessionNameChange(nodeRef, node, txt, out error);
