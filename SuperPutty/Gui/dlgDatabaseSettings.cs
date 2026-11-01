@@ -63,6 +63,9 @@ namespace SuperPutty.Gui
         /// <summary>Fills the fields from a shared file; nothing is saved until OK</summary>
         private readonly Button buttonImport = new Button { Text = "Import...", AutoSize = true };
 
+        /// <summary>Puts the fields back to a new setup's; nothing is saved until OK</summary>
+        private readonly Button buttonClear = new Button { Text = "Clear", AutoSize = true };
+
         /// <summary>What Test connection or Create found</summary>
         private readonly Label labelResult = new Label { AutoSize = true };
 
@@ -139,7 +142,7 @@ namespace SuperPutty.Gui
             AddRow(grid, "Check every:", check);
             AddRow(grid, null, this.checkReadOnly);
             FlowLayoutPanel actions = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 8, 0, 4) };
-            actions.Controls.AddRange(new Control[] { this.buttonTest, this.buttonSchema, this.buttonExport, this.buttonImport });
+            actions.Controls.AddRange(new Control[] { this.buttonTest, this.buttonSchema, this.buttonExport, this.buttonImport, this.buttonClear });
             AddRow(grid, null, actions);
             AddRow(grid, null, this.labelResult);
             // OK and Cancel docked to the bottom of the window, so they show even if the window comes out too short
@@ -168,6 +171,7 @@ namespace SuperPutty.Gui
             tips.SetToolTip(this.textSchema, "The table's schema; created with the table if missing");
             tips.SetToolTip(this.buttonExport, "Save these settings to a file to share. A password goes in only as a {key} placeholder; your nickname stays out.");
             tips.SetToolTip(this.buttonImport, "Fill these fields from a shared settings file. Nothing is saved until OK.");
+            tips.SetToolTip(this.buttonClear, "Start over: empty the connection fields and put the rest back to their defaults. Your nickname stays. Nothing is saved until OK.");
             tips.SetToolTip(this.textNickname, "Shown as who last changed a session, so people sharing one database login can be told apart");
             tips.SetToolTip(this.numericCheck, "How often to ask the table whether someone else (or a script) changed it; the sessions are only read again when it did");
             HintText.Set(this.textHost, "e.g. 192.168.3.2");
@@ -205,6 +209,7 @@ namespace SuperPutty.Gui
             this.buttonOK.Click += (s, e) => this.Save();
             this.buttonExport.Click += (s, e) => this.ExportSettings();
             this.buttonImport.Click += (s, e) => this.ImportSettings();
+            this.buttonClear.Click += (s, e) => this.ClearFields();
 
             if (SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme)
             {
@@ -498,6 +503,31 @@ namespace SuperPutty.Gui
                     + (string.IsNullOrEmpty(this.textNickname.Text) ? "Enter a nickname, then " : "Then ")
                     + "Test connection and OK to save.", false);
             }
+        }
+
+        /// <summary>
+        /// Start over: empty the host, username and password, and put the database, schema, table, port, SSL, check
+        /// interval and read only back to a new setup's. The nickname (the person's own) and whether database sessions
+        /// are on stay as they are. Nothing is saved until OK; an empty password then removes the saved one.
+        /// </summary>
+        private void ClearFields()
+        {
+            this.textHost.Text = string.Empty;
+            this.numericPort.Value = 5432;
+            this.textDatabase.Text = "superputty";
+            this.textSchema.Text = "superputty";
+            this.textTable.Text = "sessions";
+            this.textUser.Text = string.Empty;
+            this.textPassword.Text = string.Empty;
+            // an empty box otherwise means "keep the saved password"; here it's cleared on purpose
+            this.passwordChanged = true;
+            HintText.Set(this.textPassword, "password, or {key}");
+            this.comboSsl.SelectedItem = "Prefer";
+            this.numericCheck.Value = 30;
+            this.checkReadOnly.Checked = false;
+            this.buttonSchema.Enabled = false;
+            this.ShowResult("Cleared. OK saves it; Cancel keeps what was there.", false);
+            this.textHost.Focus();
         }
 
         /// <summary>Save the settings, and restart the database sessions so they take effect</summary>
