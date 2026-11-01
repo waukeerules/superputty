@@ -118,6 +118,15 @@ namespace SuperPutty.Gui
         /// <summary>True while the dropdown is being filled, so its change event doesn't switch bars</summary>
         private bool updatingCombo;
 
+        /// <summary>Shows the buttons' tooltips above the bar (<see cref="ShowTip"/>)</summary>
+        private readonly ToolTip tip = new ToolTip();
+
+        /// <summary>Waits the hover time before a tooltip shows</summary>
+        private readonly System.Windows.Forms.Timer tipTimer = new System.Windows.Forms.Timer();
+
+        /// <summary>The item under the pointer whose tooltip is pending or showing; null when none</summary>
+        private ToolStripItem tipItem;
+
         /// <summary>Create the button bar and load the saved bars</summary>
         /// <param name="getTargets">Returns the tabs to send to: the active tab (false) or the tabs selected for Send Commands (true)</param>
         public ButtonBarStrip(Func<bool, IList<ctlPuttyPanel>> getTargets)
@@ -126,7 +135,13 @@ namespace SuperPutty.Gui
             this.Name = "tsButtonBar";
             this.Dock = DockStyle.Bottom;
             this.GripStyle = ToolStripGripStyle.Hidden;
-            this.ShowItemToolTips = true;
+            // ToolStrip's own tooltips go below the pointer; at the bottom of the screen Windows moves them up over
+            // it, they take the mouse, the strip sees the pointer leave and hides them, and they flash on and off
+            this.ShowItemToolTips = false;
+            // as ToolStrip's were: shown while a terminal (another window) has the focus too
+            this.tip.ShowAlways = true;
+            this.tipTimer.Interval = SystemInformation.MouseHoverTime;
+            this.tipTimer.Tick += (s, e) => { this.tipTimer.Stop(); this.ShowTip(); };
 
             this.comboBars = new ToolStripComboBox
             {
@@ -136,6 +151,10 @@ namespace SuperPutty.Gui
                 ToolTipText = "Button bar"
             };
             this.comboBars.SelectedIndexChanged += this.comboBars_SelectedIndexChanged;
+            // the dropdown is a control of its own, so the strip doesn't see the pointer over it
+            this.comboBars.ComboBox.MouseEnter += (s, e) => this.PointAt(this.comboBars);
+            this.comboBars.ComboBox.MouseLeave += (s, e) => this.PointAt(null);
+            this.comboBars.ComboBox.MouseDown += (s, e) => this.PointAt(null);
             this.separator = new ToolStripSeparator();
             this.Items.Add(this.comboBars);
             this.Items.Add(this.separator);
@@ -181,6 +200,75 @@ namespace SuperPutty.Gui
             {
                 m.Result = (IntPtr)MA_ACTIVATE;
             }
+        }
+
+        /// <summary>Start the tooltip wait for the item under the pointer, or hide the tooltip when it leaves an item</summary>
+        /// <param name="mea">The pointer's position</param>
+        protected override void OnMouseMove(MouseEventArgs mea)
+        {
+            base.OnMouseMove(mea);
+            this.PointAt(this.GetItemAt(mea.Location));
+        }
+
+        /// <summary>Hide the tooltip when the pointer leaves the bar</summary>
+        /// <param name="e">Not used</param>
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            this.PointAt(null);
+        }
+
+        /// <summary>Hide the tooltip on a click, as ToolStrip does, so it doesn't cover the button's result</summary>
+        /// <param name="mea">The click</param>
+        protected override void OnMouseDown(MouseEventArgs mea)
+        {
+            this.PointAt(null);
+            base.OnMouseDown(mea);
+        }
+
+        /// <summary>
+        /// The pointer is now over this item (null: none). On a change, hide any tooltip and start waiting the hover
+        /// time before showing the new item's.
+        /// </summary>
+        /// <param name="item">The item under the pointer, or null</param>
+        private void PointAt(ToolStripItem item)
+        {
+            if (item == this.tipItem)
+                return;
+            this.tipTimer.Stop();
+            this.tip.Hide(this);
+            this.tipItem = item;
+            if (item != null && !string.IsNullOrEmpty(item.ToolTipText))
+            {
+                this.tipTimer.Start();
+            }
+        }
+
+        /// <summary>
+        /// Show the pointed-at item's tooltip just above it. The bar sits at the bottom of the window, usually the
+        /// bottom of the screen, so above is where there's room, and the tooltip is never under the pointer.
+        /// </summary>
+        private void ShowTip()
+        {
+            ToolStripItem item = this.tipItem;
+            if (item == null || item.IsDisposed || string.IsNullOrEmpty(item.ToolTipText) || !this.Visible)
+                return;
+            // the tooltip's own font is the status font; allow for its border and margins
+            Size text = TextRenderer.MeasureText(item.ToolTipText, SystemFonts.StatusFont);
+            int height = text.Height + DpiUtils.ScaleHeight(10);
+            this.tip.Show(item.ToolTipText, this, new Point(item.Bounds.Left, item.Bounds.Top - height - DpiUtils.ScaleHeight(2)), 5000);
+        }
+
+        /// <summary>Dispose of the tooltip and its timer with the bar</summary>
+        /// <param name="disposing">True when called from Dispose</param>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                this.tipTimer.Dispose();
+                this.tip.Dispose();
+            }
+            base.Dispose(disposing);
         }
 
         /// <summary>
