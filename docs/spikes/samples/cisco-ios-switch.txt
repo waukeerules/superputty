@@ -1,0 +1,38 @@
+! Output captured from a lab Cisco switch (IOS) through plink in ConPTY, for testing highlighting rules.
+! See docs/MonacoTerminal.md. Expected: up/up and "connected" green; down/down, "notconnect" and "%" lines red.
+lab_cisco_switch#show ip interface brief
+Interface              IP-Address      OK? Method Status                Protocol
+Vlan1                  192.168.0.50    YES NVRAM  up                    up
+FastEthernet0/1        unassigned      YES unset  down                  down
+FastEthernet0/2        unassigned      YES unset  down                  down
+FastEthernet0/3        unassigned      YES unset  down                  down
+FastEthernet0/4        unassigned      YES unset  down                  down
+FastEthernet0/5        unassigned      YES unset  down                  down
+FastEthernet0/6        unassigned      YES unset  down                  down
+FastEthernet0/7        unassigned      YES unset  down                  down
+FastEthernet0/8        unassigned      YES unset  down                  down
+GigabitEthernet0/1     unassigned      YES unset  up                    up
+GigabitEthernet0/2     unassigned      YES unset  down                  down
+lab_cisco_switch#show interfaces status
+
+Port      Name               Status       Vlan       Duplex  Speed Type
+Fa0/1                        notconnect   1            auto   auto 10/100BaseTX
+Fa0/2                        notconnect   1            auto   auto 10/100BaseTX
+Fa0/3                        notconnect   1            auto   auto 10/100BaseTX
+Fa0/4                        notconnect   1            auto   auto 10/100BaseTX
+Fa0/5                        notconnect   1            auto   auto 10/100BaseTX
+Fa0/6                        notconnect   1            auto   auto 10/100BaseTX
+Fa0/7                        notconnect   1            auto   auto 10/100BaseTX
+Fa0/8                        notconnect   1            auto   auto 10/100BaseTX
+Gi0/1                        connected    1          a-full a-1000 10/100/1000BaseTX
+Gi0/2     uplink_example     notconnect   1            auto   auto Not Present
+lab_cisco_switch#show interfaces
+Vlan1 is up, line protocol is up
+  Internet address is 192.168.0.50/24
+     0 input errors, 0 CRC, 0 frame, 0 overrun, 0 ignored
+     0 output errors, 2 interface resets
+FastEthernet0/1 is down, line protocol is down (notconnect)
+     0 input errors, 0 CRC, 0 frame, 0 overrun, 0 ignored
+lab_cisco_switch#sh ip int bief
+                            ^
+% Invalid input detected at '^' marker.
