@@ -210,6 +210,9 @@ namespace SuperPutty
             SessionShortcuts.Changed += SessionShortcuts_Changed;
             this.treeView1.BeforeExpand += this.treeView1_BeforeExpand;
             this.treeView1.BeforeSelect += this.treeView1_BeforeSelectMulti;
+            this.treeView1.HandleCreated += (s, e) => DoubleBufferTree(this.treeView1);
+            if (this.treeView1.IsHandleCreated)
+                DoubleBufferTree(this.treeView1);
             this.treeView1.AfterExpand += (s, e) => RememberGroup(e.Node, e.Action, true);
             this.treeView1.AfterCollapse += (s, e) => RememberGroup(e.Node, e.Action, false);
             if (m_DockPanel != null)
@@ -2200,6 +2203,19 @@ namespace SuperPutty
         }
 
         /// <summary>
+        /// Turn on the tree control's own double buffering (TVS_EX_DOUBLEBUFFER). Without it, each node whose colour
+        /// changes (a multiple selection growing or shrinking) redraws the rows around it on screen, and they flicker.
+        /// WinForms on .NET Framework doesn't set it; it's lost when the handle is made again, so it's set on HandleCreated.
+        /// </summary>
+        /// <param name="tree">The tree</param>
+        static void DoubleBufferTree(TreeView tree)
+        {
+            const uint TVM_SETEXTENDEDSTYLE = 0x1100 + 44;
+            const int TVS_EX_DOUBLEBUFFER = 0x0004;
+            NativeMethods.SendMessage(tree.Handle, TVM_SETEXTENDEDSTYLE, TVS_EX_DOUBLEBUFFER, (IntPtr)TVS_EX_DOUBLEBUFFER);
+        }
+
+        /// <summary>
         /// The selected sessions' nodes: the multiple selection with the tree's selected node, in the order they were
         /// picked, or just the selected node when it's a session
         /// </summary>
@@ -2243,6 +2259,7 @@ namespace SuperPutty
             bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
             Color back = dark ? Color.FromArgb(0x26, 0x4F, 0x78) : SystemColors.Highlight;
             Color fore = dark ? Color.White : SystemColors.HighlightText;
+            // each colour set redraws the tree, so only nodes whose colour changes are touched
             foreach (TreeNode node in this.multiSelection.Except(next))
             {
                 node.BackColor = Color.Empty;
@@ -2250,8 +2267,10 @@ namespace SuperPutty
             }
             foreach (TreeNode node in next)
             {
-                node.BackColor = back;
-                node.ForeColor = fore;
+                if (node.BackColor != back)
+                    node.BackColor = back;
+                if (node.ForeColor != fore)
+                    node.ForeColor = fore;
             }
             this.multiSelection.Clear();
             this.multiSelection.AddRange(next);

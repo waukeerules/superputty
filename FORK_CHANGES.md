@@ -1583,6 +1583,7 @@ That alone left the cursor flickering as you moved over the edge: the splitter w
 - **Edit** (the menu, or Shift+Enter) opens the dialog a folder's Edit sessions... opens, for the selected sessions ("Edit 5 selected sessions"): tick the fields to set on them all (`SessionTreeview.BulkEditSessions`, `Gui/dlgBulkEdit`). Sessions in a database table that can't be written, or locked in it, are left out, after saying which.
 - The other menu items (Rename, Move to...) still act on the session right-clicked.
 - The WinForms tree selects one node only, so the others are kept in `SessionTreeview.multiSelection` and painted with a selection background; the last one clicked keeps the tree's own highlight. A right-click on a selected session keeps the selection; anywhere else resets it.
+- **No flicker:** Ctrl+click and Shift+click made the other sessions flicker. Every colour set on a node redraws the tree, the selection's colours were set again on every node at each click, and the tree drew straight to the screen. Now only nodes whose colour changes are touched, and the tree control's own double buffering is on (`SessionTreeview.DoubleBufferTree`, `TVS_EX_DOUBLEBUFFER`, set again whenever the handle is made; WinForms on .NET Framework doesn't set it). Checked: the running tree reports the style, and selecting with Shift+click and Ctrl+click still works; whether the flicker is gone was left to the eye.
 
 | File | Change |
 |---|---|
