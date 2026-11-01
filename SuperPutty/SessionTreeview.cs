@@ -455,6 +455,18 @@ namespace SuperPutty
                 this.ColorNode(FindSessionNode(Session.SessionId));
             }
 
+            // the tooltip shows the protocol, user, host and port: keep it up to date as they're edited
+            TreeNode tipNode = FindSessionNode(Session.SessionId);
+            if (tipNode != null && tipNode.Tag == Session)
+            {
+                tipNode.ToolTipText = SessionToolTip(Session);
+            }
+            if (SessionShortcuts.IsFavorite(Session.SessionId) || SessionShortcuts.Recent.Contains(Session.SessionId))
+            {
+                // their entries show it too; the rebuild waits for the edit's other changes
+                ScheduleShortcutRebuild();
+            }
+
             if (PropertyName == "SessionName" || PropertyName == "ImageKey")
             {
                 TreeNode Node = FindSessionNode(Session.SessionId);
@@ -2920,6 +2932,38 @@ namespace SuperPutty
 
         #region Node helpers
 
+        /// <summary>
+        /// A session node's tooltip: its address (protocol, user, host and port) under any database notes (pending,
+        /// who changed or manages it, locks). Built again whenever the session changes, so an edit shows at once.
+        /// </summary>
+        /// <param name="session">The session</param>
+        /// <returns>The tooltip text</returns>
+        static string SessionToolTip(SessionData session)
+        {
+            string text = session.ToString();
+            if (session.DatabasePending)
+            {
+                text = session.DatabasePendingNote + Environment.NewLine + text;
+            }
+            if (!string.IsNullOrEmpty(session.DatabaseUpdatedBy))
+            {
+                text = "Last changed by " + session.DatabaseUpdatedBy + Environment.NewLine + text;
+            }
+            if (!string.IsNullOrEmpty(session.DatabaseManagedBy))
+            {
+                text = "Managed by " + session.DatabaseManagedBy + Environment.NewLine + text;
+            }
+            if (session.DatabaseLocked)
+            {
+                text = "Locked in the database: opens, but isn't edited here" + Environment.NewLine + text;
+            }
+            else if (!string.IsNullOrEmpty(session.DatabaseLockedFields))
+            {
+                text = "Locked in the database: " + session.DatabaseLockedFields.Replace(",", ", ") + Environment.NewLine + text;
+            }
+            return text;
+        }
+
         TreeNode AddSessionNode(TreeNode parentNode, SessionData session, bool isInitializing)
         {
             TreeNode addedNode = null;
@@ -2932,30 +2976,13 @@ namespace SuperPutty
                 addedNode = parentNode.Nodes.Add(session.SessionName, session.SessionName, ImageKeySession, ImageKeySession);
                 addedNode.Tag = session;
                 addedNode.ContextMenuStrip = this.contextMenuStripAddTreeItem;
-                addedNode.ToolTipText = session.ToString();
+                addedNode.ToolTipText = SessionToolTip(session);
                 if (session.DatabasePending)
                 {
                     // not in the table yet: queued while offline, or refused
                     addedNode.NodeFont = new Font(this.treeView1.Font, FontStyle.Italic);
-                    addedNode.ToolTipText = session.DatabasePendingNote + Environment.NewLine + addedNode.ToolTipText;
                 }
                 this.ColorNode(addedNode);
-                if (!string.IsNullOrEmpty(session.DatabaseUpdatedBy))
-                {
-                    addedNode.ToolTipText = "Last changed by " + session.DatabaseUpdatedBy + Environment.NewLine + addedNode.ToolTipText;
-                }
-                if (!string.IsNullOrEmpty(session.DatabaseManagedBy))
-                {
-                    addedNode.ToolTipText = "Managed by " + session.DatabaseManagedBy + Environment.NewLine + addedNode.ToolTipText;
-                }
-                if (session.DatabaseLocked)
-                {
-                    addedNode.ToolTipText = "Locked in the database: opens, but isn't edited here" + Environment.NewLine + addedNode.ToolTipText;
-                }
-                else if (!string.IsNullOrEmpty(session.DatabaseLockedFields))
-                {
-                    addedNode.ToolTipText = "Locked in the database: " + session.DatabaseLockedFields.Replace(",", ", ") + Environment.NewLine + addedNode.ToolTipText;
-                }
 
                 // Override with custom icon if valid, and a dot if the session has a tab open
                 string imageKey = SessionImageKey(session);

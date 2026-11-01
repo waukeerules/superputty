@@ -1603,6 +1603,16 @@ Manual test: select three sessions with Shift+click, right-click one → Connect
 
 **Checked** in the real window: a duplicate of Windows 7 Host kept `windows#2E7D32` after its type was switched to SSH and saved. The copy was deleted afterwards.
 
+## Fix: a session's tooltip kept its old protocol until a restart
+
+**Symptom:** after editing a session from SSH to RDP, its tooltip in the Sessions tree still said `ssh://...` until SuperXPuTTY was restarted.
+
+**Cause:** the tooltip was written once, when the node was added; edits only updated the node's name and icon.
+
+**Fix:** the tooltip (`SessionTreeview.SessionToolTip`, with the database notes it had) is built again whenever one of the session's properties changes, and Favorites and Recent entries for it are rebuilt too.
+
+**Checked** in the real window: a session edited to another protocol showed the new address (`ps://localhost:3389`) in its tooltip straight after saving. The test session was deleted afterwards.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
