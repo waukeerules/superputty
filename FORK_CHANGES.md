@@ -1613,6 +1613,14 @@ Manual test: select three sessions with Shift+click, right-click one → Connect
 
 **Checked** in the real window: a session edited to another protocol showed the new address (`ps://localhost:3389`) in its tooltip straight after saving. The test session was deleted afterwards.
 
+## The installer's licence names this fork, without a version
+
+The installer's licence page (`License.rtf`) still said "SuperXPuTTY version 2.1.1.0" and listed only upstream's copyrights. Its heading is now just "SuperXPuTTY", so it can't go out of date (the installer shows the version elsewhere), and `License.rtf` and `License.txt` both start with "Copyright (c) 2026 waukeerules", with a link to this repository in the installer.
+
+The installer isn't rebuilt when only `License.rtf` changes, as its project doesn't list the file as an input; the README's release steps say to rebuild it (`/t:SuperPuttyInstaller:Rebuild`).
+
+**Checked:** `License.rtf` loaded into a RichTextBox reads "SuperXPuTTY", "MIT License", then the three copyright lines; the rebuilt MSI's licence text (its `Control` table) has the new line and no "version 2.1.", and its ProductVersion is 2.3.0.0.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

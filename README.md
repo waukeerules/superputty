@@ -55,6 +55,8 @@ This builds:
 - the program: `bin\Release\SuperXPuTTY.exe`
 - the installer: `SuperPuttyInstaller\bin\x86\Release\SuperXPuTTYSetup.msi`
 
+If only `License.rtf` changed, the installer isn't rebuilt: it doesn't count the file as an input. Add `/t:SuperPuttyInstaller:Rebuild` to the command to rebuild it.
+
 **3. Make the portable zip.** Don't publish the exe on its own: it needs the DLLs and `SuperXPuTTY.exe.config` beside it.
 
 ```powershell

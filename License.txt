@@ -1,5 +1,6 @@
 ﻿MIT License
 
+Copyright (c) 2026 waukeerules
 Copyright (c) 2026 SilverGreen93
 Copyright (c) 2009 – 2023 Jim Radford
 
