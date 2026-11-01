@@ -3020,8 +3020,15 @@ namespace SuperPutty
             {
                 SessionData session = sessions[i];
                 string key = SessionImageKey(session);
-                TreeNode node = group.Nodes.Add(session.SessionId, session.SessionName, key, key);
-                node.Tag = new SessionShortcut { Session = session, Group = kind, Order = i };
+                // tagged before it's added, so it's sorted into place as an entry, not a folder
+                TreeNode node = new TreeNode(session.SessionName)
+                {
+                    Name = session.SessionId,
+                    ImageKey = key,
+                    SelectedImageKey = key,
+                    Tag = new SessionShortcut { Session = session, Group = kind, Order = i }
+                };
+                group.Nodes.Add(node);
                 node.ContextMenuStrip = this.contextMenuStripShortcut;
                 string folder = SessionData.GetSessionParentId(TreeId(session.SessionId));
                 node.ToolTipText = (session.IsDatabase ? "Database sessions" : session.IsPrivate ? "Private sessions" : "Saved sessions") + (folder == null ? "" : "/" + folder)
@@ -3205,8 +3212,10 @@ namespace SuperPutty
             }
             else
             {
-                addedNode = parentNode.Nodes.Add(session.SessionName, session.SessionName, ImageKeySession, ImageKeySession);
-                addedNode.Tag = session;
+                // the Tag goes on before the node is added: the tree sorts it into place as it's added, and a node
+                // without one counts as a folder, which went before every session (so each new one went first)
+                addedNode = new TreeNode(session.SessionName) { Name = session.SessionName, ImageKey = ImageKeySession, SelectedImageKey = ImageKeySession, Tag = session };
+                parentNode.Nodes.Add(addedNode);
                 addedNode.ContextMenuStrip = this.contextMenuStripAddTreeItem;
                 addedNode.ToolTipText = SessionToolTip(session);
                 if (session.DatabasePending)
@@ -3500,9 +3509,12 @@ namespace SuperPutty
                 return sx.Order.CompareTo(sy.Order);
             }
             bool foldersFirst = SuperPuTTY.Settings.SessiontreeShowFoldersFirst;
-            int order = CompareNodes(PlainName(tx), IsFolderNode(tx), PlainName(ty), IsFolderNode(ty), foldersFirst);
+            // a folder is a node without a Tag (sessions, entries and roots have one); not IsFolderNode, which also looks
+            // at where the node is, and a node being added isn't in the tree yet
+            bool fx = tx.Tag == null, fy = ty.Tag == null;
+            int order = CompareNodes(fx ? tx.Name : tx.Text, fx, fy ? ty.Name : ty.Text, fy, foldersFirst);
             // Z to A reverses names only; folders stay before sessions
-            bool byKind = foldersFirst && IsFolderNode(tx) != IsFolderNode(ty);
+            bool byKind = foldersFirst && fx != fy;
             return this.sortDescending && !byKind ? -order : order;
         }
 

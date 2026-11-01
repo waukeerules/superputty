@@ -1668,7 +1668,17 @@ Folders in the Sessions tree show how many sessions they hold, with their subfol
 
 **Checked** in the real window: Saved sessions (7), Test (5), Private sessions (2), Live Test (2) and Region 4 (2) under Database sessions (4), all matching what's in them. Opening Test (5) filled it with its five sessions (its path comes from the folder's name), and Edit on one of them had the right title.
 **Not checked:** renaming, moving and dragging folders with the new names, and counts while searching.
-**Found, not changed:** inside Test the sessions are in reverse order (RDP Test... down to cmd Test), the order they were added in, not sorted. The build before this change does the same.
+Inside a folder the sessions were in reverse order; fixed separately (see "Fix: sessions inside a folder were in reverse order").
+
+## Fix: sessions inside a folder were in reverse order
+
+**Symptom:** opening a folder in the Sessions tree listed its sessions Z to A (RDP Test..., PowerShell Test, cmd Test), while the top level was A to Z.
+
+**Cause:** the tree sorts each node into place as it's added, folders before sessions, and tells a session from a folder by the node's Tag. `AddSessionNode` set the Tag only after adding the node, so while it was being placed each new session looked like a folder and went before the sessions already there: every one went first, reversing them. The top level looked right because the whole tree is sorted again when the sorter is first set. New Favorites entries had the same problem, as an entry's kind also depended on whether it was in the tree yet.
+
+**Fix:** sessions and Favorites/Recent entries get their Tag before they're added, and the sorter takes "folder" to mean a node without a Tag (`SessionTreeview.Compare`), which doesn't depend on where the node is.
+
+**Checked** in the real window: Test opened as cmd Test, PowerShell Test, RDP Test, RDP Test - 127.0.0.1, RDP Test -172.27.133.195; Recent stayed most recent first, in the order SessionShortcuts.json has.
 
 ## Open questions
 
