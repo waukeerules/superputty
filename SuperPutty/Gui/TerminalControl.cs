@@ -83,8 +83,9 @@ namespace SuperPutty.Gui
         /// The longest output ending in a line break waits for the next line. cmd's pseudo console sends Enter's line
         /// break at once and the new prompt in its next frame, about 16 ms later; drawn apart, the screen showed a blank
         /// line where the prompt belonged, sometimes for a second or two before WebView2 put the next frame on screen.
+        /// Over SSH the device's prompt can take longer, so this allows for the network too.
         /// </summary>
-        private static readonly TimeSpan LineBreakHold = TimeSpan.FromMilliseconds(40);
+        private static readonly TimeSpan LineBreakHold = TimeSpan.FromMilliseconds(100);
 
         /// <summary>Output from plink not yet sent to the page; guarded by itself</summary>
         private readonly MemoryStream pending = new MemoryStream();
@@ -678,14 +679,15 @@ namespace SuperPutty.Gui
         /// <summary>
         /// How much longer queued output should wait before going to the page: output that ends in a line break waits
         /// up to <see cref="LineBreakHold"/> for what follows, so a new prompt is drawn together with the line break
-        /// before it rather than one frame later. Anything else (typed characters echoed back) goes at once.
+        /// before it rather than one frame later. A lone CR counts too: over SSH the CR and LF sometimes arrive apart.
+        /// Anything else (typed characters echoed back) goes at once.
         /// </summary>
         /// <param name="lastByte">The last byte queued</param>
         /// <param name="waited">How long the oldest queued output has waited</param>
         /// <returns>The time left to wait; zero to send now</returns>
         public static TimeSpan HoldForNextLine(byte lastByte, TimeSpan waited)
         {
-            if (lastByte != (byte)'\n' || waited >= LineBreakHold)
+            if ((lastByte != (byte)'\n' && lastByte != (byte)'\r') || waited >= LineBreakHold)
                 return TimeSpan.Zero;
             return LineBreakHold - waited;
         }
