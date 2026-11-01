@@ -433,8 +433,8 @@ Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom netw
   - **Layout:** a searchable grid grouped as Devices, General, Logos and Custom, plus a large preview.
   - **Dark theme:** the grid uses Windows' dark "items view" style, so the group headings are readable. DarkModeCS's dark Explorer style left them dark blue.
   - **Colour row:** Default, ten named colours, and More... for any colour; More... is outlined when the chosen colour isn't one of the ten.
-  - **Colour preview:** only the selected icon shows the chosen colour, on its tile and in the large preview; every other icon keeps its own colours. Selecting another icon moves the colour to it.
-    - **Before:** first the whole device and general set was recoloured, then the selected icon's whole group. Choosing white for Apple turned every device icon (later, every logo) white, which looked like a fault.
+  - **Colour preview:** with a device or general icon selected, every device and general icon shows the chosen colour, so you can compare a colour across the whole set (handy for demos). A logo or custom icon shows it only on its own tile. The large preview always shows it.
+    - **Before:** first the whole device and general set was recoloured, even when a logo was selected; then the selected icon's whole group, so choosing white for Apple turned every logo white, which looked like a fault; then only the selected icon, which made comparing colours slow.
   - **Explicit colours:** a colour chosen for a logo is used as it is. Only near-black brand colours are lightened on the dark theme.
   - **Result:** the picker returns the key to store, with the colour left off when it's the icon's own.
   - **Replaces:** the old plain grid popup. The toolbar's icon filter still uses the grid.

@@ -10,8 +10,9 @@ namespace SuperPutty.Gui
 {
     /// <summary>
     /// Chooses a session icon and its colour (IconLibrary). Icons are grouped as Devices, General, Logos and Custom (the
-    /// one-colour icons users add with Add icon..., kept by CustomIcons), with a search box. The chosen colour shows on
-    /// the selected icon's tile and in the large preview; every other icon keeps its own colours. Returns the key to
+    /// one-colour icons users add with Add icon..., kept by CustomIcons), with a search box. The chosen colour shows in
+    /// the large preview and on the grid: on every device and general icon when one of them is selected, so colours can
+    /// be compared across the set, and only on the selected tile for a logo or custom icon. Returns the key to
     /// store, e.g. "switch#1E63B4". Opened from Edit Session's icon button and Edit Button's "Choose icon...".
     /// </summary>
     public partial class dlgIconPicker : Form
@@ -34,8 +35,8 @@ namespace SuperPutty.Gui
         /// <summary>The More... button, outlined when the chosen colour isn't one of the swatches</summary>
         private Button moreButton;
 
-        /// <summary>The icon whose grid tile shows the chosen colour: the selected one; null if none</summary>
-        private string tintedName;
+        /// <summary>The icons whose grid tiles show the chosen colour (see <see cref="SharesColor"/>)</summary>
+        private readonly HashSet<string> tinted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>Set while the grid is being refilled, so selecting the remembered item doesn't refill it again</summary>
         private bool filling;
@@ -150,7 +151,7 @@ namespace SuperPutty.Gui
 
         /// <summary>
         /// Fill the grid: device and general icons, logos, then custom icons, filtered by the search box. Only the
-        /// selected icon's tile shows the chosen colour; the others show their own.
+        /// tiles that share the selected icon's colour (<see cref="SharesColor"/>) show it; the others show their own.
         /// </summary>
         /// <param name="selectName">The icon to select afterwards; null keeps the current selection</param>
         private void FillList(string selectName)
@@ -161,7 +162,7 @@ namespace SuperPutty.Gui
             }
             string filter = this.textBoxSearch.Text.Trim();
             int size = this.gridImages.ImageSize.Width;
-            this.tintedName = null;
+            this.tinted.Clear();
 
             this.filling = true;
             this.listIcons.BeginUpdate();
@@ -185,16 +186,20 @@ namespace SuperPutty.Gui
                     continue;
 
                 bool selected = string.Equals(name, selectName, StringComparison.OrdinalIgnoreCase);
-                Image image = IconLibrary.RenderDrawn(selected ? this.KeyFor(name) : name, size);
+                bool tint = this.SharesColor(name, selectName);
+                Image image = IconLibrary.RenderDrawn(tint ? this.KeyFor(name) : name, size);
                 if (image == null)
                     continue;
                 this.gridImages.Images.Add(name, image);
                 ListViewItem item = new ListViewItem(title, name, entry.Item2) { Tag = name, ToolTipText = name };
                 this.listIcons.Items.Add(item);
+                if (tint)
+                {
+                    this.tinted.Add(name);
+                }
                 if (selected)
                 {
                     item.Selected = true;
-                    this.tintedName = name;
                 }
             }
             this.listIcons.EndUpdate();
@@ -221,14 +226,49 @@ namespace SuperPutty.Gui
             return this.listIcons.SelectedItems.Count > 0 ? this.KeyFor((string)this.listIcons.SelectedItems[0].Tag) : null;
         }
 
-        /// <summary>Use a colour for the selected icon, and redraw its tile and the preview in it</summary>
+        /// <summary>
+        /// Whether an icon's tile shows the chosen colour while another is selected: the selected one always, and every
+        /// device and general icon while one of them is selected, to compare a colour across the set. Logos and custom
+        /// icons keep it to themselves; tinting all logos (white for Apple turned them all white) looked like a fault.
+        /// </summary>
+        /// <param name="name">The tile's icon</param>
+        /// <param name="selected">The selected icon; null if none</param>
+        /// <returns>true if the tile should show the chosen colour</returns>
+        private bool SharesColor(string name, string selected)
+        {
+            return selected != null
+                && (string.Equals(name, selected, StringComparison.OrdinalIgnoreCase) || IconTemplates.Exists(name) && IconTemplates.Exists(selected));
+        }
+
+        /// <summary>Redraw the tiles whose colour changes for the selected icon</summary>
+        /// <param name="selected">The selected icon</param>
+        /// <param name="colorChanged">true to redraw every tinted tile, because the chosen colour itself changed</param>
+        private void Retint(string selected, bool colorChanged)
+        {
+            foreach (ListViewItem item in this.listIcons.Items)
+            {
+                string name = (string)item.Tag;
+                bool tint = this.SharesColor(name, selected);
+                if (tint && (colorChanged || !this.tinted.Contains(name)))
+                {
+                    this.SetTile(name, this.KeyFor(name));
+                    this.tinted.Add(name);
+                }
+                else if (!tint && this.tinted.Remove(name))
+                {
+                    this.SetTile(name, name);
+                }
+            }
+        }
+
+        /// <summary>Use a colour for the selected icon, and redraw the preview and the tiles that share it</summary>
         /// <param name="color">The colour; Empty for the icon's own</param>
         private void ChooseColor(Color color)
         {
             this.chosenColor = color;
-            if (this.tintedName != null)
+            if (this.listIcons.SelectedItems.Count > 0)
             {
-                this.SetTile(this.tintedName, this.KeyFor(this.tintedName));
+                this.Retint((string)this.listIcons.SelectedItems[0].Tag, true);
             }
             this.UpdateSelection();
         }
@@ -294,15 +334,10 @@ namespace SuperPutty.Gui
             if (this.filling)
                 return;
             string selected = this.listIcons.SelectedItems.Count > 0 ? (string)this.listIcons.SelectedItems[0].Tag : null;
-            if (selected != null && !string.Equals(selected, this.tintedName, StringComparison.OrdinalIgnoreCase))
+            if (selected != null)
             {
-                // the colour moves to the newly selected tile; the previous one goes back to its own
-                if (this.tintedName != null)
-                {
-                    this.SetTile(this.tintedName, this.tintedName);
-                }
-                this.tintedName = selected;
-                this.SetTile(selected, this.KeyFor(selected));
+                // the colour follows the selection; tiles that no longer share it go back to their own
+                this.Retint(selected, false);
             }
             this.UpdateSelection();
         }
