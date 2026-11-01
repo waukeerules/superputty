@@ -34,6 +34,7 @@
     var autoSet = null;
     var darkDefault = true;
     var bellFromProfile = 'visual'; // the PuTTY profile's bell, from TerminalControl
+    var cursorFromProfile = { style: 'block', blink: false }; // the PuTTY profile's cursor, from TerminalControl
     var cursorColor = null;         // the session's environment colour (#rrggbb) for the cursor, or null
     var settleTimer = null;
     var scanFrom = null;        // marker: first line to look at for highlighting next time
@@ -525,6 +526,15 @@
         var themeItems = themes.map(function (t) {
             return { label: t.name, checked: theme && theme.name === t.name, action: function () { savePref('theme', t.name); applyTheme(); } };
         });
+        var shapeNames = { block: 'Block', underline: 'Underline', bar: 'Vertical Line' };
+        var chosenShape = loadPref('cursorShape') || 'profile';
+        var chosenBlink = loadPref('cursorBlink') || 'profile';
+        var setCursor = function (name, value) { return function () { savePref(name, value); applyCursor(); }; };
+        var cursorItems = [['profile', 'From PuTTY Profile (' + shapeNames[cursorFromProfile.style] + ')'], ['block', 'Block'], ['underline', 'Underline'], ['bar', 'Vertical Line']]
+            .map(function (c) { return { label: c[1], checked: chosenShape === c[0], action: setCursor('cursorShape', c[0]) }; })
+            .concat(['-'])
+            .concat([['profile', 'Blink: From PuTTY Profile (' + (cursorFromProfile.blink ? 'On' : 'Off') + ')'], ['on', 'Blink'], ['off', 'Don\'t Blink']]
+                .map(function (c) { return { label: c[1], checked: chosenBlink === c[0], action: setCursor('cursorBlink', c[0]) }; }));
         var chosenBell = loadPref('bell') || 'profile';
         var bellNames = { visual: 'Flash', sound: 'Sound', none: 'None' };
         var bellItems = [['profile', 'From PuTTY Profile (' + bellNames[bellFromProfile] + ')'], ['visual', 'Flash'], ['sound', 'Sound'], ['none', 'None']]
@@ -547,6 +557,7 @@
             { label: 'Highlighting', items: ruleItems },
             { label: 'Theme', items: themeItems },
             { label: 'Bell', items: bellItems },
+            { label: 'Cursor', items: cursorItems },
             '-',
             { label: 'Copy on Select', checked: prefOn('copyOnSelect'), action: function () { togglePref('copyOnSelect'); } },
             { label: 'Mark Matches of Selection', checked: prefOn('markMatches'), action: function () { togglePref('markMatches'); markSelectionMatches(); } },
@@ -753,11 +764,38 @@
         }
     }
 
+    // ---- cursor ---------------------------------------------------------------------------------------------------
+
+    /** The cursor's shape: the menu's choice, else the PuTTY profile's ("block", "underline" or "bar") */
+    function cursorShape() {
+        var chosen = loadPref('cursorShape') || 'profile';
+        return chosen === 'profile' ? cursorFromProfile.style : chosen;
+    }
+
+    /** Whether the cursor blinks: the menu's choice, else the PuTTY profile's */
+    function cursorBlinks() {
+        var chosen = loadPref('cursorBlink') || 'profile';
+        return chosen === 'profile' ? !!cursorFromProfile.blink : chosen === 'on';
+    }
+
+    /**
+     * Shape and blink the cursor as the PuTTY profile (Window > Appearance) or the menu says. Without the keyboard it
+     * shows as an outline for a block, as PuTTY does, and as the same line otherwise.
+     */
+    function applyCursor() {
+        var shape = cursorShape();
+        term.options.cursorStyle = shape;
+        term.options.cursorInactiveStyle = shape === 'block' ? 'outline' : shape;
+        term.options.cursorBlink = cursorBlinks();
+    }
+
     /** Apply a config message: rule sets, themes and whether SuperPuTTY is dark; then fit and report the size */
     function configure(config) {
         darkDefault = !!config.dark;
         bellFromProfile = config.bell || 'visual';
         if (config.bellOverload) { bellOverload = config.bellOverload; }
+        if (config.cursor) { cursorFromProfile = config.cursor; }
+        applyCursor();
         cursorColor = config.cursorColor || null;
         themes = config.themes || [];
         var compiled = SpRules.compile(config.ruleSets || []);

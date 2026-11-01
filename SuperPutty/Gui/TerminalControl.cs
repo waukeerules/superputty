@@ -356,7 +356,7 @@ namespace SuperPutty.Gui
                 Log.Warn("Highlighting files skipped: " + string.Join("; ", problems));
             }
             bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
-            this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursorColor = this.cursorColor });
+            this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursor = CursorFromProfile(this.session.PuttySession), cursorColor = this.cursorColor });
         }
 
         /// <summary>The session's environment colour as #rrggbb, for the cursor; null for none</summary>
@@ -396,6 +396,22 @@ namespace SuperPutty.Gui
                 case 2: return "visual";
                 default: return "sound";
             }
+        }
+
+        /// <summary>
+        /// The cursor from the session's PuTTY profile (Window > Appearance), as PuTTY saves it: "CurType" (0 block,
+        /// 1 underline, 2 vertical line) and "BlinkCur" (1 to blink). Missing values get PuTTY's defaults: a steady block.
+        /// </summary>
+        /// <param name="profile">The PuTTY profile; empty for Default Settings</param>
+        /// <returns>An object for the page: style ("block", "underline" or "bar") and blink</returns>
+        public static object CursorFromProfile(string profile)
+        {
+            int type, blink;
+            if (!int.TryParse(PuttyDataHelper.GetProfileValue(profile, "CurType"), out type))
+                type = 0;
+            if (!int.TryParse(PuttyDataHelper.GetProfileValue(profile, "BlinkCur"), out blink))
+                blink = 0;
+            return new { style = type == 1 ? "underline" : type == 2 ? "bar" : "block", blink = blink != 0 };
         }
 
         /// <summary>
