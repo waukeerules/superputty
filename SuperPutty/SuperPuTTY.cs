@@ -937,7 +937,12 @@ namespace SuperPutty
                     // drawn at the tab's own icon size, so it's sharp rather than the list's size scaled down
                     int size = IconLibrary.TabIconPixels;
                     Bitmap bmp = IconLibrary.RenderDrawn(imageKey, size) ?? IconLibrary.Scale(Images.Images[imageKey], size);
-                    icon = Icon.FromHandle(bmp.GetHicon());
+                    // outlined so it reads on any tab colour, as in the Sessions tree
+                    using (bmp)
+                    using (Bitmap outlined = IconLibrary.Outlined(bmp))
+                    {
+                        icon = Icon.FromHandle(outlined.GetHicon());
+                    }
                 }
                 catch (Exception ex)
                 {

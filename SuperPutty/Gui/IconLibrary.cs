@@ -478,16 +478,57 @@ namespace SuperPutty.Gui
             Bitmap bitmap = new Bitmap(size, icon.Height);
             float inner = iconPixels < size ? size : size * 0.78f;
             float offset = (size - inner) / 2;
-            float outline = Math.Max(1f, iconPixels / 20f);
             using (Graphics g = Graphics.FromImage(bitmap))
             using (Brush fill = new SolidBrush(color))
-            using (ImageAttributes dark = new ImageAttributes())
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                 g.PixelOffsetMode = PixelOffsetMode.HighQuality;
                 g.FillEllipse(fill, 0, 0, size - 1, icon.Height - 1);
-                // the outline is the icon's own shape in near-black, drawn shifted all round beneath it
+                DrawOutlined(g, icon, new RectangleF(offset, offset, inner, inner), OutlineWidth(iconPixels));
+            }
+            return bitmap;
+        }
+
+        /// <summary>
+        /// An icon with the dark outline <see cref="DrawOnCircle"/> gives it, for a tab: drawn in by the outline's width
+        /// so the outline isn't cut off, and readable on any tab colour (a grey logo on a grey tab, say)
+        /// </summary>
+        /// <param name="icon">The icon</param>
+        /// <returns>A new image the icon's size</returns>
+        public static Bitmap Outlined(Image icon)
+        {
+            Bitmap bitmap = new Bitmap(icon.Width, icon.Height);
+            float outline = OutlineWidth(icon.Width);
+            using (Graphics g = Graphics.FromImage(bitmap))
+            {
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                DrawOutlined(g, icon, new RectangleF(outline, outline, icon.Width - 2 * outline, icon.Height - 2 * outline), outline);
+            }
+            return bitmap;
+        }
+
+        /// <summary>The width of an icon's dark outline: a twentieth of its size, at least a pixel</summary>
+        /// <param name="iconPixels">The icon's size in pixels</param>
+        /// <returns>The width in pixels</returns>
+        private static float OutlineWidth(int iconPixels)
+        {
+            return Math.Max(1f, iconPixels / 20f);
+        }
+
+        /// <summary>
+        /// Draw an icon with a dark outline following its shape: the icon's own shape in near-black, drawn shifted all
+        /// round beneath it
+        /// </summary>
+        /// <param name="g">Where to draw</param>
+        /// <param name="icon">The icon</param>
+        /// <param name="bounds">Where the icon goes; the outline reaches <paramref name="outline"/> beyond it</param>
+        /// <param name="outline">The outline's width in pixels</param>
+        private static void DrawOutlined(Graphics g, Image icon, RectangleF bounds, float outline)
+        {
+            using (ImageAttributes dark = new ImageAttributes())
+            {
                 dark.SetColorMatrix(new ColorMatrix(new[]
                 {
                     new float[] { 0, 0, 0, 0, 0 },
@@ -499,13 +540,12 @@ namespace SuperPutty.Gui
                 for (int i = 0; i < 8; i++)
                 {
                     double angle = i * Math.PI / 4;
-                    float x = offset + (float)Math.Cos(angle) * outline, y = offset + (float)Math.Sin(angle) * outline;
-                    g.DrawImage(icon, new[] { new PointF(x, y), new PointF(x + inner, y), new PointF(x, y + inner) },
+                    float x = bounds.X + (float)Math.Cos(angle) * outline, y = bounds.Y + (float)Math.Sin(angle) * outline;
+                    g.DrawImage(icon, new[] { new PointF(x, y), new PointF(x + bounds.Width, y), new PointF(x, y + bounds.Height) },
                         new RectangleF(0, 0, icon.Width, icon.Height), GraphicsUnit.Pixel, dark);
                 }
-                g.DrawImage(icon, offset, offset, inner, inner);
             }
-            return bitmap;
+            g.DrawImage(icon, bounds);
         }
 
         /// <summary>
