@@ -1719,6 +1719,16 @@ The dialog (Tools → Environment Variables) needed two or three clicks to edit 
 - The real dialog, opened on its own: Export wrote the current settings without the (encrypted) password; Import of a co-worker's file filled host, port, database, table, user, `{team_pg}` as the password, SSL and read only, kept the nickname and said what to do next; Cancel left SuperXPuTTY.settings as it was. Clear emptied host, username and password, put the rest back to the defaults above, kept the nickname, and the connection OK would save had an empty password; Cancel again left the settings as they were.
 - **Not checked:** the light theme, and an import followed by OK and a real connection.
 
+## Fix: the environment colour's frame around the terminal was missing
+
+**Symptom:** a red (production) session's tab was red, but the terminal had no red frame around it, on the dark theme. It looked as if it had stopped working with the splitter changes; the build before them does the same.
+
+**Cause:** the dark theme (`DarkModeCS`) recolours every control added to the window, from its `ControlAdded` handler. A tab opened from the Sessions tree is added to the window after `ApplyEnvironmentColor` has set its background to the colour, so the theme painted the frame its own grey (#373737). Tabs opened at start-up (`-session`, a layout) were added before the theme hooked in and kept their frame, which is how it was checked before.
+
+**Fix:** `ctlPuttyPanel.OnBackColorChanged` puts the environment colour back when something else sets the background while the session has one; the colour set over it is kept as the tab's own, for when the session's colour is removed.
+
+**Checked** in the real window: cmd Test (red) opened by double-clicking it in the tree had a 4-pixel #C62828 frame round the terminal; before the fix, the same frame was #373737, in this build and in the one before the splitter changes.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

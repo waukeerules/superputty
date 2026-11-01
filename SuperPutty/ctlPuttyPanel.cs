@@ -124,7 +124,27 @@ namespace SuperPutty
             {
                 this.Padding = new Padding(width);
             }
+            this.environmentColor = color;
             this.BackColor = color ?? this.normalBackColor.Value;
+        }
+
+        /// <summary>The frame's colour while the session has one (<see cref="ApplyEnvironmentColor"/>); null for none</summary>
+        private System.Drawing.Color? environmentColor;
+
+        /// <summary>
+        /// Keep the frame's colour when something else sets the background. The dark theme (DarkModeCS) recolours every
+        /// control added to the window, and a tab opened after start-up is added after its colour was set, so its frame
+        /// took the theme's grey. The colour set over it becomes the tab's own, for when the session loses its colour.
+        /// </summary>
+        /// <param name="e">Not used</param>
+        protected override void OnBackColorChanged(EventArgs e)
+        {
+            base.OnBackColorChanged(e);
+            if (this.environmentColor.HasValue && this.BackColor != this.environmentColor.Value)
+            {
+                this.normalBackColor = this.BackColor;
+                this.BackColor = this.environmentColor.Value;
+            }
         }
 
         private void CreatePanel()
