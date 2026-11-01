@@ -1698,6 +1698,26 @@ The dialog (Tools → Environment Variables) needed two or three clicks to edit 
 **Checked** by opening the dialog on its own and clicking: one click on a value started editing it; one click on Secret ticked it and another unticked it; Add made `new_key` with its text selected; emptying that key and clicking Remove removed the row with no message; Cancel closed it. The user's EnvironmentVariables.json was the same before and after.
 **Not checked:** the light theme, and removing several rows at once.
 
+## Sharing the Database sessions settings as a file
+
+**Export...** and **Import...** in the Database sessions dialog save and load the connection as a JSON file, so a team can pass one setup around instead of typing it in.
+
+- **In the file:** host, port, database, schema, table, username, SSL mode, read only and the check interval, with a `format` marker (`superxputty-database-settings`) so another JSON file is refused (`Data/DatabaseSettingsFile.cs`).
+- **Passwords:** only a `{key}` placeholder is written; each person sets its value in Tools → Environment Variables. A typed password (saved encrypted for its Windows user) is left out, and the export says so. The nickname, being each person's own, is left out too.
+- **Export** takes the fields as they are in the dialog, not only what's saved.
+- **Import** fills the fields and ticks "Show sessions from a PostgreSQL table"; nothing is saved until OK. The nickname stays, the password changes only if the file has a placeholder, and the result line says what's left to do (the password or the key, a nickname, Test connection, OK). The file is checked as the dialog checks its fields: a host, a port from 1 to 65535, and plain names for the database, schema and table; an unknown SSL mode becomes Prefer.
+
+| File | Change |
+|---|---|
+| `Data/DatabaseSettingsFile.cs` | New. The file: `ToJson`, `FromJson` (with its checks), `IsPlaceholder` |
+| `Gui/dlgDatabaseSettings.cs` | Export... and Import... (`ExportSettings`, `ImportSettings`) |
+| `docs/DatabaseSessions.md` | Sharing the settings |
+
+**Checked:**
+- `DatabaseSettingsFile` (9 checks, all passed): a round trip kept every field; an encrypted and a typed password, and the nickname, weren't written; a placeholder was; a file of another kind, text that isn't JSON, a table name with `; drop`, and a missing host were refused with a message; an unknown SSL mode became Prefer and a plain password in a file was ignored.
+- The real dialog, opened on its own: Export wrote the current settings without the (encrypted) password; Import of a co-worker's file filled host, port, database, table, user, `{team_pg}` as the password, SSL and read only, kept the nickname and said what to do next; Cancel left SuperXPuTTY.settings as it was.
+- **Not checked:** the light theme, and an import followed by OK and a real connection.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

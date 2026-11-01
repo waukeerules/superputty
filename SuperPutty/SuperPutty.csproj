@@ -254,6 +254,7 @@
     <Compile Include="Data\SessionOverrides.cs" />
     <Compile Include="Data\DatabaseSessions.cs" />
     <Compile Include="Data\DatabaseOutbox.cs" />
+    <Compile Include="Data\DatabaseSettingsFile.cs" />
     <Compile Include="Data\SessionDataStartInfo.cs" />
     <Compile Include="DebugLogViewer.cs">
       <SubType>Form</SubType>

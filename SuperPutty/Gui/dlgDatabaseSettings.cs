@@ -57,6 +57,12 @@ namespace SuperPutty.Gui
         /// <summary>Create the database, schema and table, or add what's missing</summary>
         private readonly Button buttonSchema = new Button { Text = "Create / upgrade schema", AutoSize = true, Enabled = false };
 
+        /// <summary>Saves the connection to a file to share (Data.DatabaseSettingsFile)</summary>
+        private readonly Button buttonExport = new Button { Text = "Export...", AutoSize = true };
+
+        /// <summary>Fills the fields from a shared file; nothing is saved until OK</summary>
+        private readonly Button buttonImport = new Button { Text = "Import...", AutoSize = true };
+
         /// <summary>What Test connection or Create found</summary>
         private readonly Label labelResult = new Label { AutoSize = true };
 
@@ -133,7 +139,7 @@ namespace SuperPutty.Gui
             AddRow(grid, "Check every:", check);
             AddRow(grid, null, this.checkReadOnly);
             FlowLayoutPanel actions = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 8, 0, 4) };
-            actions.Controls.AddRange(new Control[] { this.buttonTest, this.buttonSchema });
+            actions.Controls.AddRange(new Control[] { this.buttonTest, this.buttonSchema, this.buttonExport, this.buttonImport });
             AddRow(grid, null, actions);
             AddRow(grid, null, this.labelResult);
             // OK and Cancel docked to the bottom of the window, so they show even if the window comes out too short
@@ -160,6 +166,8 @@ namespace SuperPutty.Gui
             tips.SetToolTip(this.textPassword, "Saved encrypted for your Windows user. Or type a {key} placeholder from Tools > Environment Variables.");
             tips.SetToolTip(this.buttonSchema, "Creates the database, schema and table if they're missing, and adds missing columns and the change triggers. Safe to run again.");
             tips.SetToolTip(this.textSchema, "The table's schema; created with the table if missing");
+            tips.SetToolTip(this.buttonExport, "Save these settings to a file to share. A password goes in only as a {key} placeholder; your nickname stays out.");
+            tips.SetToolTip(this.buttonImport, "Fill these fields from a shared settings file. Nothing is saved until OK.");
             tips.SetToolTip(this.textNickname, "Shown as who last changed a session, so people sharing one database login can be told apart");
             tips.SetToolTip(this.numericCheck, "How often to ask the table whether someone else (or a script) changed it; the sessions are only read again when it did");
             HintText.Set(this.textHost, "e.g. 192.168.3.2");
@@ -195,6 +203,8 @@ namespace SuperPutty.Gui
             this.buttonTest.Click += (s, e) => this.Test();
             this.buttonSchema.Click += (s, e) => this.CreateSchema();
             this.buttonOK.Click += (s, e) => this.Save();
+            this.buttonExport.Click += (s, e) => this.ExportSettings();
+            this.buttonImport.Click += (s, e) => this.ImportSettings();
 
             if (SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme)
             {
@@ -382,6 +392,112 @@ namespace SuperPutty.Gui
                 this.ShowResult(text, false);
             }
             this.UseWaitCursor = busy;
+        }
+
+        /// <summary>
+        /// Save the fields as they are now (not only what's saved) to a JSON file to share. A typed password stays out:
+        /// only a {key} placeholder goes in, and the result line says so.
+        /// </summary>
+        private void ExportSettings()
+        {
+            DatabaseSessions.Connection c = this.Current();
+            string problem = Problem(c);
+            if (problem != null)
+            {
+                this.ShowResult(problem, true);
+                return;
+            }
+            string placeholder = this.passwordChanged ? this.textPassword.Text : this.storedPassword;
+            DatabaseSettingsFile.Settings settings = new DatabaseSettingsFile.Settings
+            {
+                Host = c.Host,
+                Port = c.Port,
+                Database = c.Database,
+                Schema = c.Schema,
+                Table = c.Table,
+                User = c.User,
+                Password = DatabaseSettingsFile.IsPlaceholder(placeholder) ? placeholder : null,
+                SslMode = c.SslMode,
+                ReadOnly = c.ReadOnly,
+                CheckSeconds = (int)this.numericCheck.Value
+            };
+            using (SaveFileDialog dialog = new SaveFileDialog
+            {
+                Title = "Export database settings",
+                Filter = "Database settings (*.json)|*.json|All files|*.*",
+                FileName = c.Database + " database settings.json"
+            })
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                    return;
+                try
+                {
+                    System.IO.File.WriteAllText(dialog.FileName, DatabaseSettingsFile.ToJson(settings));
+                }
+                catch (Exception ex) when (ex is System.IO.IOException || ex is UnauthorizedAccessException)
+                {
+                    this.ShowResult("Couldn't save the file: " + ex.Message, true);
+                    return;
+                }
+                this.ShowResult("Exported to " + System.IO.Path.GetFileName(dialog.FileName) + (settings.Password != null
+                    ? ", with the password as " + settings.Password + ": whoever imports it sets that key in Tools > Environment Variables."
+                    : ", without the password: whoever imports it types their own."), false);
+            }
+        }
+
+        /// <summary>
+        /// Fill the fields from a shared JSON file, and turn database sessions on. Nothing is saved until OK. The
+        /// nickname is kept; the password is taken only when the file has a {key} placeholder, otherwise it's left for
+        /// the user to type.
+        /// </summary>
+        private void ImportSettings()
+        {
+            using (OpenFileDialog dialog = new OpenFileDialog
+            {
+                Title = "Import database settings",
+                Filter = "Database settings (*.json)|*.json|All files|*.*"
+            })
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                    return;
+                string error;
+                DatabaseSettingsFile.Settings settings;
+                try
+                {
+                    settings = DatabaseSettingsFile.FromJson(System.IO.File.ReadAllText(dialog.FileName), out error);
+                }
+                catch (Exception ex) when (ex is System.IO.IOException || ex is UnauthorizedAccessException)
+                {
+                    settings = null;
+                    error = "Couldn't read the file: " + ex.Message;
+                }
+                if (settings == null)
+                {
+                    this.ShowResult(error, true);
+                    return;
+                }
+                this.checkEnabled.Checked = true;
+                this.textHost.Text = settings.Host;
+                this.numericPort.Value = settings.Port;
+                this.textDatabase.Text = settings.Database;
+                this.textSchema.Text = settings.Schema;
+                this.textTable.Text = settings.Table;
+                this.textUser.Text = settings.User;
+                if (settings.Password != null)
+                {
+                    this.textPassword.Text = settings.Password;
+                }
+                this.comboSsl.SelectedItem = settings.SslMode;
+                this.checkReadOnly.Checked = settings.ReadOnly;
+                this.numericCheck.Value = settings.CheckSeconds;
+                this.buttonSchema.Enabled = false;
+                this.ShowResult("Imported from " + System.IO.Path.GetFileName(dialog.FileName) + ". "
+                    + (settings.Password != null
+                        ? "The password is " + settings.Password + ": set that key in Tools > Environment Variables. "
+                        : "Type your password. ")
+                    + (string.IsNullOrEmpty(this.textNickname.Text) ? "Enter a nickname, then " : "Then ")
+                    + "Test connection and OK to save.", false);
+            }
         }
 
         /// <summary>Save the settings, and restart the database sessions so they take effect</summary>
