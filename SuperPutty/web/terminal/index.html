@@ -1,0 +1,32 @@
+<!doctype html>
+<!--
+  Built-in terminal: the page Gui/TerminalControl shows in a WebView2 inside a session tab. TerminalControl runs plink
+  in a pseudo console (Utils/ConPty) and passes its output here; terminal.js draws it with xterm.js, highlights it with
+  the same rules as Highlighted Output, and sends typing back. See docs/MonacoTerminal.md (phase 2).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:">
+<title>Terminal</title>
+<link rel="stylesheet" href="../lib/xterm/xterm.css">
+<link rel="stylesheet" href="terminal.css">
+</head>
+<body>
+<div id="terminal"></div>
+<div id="find" hidden>
+  <input id="findText" type="text" placeholder="Find" spellcheck="false" autocomplete="off">
+  <button id="findCase" title="Match case" aria-pressed="false">Aa</button>
+  <button id="findRegex" title="Regular expression" aria-pressed="false">.*</button>
+  <span id="findCount"></span>
+  <button id="findPrev" title="Previous (Shift+Enter)">&#8593;</button>
+  <button id="findNext" title="Next (Enter)">&#8595;</button>
+  <button id="findClose" title="Close (Escape)">&#10005;</button>
+</div>
+<div id="menu" class="menu" hidden></div>
+<script src="../lib/xterm/xterm.js"></script>
+<script src="../shared/rules.js"></script>
+<script src="terminal.js"></script>
+</body>
+</html>

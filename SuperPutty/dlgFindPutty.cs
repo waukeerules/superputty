@@ -202,6 +202,12 @@ namespace SuperPutty
             this.LoadRdpOptions();
             this.checkSessionLog.Checked = SuperPuTTY.Settings.SessionLogEnabled;
             this.textBoxSessionLogFolder.Text = SuperPuTTY.Settings.SessionLogFolder;
+            this.checkHighlightedOutput.Checked = SuperPuTTY.Settings.HighlightedOutputEnabled;
+            this.checkBuiltInTerminal.Checked = SuperPuTTY.Settings.BuiltInTerminal;
+            string webView2 = OutputHighlighting.RuntimeVersion();
+            this.labelHighlightingRuntime.Text = webView2 != null
+                ? "WebView2 runtime: " + webView2
+                : "WebView2 runtime: not installed. Highlighted Output needs it (it comes with current Windows 10 and 11).";
             this.checkAutoReconnect.Checked = SuperPuTTY.Settings.AutoReconnect;
             foreach (int size in IconLibrary.Sizes)
             {
@@ -442,6 +448,8 @@ namespace SuperPutty
                 this.SaveRdpOptions();
                 SuperPuTTY.Settings.SessionLogEnabled = this.checkSessionLog.Checked;
                 SuperPuTTY.Settings.SessionLogFolder = this.textBoxSessionLogFolder.Text.Trim();
+                SuperPuTTY.Settings.HighlightedOutputEnabled = this.checkHighlightedOutput.Checked;
+                SuperPuTTY.Settings.BuiltInTerminal = this.checkBuiltInTerminal.Checked;
                 SuperPuTTY.Settings.AutoReconnect = this.checkAutoReconnect.Checked;
                 SuperPuTTY.Settings.AutoReconnectDelaySeconds = (int)this.numericReconnectDelay.Value;
                 SuperPuTTY.Settings.AutoReconnectAttempts = (int)this.numericReconnectAttempts.Value;
@@ -537,6 +545,22 @@ namespace SuperPutty
         /// <summary>Pick the folder kept session logs go to</summary>
         /// <param name="sender">The Browse button</param>
         /// <param name="e">Not used</param>
+        /// <summary>Open the folder for the user's own highlighting rules and themes, creating it with a README</summary>
+        /// <param name="sender">The Open Rules Folder button</param>
+        /// <param name="e">Not used</param>
+        private void buttonHighlightingFolder_Click(object sender, EventArgs e)
+        {
+            string folder = OutputHighlighting.PrepareFolder();
+            try
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", "\"" + folder + "\"") { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                Messenger.MessageBox("Could not open " + folder + ": " + ex.Message, "Highlighting", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         private void buttonBrowseSessionLogFolder_Click(object sender, EventArgs e)
         {
             using (FolderBrowserDialog dialog = new FolderBrowserDialog

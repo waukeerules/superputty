@@ -139,6 +139,19 @@ namespace SuperPutty
                 SessionData resolved = SessionVariables.Resolve(this.Session);
                 this.AppPanel.EmbeddedApplicationFactory = () => new RdpControl(resolved);
             }
+            else if (TerminalControl.ShouldUse(this.Session))
+            {
+                // the built-in terminal: plink in a pseudo console, drawn and highlighted by SuperPuTTY, not a PuTTY window.
+                // It writes the same session log PuTTY would have.
+                SessionData resolved = SessionVariables.Resolve(this.Session);
+                string logPath = this.m_puttyStartInfo.SessionLogPath;
+                this.AppPanel.EmbeddedApplicationFactory = () =>
+                {
+                    TerminalControl terminal = new TerminalControl(resolved, logPath);
+                    terminal.StateChanged += this.OnTerminalStateChanged;
+                    return terminal;
+                };
+            }
             this.AppPanel.ApplicationWorkingDirectory = this.m_puttyStartInfo.WorkingDir;
             this.AppPanel.ApplicationCloseWithDestroy = this.Session.Proto == ConnectionProtocol.Mintty ? false : true;
             this.AppPanel.Location = new System.Drawing.Point(0, 0);
@@ -395,6 +408,11 @@ namespace SuperPutty
         /// </summary>
         private void MarkLogPositionAtCurrentLine()
         {
+            if (this.Terminal != null)
+            {
+                this.Terminal.MarkOutput(true);
+                return;
+            }
             if (this.SessionLogPath == null)
                 return;
             try
@@ -415,7 +433,11 @@ namespace SuperPutty
         /// <summary>Make the next WAITFOR look only at output that comes after this point</summary>
         private void MarkLogPosition()
         {
-            if (this.SessionLogPath != null)
+            if (this.Terminal != null)
+            {
+                this.Terminal.MarkOutput(false);
+            }
+            else if (this.SessionLogPath != null)
             {
                 this.logReadPosition = SessionLog.LengthOf(this.SessionLogPath);
             }
@@ -449,6 +471,20 @@ namespace SuperPutty
             DateTime giveUp = DateTime.Now + timeout;
             while (DateTime.Now < giveUp && !this.IsDisposed && !cancel.IsCancellationRequested)
             {
+                TerminalControl terminal = this.Terminal;
+                if (terminal != null)
+                {
+                    // the built-in terminal also has the line the cursor is on, which isn't in the log until it's finished
+                    string shown = terminal.OutputSinceMark();
+                    int at = shown.IndexOf(text, StringComparison.Ordinal);
+                    if (at >= 0)
+                    {
+                        terminal.AdvanceMark(at + text.Length);
+                        return true;
+                    }
+                    cancel.WaitHandle.WaitOne(WaitForPollMs);
+                    continue;
+                }
                 try
                 {
                     string output = SessionLog.ReadFrom(this.SessionLogPath, this.logReadPosition);
@@ -914,6 +950,11 @@ namespace SuperPutty
         /// <summary>Reconnect now, from the tab menu: close PuTTY's error box if it's up, then restart the session</summary>
         public void Reconnect()
         {
+            if (this.Terminal != null)
+            {
+                this.Terminal.Reconnect();
+                return;
+            }
             IntPtr window = this.AppPanel.AppWindowHandle;
             if (window == IntPtr.Zero)
                 return;
@@ -938,6 +979,7 @@ namespace SuperPutty
         /// <summary>Stop the automatic reconnects scheduled for this tab, from the tab menu</summary>
         private void StopReconnecting()
         {
+            this.Terminal?.StopReconnecting();
             this.nextReconnectAt = DateTime.MinValue;
             SuperPuTTY.ReportStatus($"Stopped reconnecting {this.Text}");
         }
@@ -980,7 +1022,7 @@ namespace SuperPutty
         private static readonly int[] SilenceChoices = { 10, 30, 60, 300 };
 
         /// <summary>The tab menu items added by <see cref="AddOutputMenuItems"/></summary>
-        private ToolStripMenuItem menuSearchOutput, menuWatchActivity, menuWatchSilence;
+        private ToolStripMenuItem menuSearchOutput, menuHighlightedOutput, menuWatchActivity, menuWatchSilence;
 
         /// <summary>"Reconnect" and "Stop Reconnecting" at the top of the tab menu, shown while the session is down</summary>
         private ToolStripMenuItem menuReconnect, menuStopReconnecting;
@@ -989,12 +1031,14 @@ namespace SuperPutty
         private ToolStripSeparator menuReconnectSeparator;
 
         /// <summary>
-        /// Add "Search Output...", "Watch for Activity" and "Watch for Silence" to the tab's menu, after "Accept Commands".
-        /// They need a session log, so they're only enabled for PuTTY sessions.
+        /// Add "Search Output...", "Highlighted Output", "Watch for Activity" and "Watch for Silence" to the tab's menu,
+        /// after "Accept Commands". They need a session log, so they're only enabled for PuTTY sessions. Highlighted
+        /// Output is only shown when it's turned on in Tools -> Options -> Highlighting.
         /// </summary>
         private void AddOutputMenuItems()
         {
             this.menuSearchOutput = new ToolStripMenuItem("Search &Output...", null, (s, e) => dlgSearchOutput.ShowFor(this));
+            this.menuHighlightedOutput = new ToolStripMenuItem("&Highlighted Output", null, (s, e) => HighlightedOutputPanel.ShowFor(this));
             this.menuWatchActivity = new ToolStripMenuItem("Watch for &Activity", null, (s, e) => this.WatchForActivity(!this.watchActivity));
             this.menuWatchSilence = new ToolStripMenuItem("Watch for &Silence");
             this.menuWatchSilence.DropDownItems.Add(new ToolStripMenuItem("Off", null, (s, e) => this.WatchForSilence(0)) { Tag = 0 });
@@ -1008,8 +1052,9 @@ namespace SuperPutty
             int index = this.contextMenuStrip1.Items.IndexOf(this.acceptCommandsToolStripMenuItem) + 1;
             this.contextMenuStrip1.Items.Insert(index, new ToolStripSeparator());
             this.contextMenuStrip1.Items.Insert(index + 1, this.menuSearchOutput);
-            this.contextMenuStrip1.Items.Insert(index + 2, this.menuWatchActivity);
-            this.contextMenuStrip1.Items.Insert(index + 3, this.menuWatchSilence);
+            this.contextMenuStrip1.Items.Insert(index + 2, this.menuHighlightedOutput);
+            this.contextMenuStrip1.Items.Insert(index + 3, this.menuWatchActivity);
+            this.contextMenuStrip1.Items.Insert(index + 4, this.menuWatchSilence);
 
             this.menuReconnect = new ToolStripMenuItem("&Reconnect", null, (s, e) => this.Reconnect());
             this.menuReconnect.Font = new System.Drawing.Font(this.menuReconnect.Font, System.Drawing.FontStyle.Bold);
@@ -1025,6 +1070,8 @@ namespace SuperPutty
         {
             bool hasLog = this.SessionLogPath != null;
             this.menuSearchOutput.Enabled = hasLog;
+            this.menuHighlightedOutput.Visible = SuperPuTTY.Settings.HighlightedOutputEnabled;
+            this.menuHighlightedOutput.Enabled = hasLog;
             this.menuWatchActivity.Enabled = hasLog;
             this.menuWatchSilence.Enabled = hasLog;
             this.menuWatchActivity.Checked = this.watchActivity;
@@ -1035,7 +1082,16 @@ namespace SuperPutty
             }
             this.menuReconnect.Visible = this.IsDisconnected;
             this.menuReconnectSeparator.Visible = this.IsDisconnected;
-            this.menuStopReconnecting.Visible = this.connection == ConnectionState.Disconnected && this.nextReconnectAt != DateTime.MinValue;
+            this.menuStopReconnecting.Visible = this.Terminal != null
+                ? this.IsDisconnected && this.Terminal.ReconnectScheduled
+                : this.connection == ConnectionState.Disconnected && this.nextReconnectAt != DateTime.MinValue;
+            if (this.Terminal != null)
+            {
+                // the built-in terminal has no PuTTY window: no Event Log, Change Settings or About PuTTY
+                this.eventLogToolStripMenuItem.Visible = false;
+                this.changeSettingsToolStripMenuItem.Visible = false;
+                this.aboutPuttyToolStripMenuItem.Visible = false;
+            }
         }
 
         /// <summary>Delete this session's temporary log once the tab has closed (kept logs stay)</summary>
@@ -1217,6 +1273,11 @@ namespace SuperPutty
         {
             ToolStripMenuItem menuItem = (ToolStripMenuItem) sender;
             string[] tags = ((ToolStripMenuItem)sender).Tag.ToString().Split(';');
+            if (this.Terminal != null)
+            {
+                this.RunTerminalMenuCommand(tags);
+                return;
+            }
 
             for (int i = 0; i < tags.Length; ++i)
             {
@@ -1224,6 +1285,40 @@ namespace SuperPutty
                 Log.DebugFormat("Sending Putty Command from: menu={2}, tag={0}, command={1}", tags[i], command, menuItem.Text);
                 SendPuttyCommand(command);
             }
+        }
+
+        /// <summary>
+        /// The built-in terminal's version of PuTTY's menu commands (the tags are PuTTY's IDM_ values): Restart Session
+        /// reconnects, Clear Scrollback, Reset Terminal and Copy All to Clipboard are done by the terminal page
+        /// </summary>
+        /// <param name="tags">The menu item's commands, as hex strings</param>
+        private void RunTerminalMenuCommand(string[] tags)
+        {
+            foreach (string tag in tags)
+            {
+                switch (Convert.ToUInt32(tag, 16))
+                {
+                    case 0x0040: this.Terminal.Reconnect(); break;
+                    case 0x0060: this.Terminal.RunAction("clearScrollback"); break;
+                    case 0x0070: this.Terminal.RunAction("reset"); break;
+                    case 0x0170: this.Terminal.RunAction("copyAll"); break;
+                }
+            }
+        }
+
+        /// <summary>The built-in terminal shown in this tab instead of PuTTY; null for PuTTY and other programs</summary>
+        public TerminalControl Terminal
+        {
+            get { return this.AppPanel?.EmbeddedApplication as TerminalControl; }
+        }
+
+        /// <summary>The built-in terminal's session dropped, is reconnecting or came back: show it on the tab and in the tree</summary>
+        /// <param name="sender">The terminal</param>
+        /// <param name="e">Not used</param>
+        private void OnTerminalStateChanged(object sender, EventArgs e)
+        {
+            TerminalControl terminal = (TerminalControl)sender;
+            this.SetConnection(terminal.IsConnected ? ConnectionState.Connected : ConnectionState.Disconnected);
         }
 
         internal void SendPuttyCommand(uint command)

@@ -1,0 +1,35 @@
+<!doctype html>
+<!--
+  Highlighted Output: the page Gui/HighlightedOutputPanel shows in a WebView2. The panel feeds it a PuTTY session log;
+  output.js rebuilds the screen with xterm.js (never shown) and displays the lines in Monaco with highlighting rules.
+  See docs/MonacoTerminal.md.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; worker-src 'self' blob:">
+<title>Highlighted Output</title>
+<link rel="stylesheet" href="output.css">
+<link rel="stylesheet" data-name="vs/editor/editor.main" href="../lib/monaco/vs/editor/editor.main.css">
+</head>
+<body>
+<div id="toolbar">
+  <label>Rules <select id="ruleSet" title="Which highlighting rules to use; Auto picks them from the prompt"></select></label>
+  <label>Theme <select id="theme"></select></label>
+  <label title="Keep the newest output in view"><input type="checkbox" id="follow" checked> Follow</label>
+  <label><input type="checkbox" id="wrap"> Wrap</label>
+  <button id="find" title="Find (Ctrl+F)">Find</button>
+  <button id="save" title="Save the output as a text file">Save As...</button>
+  <button id="open" title="Show a log or text file instead of the session">Open File...</button>
+  <button id="folder" title="Open the folder where your own rules and themes go">Rules Folder</button>
+  <button id="reload" title="Read the rules and themes again">Reload Rules</button>
+  <span id="status"></span>
+</div>
+<div id="editor"></div>
+<script src="../lib/xterm/xterm.js"></script>
+<script src="../shared/rules.js"></script>
+<script src="../lib/monaco/vs/loader.js"></script>
+<script src="output.js"></script>
+</body>
+</html>

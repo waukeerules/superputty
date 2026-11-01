@@ -1324,6 +1324,108 @@ For audits, and for teams that keep their device lists in a spreadsheet (`Data/S
   - coming back without clicking a box (like Alt+Tab) still put the focus in the terminal, twice out of twice.
 - **Not checked:** floating panes and a second monitor.
 
+## Highlighted Output: a session's output with syntax highlighting
+
+Phase 1 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:** turn it on in **Tools → Options → Highlighting**. Then right-click a PuTTY tab → **Highlighted Output** opens a panel beside it that shows everything the session printed, in a Monaco editor (the editor of VS Code), coloured by rules: on Cisco, `show ip interface brief` lines that are up/up in green and down/down in red, `connected` / `notconnect`, `is up, line protocol is up`, syslog severities, `%` errors, addresses and MACs. **PuTTY runs exactly as before**; the panel only reads the session log PuTTY already writes (`-sessionlog`, see [Session logs](#session-logs-and-spsl-waitfor)).
+
+- **What the panel shows is what you saw.** The log holds what the device sent, including the backspaces and spaces IOS uses to erase `--More--`, line editing and cursor moves, so it can't be read line by line. The page feeds the log to an xterm.js terminal that is never shown, which rebuilds the screen the way PuTTY drew it; lines that scroll off its screen are copied into the editor, and the lines still on its screen are rewritten as they change.
+- **Toolbar:** the rule set (Auto picks it from the prompt: `name#` is Cisco, `user@host>` is Junos), theme, Follow (keeps the newest line in view; scrolling up turns it off, scrolling to the end turns it on), Wrap, Find (also Ctrl+F; regex and match case), **Save As...** (the text as you saw it), **Open File...** (show a kept log or any text file instead, e.g. to try out rules), **Rules Folder** and **Reload Rules**. The editor is read-only, with folding (`show running-config` blocks), a minimap and copy.
+- **Rules and themes are JSON files.** Defaults in `web\output\rules` (`generic`, `cisco` for IOS/IOS-XE/NX-OS, `junos`) and `web\output\themes` (PuTTY, Dark, Light) beside the exe. Your own `*.rules.json` / `*.theme.json` go in a `highlighting` folder in the SettingsFolder (shared with the team) or beside your `SuperXPuTTY.settings` (yours win); one with the same `id` (rules) or `name` (theme) replaces a default. **Rules Folder** creates the folder with a README describing the format. A rule is a JavaScript regex with a style; `"scope": "line"` colours the whole line, and a match's colour wins over its line's. A rule set can `include` others and list `detect` patterns for Auto. A theme sets the background, foreground, selection, font and the colours of the styles (`good`, `bad`, `warning`, `info`, `address`, `mac`, `prompt`, `keyword`, `comment`, or your own).
+- **Restarted sessions:** PuTTY's Restart Session starts the log again; the panel keeps what it has and continues under a "log restarted" line. When the tab closes, the panel stays open with what was shown, titled "(closed)".
+- **Needs the WebView2 runtime**, which comes with current Windows 10 and 11. The Options page shows its version; without it the menu item says so instead of opening. WebView2's profile goes in `%LOCALAPPDATA%\SuperXPuTTY\WebView2` (its default, beside the exe, isn't writable under Program Files). The page is served from the exe's folder under a made-up host name (`superputty-output.local`), never from the network; it can't navigate anywhere else, and devtools are off in Release builds.
+- **Not saved in layouts:** a layout with the panel open restores without it.
+
+| File | Change |
+|---|---|
+| `Gui/HighlightedOutputPanel.cs` | New. The docked panel: WebView2, polling the log (every 250 ms, up to 512 KB at a time, the next chunk only after the page says it's done), Save As, Open File, and messages to and from the page |
+| `Utils/OutputHighlighting.cs` | New. The web folder, the user's rule folders, loading and merging rule and theme files (`Merge`), the README, the shared WebView2 environment and the runtime check |
+| `web/output/index.html`, `output.js`, `output.css` | New. The page: the hidden xterm.js terminal, the Monaco editor, highlighting (decorations for the lines in view only, so long logs stay fast) and the toolbar |
+| `web/shared/rules.js` | New. Compiling rule sets, Auto's detection and matching a line; shared with the built-in terminal |
+| `web/output/rules/*.rules.json`, `web/output/themes/*.theme.json` | New. The default rule sets and themes |
+| `web/lib/monaco` | New. Monaco Editor 0.57.0 (MIT), only the 18 files the page loads (4.9 MB of the package's 25 MB), with its LICENSE and ThirdPartyNotices |
+| `web/lib/xterm` | New. xterm.js 6.0.0 (MIT), its stylesheet and LICENSE; also used by the built-in terminal |
+| `Utils/SessionLog.cs` | `ReadBytesFrom`: raw bytes, so a UTF-8 character split between two reads isn't garbled |
+| `ctlPuttyPanel.cs` | The **Highlighted Output** tab menu item, shown only when the option is on |
+| `dlgFindPutty.cs` / `.Designer.cs` | The **Highlighting** page: the option, the WebView2 runtime's version, **Open Rules Folder** |
+| `Properties/Settings.*`, `App.config` | `HighlightedOutputEnabled` (default off) |
+| `SuperPutty.csproj` | The new files, `Microsoft.Web.WebView2` 1.0.4258.31, and `web\**` copied to the output |
+| `SuperPuttyInstaller/Product.wxs` | `Microsoft.Web.WebView2.Core.dll`, `.WinForms.dll`, `runtimes\win-x64\|win-x86\|win-arm64\native\WebView2Loader.dll` (the exe is AnyCPU) and everything under `web\` |
+| `Resources/third-party/monaco-editor-LICENSE.txt`, `xterm.js-LICENSE.txt` | New. The libraries' licences |
+
+**Checked:**
+- Built (Debug), including the installer; the MSI has the WebView2 files and all 30 web files in the right folders.
+- The page in a test harness that hosts it in WebView2 the way the panel does (same host mapping, messages and acks), fed a log recorded from a lab Cisco switch (Catalyst, IOS) in 1,000-byte chunks: 118 lines, identical to what was on screen, with every `--More--` page clean; Auto picked Cisco; up/up green and down/down red, `connected` / `notconnect`, addresses and MACs coloured.
+- In a browser: the same log fed in 97-byte pieces gives the same 118 lines; Follow, Find, Wrap, the right-click menu, "log restarted", light and dark themes; an 8 MB log (157,000 lines) loads in about 10 s with the window responsive.
+- **Not checked:** the panel inside SuperXPuTTY itself (the menu item, docking it beside the tab, floating it, Save As and Open File dialogs, the Options page). These need the manual tests below.
+
+**Known limits:**
+- Full-screen programs (`vi`, `top`) show as the screen looked when they scrolled, not perfectly; device CLIs are line-based and come out exactly.
+- A `clear` on Linux erases what was still on the hidden terminal's screen (up to 50 lines) before it reached the editor.
+- Loading a very large existing log takes a while (about 1 MB a second); output arriving live is shown at once.
+
+Manual tests:
+1. **Tools → Options → Highlighting**: the runtime's version is shown. Tick the option and click OK.
+2. Open an SSH session to a Cisco device, right-click the tab → **Highlighted Output**: the panel opens to the right of the tab. Run `show ip interface brief`, `show interfaces status` and `show interfaces` (page through `--More--` with Space, then `q`): it should follow the output, with up interfaces green and down ones red, and no `--More--` left in the text.
+3. Scroll the panel up: Follow unticks and new output doesn't move the view. Scroll to the end: it ticks again.
+4. Ctrl+F in the panel, search for `down`. Try **Save As...** and open the file.
+5. Switch Theme to Light and back, and change SuperPuTTY's own theme (Options → GUI): a new panel starts in the matching theme.
+6. Right-click the tab → **Restart Session**: the panel continues under "log restarted".
+7. **Rules Folder**: a `highlighting` folder with a README opens. Copy `web\output\rules\cisco.rules.json` there, change a colour's style (e.g. `connected` to `bad`), click **Reload Rules**: the change shows.
+8. **Open File...** a kept log (Options → Advanced → Session logs): the panel shows it instead.
+9. Float the panel, dock it back, close the session tab: the panel stays with "(closed)". Save and reload a layout with the panel open: it isn't restored, and nothing else breaks.
+10. Turn the option off: the menu item goes away.
+
+## Built-in terminal: highlighted as you type
+
+Phase 2 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:** Tools → Options → Highlighting → **Use the built-in terminal for SSH, Telnet, Rlogin, Raw and Serial sessions**. Tabs opened after that show a terminal drawn by SuperPuTTY instead of a PuTTY window, coloured live by the same rules as Highlighted Output (up interfaces green, down ones red, and so on).
+
+- **The connection is still PuTTY's.** plink.exe, beside PuTTY, connects with the session's PuTTY profile (`-load`), keys and Pageant, jump host (`-proxycmd`), default parameters and extra arguments: the same arguments PuTTY gets (`PuttyStartInfo.PlinkCommandLine`). It runs in a Windows pseudo console (ConPTY), so password, passphrase and host-key prompts appear in the terminal and are answered there, and the window size reaches the server. Without plink.exe or the WebView2 runtime the session opens in PuTTY as before.
+- **It feels like PuTTY:** the PuTTY theme (grey on black, green cursor, PuTTY's colours) by default; the cursor blinks only while the tab has the keyboard; selecting copies; **Shift+Insert** and middle-click paste; Ctrl+Insert copies. Ctrl+C, Ctrl+V and the like go to the device as usual.
+- **Right-click menu:** Copy, Paste, Copy and Paste, Find... (Ctrl+Shift+F; match case, regex, all matches marked), Select All, Clear Scrollback, Clear Screen (the screen moves into the scrollback and the prompt stays at the top), Clear Screen and Scrollback, **Open as Document** (the Highlighted Output panel for the tab), **Highlighting** (Auto, a rule set, None) and **Theme**. The rule set and theme apply to every terminal tab.
+- **Dropped sessions:** plink's error stays in the terminal (e.g. `FATAL ERROR: Network error: Connection refused`), the tab gets the disconnected badge, and it reconnects with the Options → Advanced settings (every N seconds, up to N times), or on Enter. Logging out (`exit`) closes the tab, as PuTTY does. The tab menu's Reconnect, Stop Reconnecting, Restart Session, Clear Scrollback, Reset Terminal and Copy All to Clipboard work; Event Log, Change Settings and About PuTTY are hidden.
+- **Send Commands, the button bar and SPSL** type straight into plink, with keys as terminal sequences (`TerminalControl.KeySequence`), not window messages.
+- **Session log:** written by SuperPuTTY at the same path PuTTY would use (kept or temporary). The pseudo console rewrites the device's bytes (it draws `--More--` being erased as cursor moves, for example), so each line is logged from the screen once the cursor leaves it: the log is clean text, without `--More--` or escape codes. Search Output, Watch for Activity and Highlighted Output read it as before. **WAITFOR** also sees the line the cursor is on, so it finds a prompt like `Password:` before Enter is pressed. SuperPuTTY's own notices ("Session ended...") are in the log too.
+- **Passwords:** `-pw` is used as for PuTTY (only when Options allows it) and only for SSH, because plink refuses it for other protocols, where PuTTY ignores it.
+
+| File | Change |
+|---|---|
+| `Utils/ConPty.cs` | New. A program in a pseudo console: start, output, typing, resize, exit |
+| `Gui/TerminalControl.cs` | New. The tab's terminal (`IEmbeddedApplication`, `ICommandReceiver`): the page, plink, the session log, WAITFOR's text, reconnecting, the clipboard |
+| `web/terminal/index.html`, `terminal.js`, `terminal.css` | New. The terminal page: xterm.js, fitting to the tab, live highlighting (decorations), the menu, find, PuTTY's keys and mouse, the log lines |
+| `web/output/themes/putty.theme.json` | New. PuTTY's default colours |
+| `Utils/PuttyStartInfo.cs` | `PlinkCommandLine` |
+| `ctlPuttyPanel.cs` | Creates the terminal when the option is on (`TerminalControl.ShouldUse`); WAITFOR, Reconnect, Stop Reconnecting, the PuTTY menu items and the connection badge go to it |
+| `dlgFindPutty.cs` / `.Designer.cs` | The option on the Highlighting page |
+| `Properties/Settings.*`, `App.config` | `BuiltInTerminal` (default off) |
+| `SuperPutty.csproj` | The new files (the page is under `web\**`, already copied and installed) |
+
+**Checked** against the lab Cisco switch (IOS), with a test program hosting `TerminalControl` from the built exe and driving it the way ctlPuttyPanel's WAITFOR and Send Commands do:
+- SSH: login, `enable` and its password, WAITFOR for each prompt, `--More--` with Space and `q`, a window resize (125×35 to 158×42 characters), `exit` closing the session (Ended raised); live highlighting as in the screenshot of phase 1. The log had 72 clean lines, no `--More--`, no password.
+- A refused connection: plink's error shown, the tab disconnected, a reconnect scheduled with "Reconnecting in 10 s (1 of 6)".
+- Serial (COM6, 9600 8N1): the console's prompt and `show clock`. This found the `-pw` problem above.
+- In a browser: the menu, find (11 matches for `notconnect`, regex, Enter and Shift+Enter), Select All copying, the Highlighting submenu, the three Clear items (and that they don't add to the log), a page loaded while hidden waiting for a real size before starting.
+- **Not checked:** the terminal inside SuperXPuTTY itself (opening from the tree, docking, floating, layouts, two monitors, high DPI, the dark interface theme), real mouse right-click and middle-click in WebView2, SuperPuTTY's keyboard shortcuts while the terminal has the keyboard, Telnet and keyboard-interactive one-time passwords through the built-in terminal (Telnet was checked with plink in a pseudo console during the study), and a jump host.
+
+**Known limits:**
+- What's typed before plink has started (the first second or so) is dropped.
+- Full-screen programs (`vi`, `top`) work, but their screens are logged only as they first appear.
+- Clear Screen and Reset Terminal are local: a later resize can bring back what the pseudo console still has on its screen.
+- Each terminal tab costs some memory for its browser view (tens of MB).
+
+Manual tests:
+1. Options → Highlighting: tick **Use the built-in terminal**, OK. Open an SSH session to a Cisco device: the tab shows a black terminal with a green cursor, and the login works as in PuTTY (password prompt, or none with a key).
+2. `show ip interface brief`, `show interfaces status`, `show interfaces` with Space and `q`: colours as you go, no `--More--` left on screen.
+3. Select text (copied), Shift+Insert and middle-click paste it; Ctrl+C at the prompt reaches the device.
+4. Right-click: try each item, the Highlighting and Theme submenus, and Find... (Enter, Shift+Enter, Escape).
+5. Click another tab and back: the cursor stops and starts blinking. Ctrl+Tab and SuperPuTTY's other shortcuts still work.
+6. Send Commands and a button-bar button into the tab; an SPSL script with WAITFOR (e.g. `SENDLINE show clock` then `WAITFOR #`).
+7. Pull the network cable (or `reload` a lab device): the error shows, the tab badge changes, and it reconnects; Stop Reconnecting in the tab menu stops it; Enter reconnects.
+8. `exit`: the tab closes.
+9. Telnet and Serial sessions; a session with a jump host; a session with a PuTTY profile that sets port forwarding (the forward should work).
+10. Search Output and Watch for Activity on a terminal tab; Open as Document.
+11. Float the tab, dock it back, save and restore a layout with it, move it to a second monitor, and try the Dark interface theme.
+12. Untick the option: new tabs open in PuTTY again.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

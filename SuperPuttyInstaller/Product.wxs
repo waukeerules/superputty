@@ -14,6 +14,7 @@
     
     <Feature Id="ProductFeature" Title="SuperXPuTTY" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
+      <ComponentGroupRef Id="HighlightedOutputComponents" />
       <ComponentRef Id="ApplicationShortcuts" /> 
     </Feature>
 
@@ -133,6 +134,29 @@
       <Component Id="ProductLibDb_System_ValueTuple">
         <File Id="System.ValueTuple.dll" Source="$(var.SuperPutty.TargetDir)\System.ValueTuple.dll" />
       </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- Highlighted Output: the WebView2 control (the runtime itself comes with Windows) and the page it shows, from
+       web\ beside the exe. The exe is AnyCPU, so WebView2's native loader is needed for each architecture. -->
+  <Fragment>
+    <ComponentGroup Id="HighlightedOutputComponents" Directory="INSTALLFOLDER">
+      <Component Id="ProductLibWebView2Core">
+        <File Id="Microsoft.Web.WebView2.Core.dll" Source="$(var.SuperPutty.TargetDir)\Microsoft.Web.WebView2.Core.dll" />
+      </Component>
+      <Component Id="ProductLibWebView2WinForms">
+        <File Id="Microsoft.Web.WebView2.WinForms.dll" Source="$(var.SuperPutty.TargetDir)\Microsoft.Web.WebView2.WinForms.dll" />
+      </Component>
+      <Component Id="WebView2Loader_x64" Subdirectory="runtimes\win-x64\native">
+        <File Id="WebView2Loader_x64.dll" Source="$(var.SuperPutty.TargetDir)\runtimes\win-x64\native\WebView2Loader.dll" />
+      </Component>
+      <Component Id="WebView2Loader_x86" Subdirectory="runtimes\win-x86\native">
+        <File Id="WebView2Loader_x86.dll" Source="$(var.SuperPutty.TargetDir)\runtimes\win-x86\native\WebView2Loader.dll" />
+      </Component>
+      <Component Id="WebView2Loader_arm64" Subdirectory="runtimes\win-arm64\native">
+        <File Id="WebView2Loader_arm64.dll" Source="$(var.SuperPutty.TargetDir)\runtimes\win-arm64\native\WebView2Loader.dll" />
+      </Component>
+      <Files Subdirectory="web" Include="$(var.SuperPutty.TargetDir)\web\**" />
     </ComponentGroup>
   </Fragment>
 </Wix>

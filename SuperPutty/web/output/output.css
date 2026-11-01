@@ -1,0 +1,61 @@
+/* Highlighted Output page layout; colours come from the theme (output.js sets the custom properties) */
+:root {
+  --toolbar-bg: #f3f3f3;
+  --toolbar-fg: #1e1e1e;
+  --toolbar-border: #d0d0d0;
+  --control-bg: #ffffff;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--control-bg);
+  font: 12px "Segoe UI", sans-serif;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+#toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 4px 8px;
+  background: var(--toolbar-bg);
+  color: var(--toolbar-fg);
+  border-bottom: 1px solid var(--toolbar-border);
+}
+
+#toolbar select, #toolbar button {
+  font: inherit;
+  color: var(--toolbar-fg);
+  background: var(--control-bg);
+  border: 1px solid var(--toolbar-border);
+  border-radius: 2px;
+  padding: 1px 6px;
+}
+
+#toolbar button:hover {
+  border-color: var(--toolbar-fg);
+}
+
+#toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#status {
+  margin-left: auto;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+#editor {
+  flex: 1;
+  min-height: 0;
+}

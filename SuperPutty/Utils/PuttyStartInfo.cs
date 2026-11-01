@@ -159,6 +159,30 @@ namespace SuperPutty.Utils
                 && File.Exists(ConsoleHostPath);
         }
 
+        /// <summary>
+        /// The command line for plink.exe to connect a session the way PuTTY would (same profile, -pw rule, jump host,
+        /// default parameters and extra arguments), for the built-in terminal (Gui.TerminalControl). -no-antispoof
+        /// skips plink's "Press Return to begin session" after logging in, which PuTTY doesn't ask. -pw is only passed
+        /// for SSH.
+        /// </summary>
+        /// <param name="session">The session, with its {key} placeholders already resolved (SessionVariables.Resolve)</param>
+        /// <param name="plink">plink.exe's full path</param>
+        /// <param name="includePassword">false to write -pw's value as XXXXX, for the log</param>
+        /// <returns>The quoted executable and its arguments</returns>
+        public static string PlinkCommandLine(SessionData session, string plink, bool includePassword)
+        {
+            if (session.Proto != ConnectionProtocol.SSH && !string.IsNullOrEmpty(session.Password))
+            {
+                // plink refuses -pw for Telnet, serial and the others ("can only be used with the SSH protocol"),
+                // where PuTTY ignores it; the copy is only used for this command line
+                session = (SessionData)session.Clone();
+                session.Password = null;
+            }
+            string args = "-no-antispoof " + MakeArgs(session, includePassword, JumpHosts.ArgsFor(session));
+            args = args.Contains('%') ? TryParseEnvVars(args) : args;
+            return "\"" + plink + "\" " + args;
+        }
+
         static string MakeArgs(SessionData session, bool includePassword, string jumpArgs = "")
         {
             if (!String.IsNullOrEmpty(session.Password) && includePassword && !SuperPuTTY.Settings.AllowPlainTextPuttyPasswordArg)

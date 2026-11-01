@@ -122,6 +122,32 @@ namespace SuperPutty.Utils
             }
         }
 
+        /// <summary>
+        /// Read up to <paramref name="max"/> raw bytes of a log from a byte position, without disturbing PuTTY. Used by
+        /// Gui.HighlightedOutputPanel, which hands the bytes to a terminal emulator; unlike <see cref="ReadFrom"/> it doesn't
+        /// decode, so a UTF-8 character split between two reads isn't garbled.
+        /// </summary>
+        /// <param name="path">The log file path</param>
+        /// <param name="position">Where to start reading, in bytes</param>
+        /// <param name="max">The most bytes to return</param>
+        /// <returns>The bytes; empty if there are none or the file doesn't exist</returns>
+        public static byte[] ReadBytesFrom(string path, long position, int max)
+        {
+            if (!File.Exists(path))
+                return new byte[0];
+            using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                if (position >= stream.Length)
+                    return new byte[0];
+                stream.Seek(position, SeekOrigin.Begin);
+                byte[] buffer = new byte[Math.Min(max, stream.Length - position)];
+                int read = stream.Read(buffer, 0, buffer.Length);
+                if (read < buffer.Length)
+                    Array.Resize(ref buffer, read);
+                return buffer;
+            }
+        }
+
         /// <summary>Terminal control sequences that can be left in a log: colours and cursor moves ("[01;34m"), with or without the ESC</summary>
         private static readonly Regex ControlSequence = new Regex(@"\x1b?\[[0-9;?]*[A-Za-z]", RegexOptions.Compiled);
 

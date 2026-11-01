@@ -150,6 +150,12 @@
             this.keyboardShortcutBindingSource = new System.Windows.Forms.BindingSource(this.components);
             this.tabPageAdvanced = new System.Windows.Forms.TabPage();
             this.tabPageRdp = new System.Windows.Forms.TabPage();
+            this.tabPageHighlighting = new System.Windows.Forms.TabPage();
+            this.checkHighlightedOutput = new System.Windows.Forms.CheckBox();
+            this.checkBuiltInTerminal = new System.Windows.Forms.CheckBox();
+            this.labelHighlighting = new System.Windows.Forms.Label();
+            this.labelHighlightingRuntime = new System.Windows.Forms.Label();
+            this.buttonHighlightingFolder = new System.Windows.Forms.Button();
             this.groupBoxRdpDisplay = new System.Windows.Forms.GroupBox();
             this.labelRdpSize = new System.Windows.Forms.Label();
             this.comboRdpDisplayMode = new System.Windows.Forms.ComboBox();
@@ -213,6 +219,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.keyboardShortcutBindingSource)).BeginInit();
             this.tabPageAdvanced.SuspendLayout();
             this.tabPageRdp.SuspendLayout();
+            this.tabPageHighlighting.SuspendLayout();
             this.groupBoxRdpDisplay.SuspendLayout();
             this.groupBoxRdpResources.SuspendLayout();
             this.groupBoxRdpConnection.SuspendLayout();
@@ -792,6 +799,7 @@
             this.tabControl.Controls.Add(this.tabPageShortcuts);
             this.tabControl.Controls.Add(this.tabPageAdvanced);
             this.tabControl.Controls.Add(this.tabPageRdp);
+            this.tabControl.Controls.Add(this.tabPageHighlighting);
             this.tabControl.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabControl.Location = new System.Drawing.Point(6, 6);
             this.tabControl.Margin = new System.Windows.Forms.Padding(4);
@@ -2075,6 +2083,81 @@
             this.labelRdpNote.Name = "labelRdpNote";
             this.labelRdpNote.TabIndex = 3;
             this.labelRdpNote.Text = "These apply to RDP sessions shown with the built-in client (General -> Built-in client), when they connect.";
+            //
+            // tabPageHighlighting
+            //
+            this.tabPageHighlighting.Controls.Add(this.checkHighlightedOutput);
+            this.tabPageHighlighting.Controls.Add(this.checkBuiltInTerminal);
+            this.tabPageHighlighting.Controls.Add(this.labelHighlighting);
+            this.tabPageHighlighting.Controls.Add(this.labelHighlightingRuntime);
+            this.tabPageHighlighting.Controls.Add(this.buttonHighlightingFolder);
+            this.tabPageHighlighting.Location = new System.Drawing.Point(4, 29);
+            this.tabPageHighlighting.Margin = new System.Windows.Forms.Padding(4);
+            this.tabPageHighlighting.Name = "tabPageHighlighting";
+            this.tabPageHighlighting.Padding = new System.Windows.Forms.Padding(4);
+            this.tabPageHighlighting.Size = new System.Drawing.Size(772, 514);
+            this.tabPageHighlighting.TabIndex = 5;
+            this.tabPageHighlighting.Text = "Highlighting";
+            this.tabPageHighlighting.UseVisualStyleBackColor = true;
+            //
+            // checkHighlightedOutput
+            //
+            this.checkHighlightedOutput.AutoSize = true;
+            this.checkHighlightedOutput.Location = new System.Drawing.Point(16, 20);
+            this.checkHighlightedOutput.Margin = new System.Windows.Forms.Padding(4);
+            this.checkHighlightedOutput.Name = "checkHighlightedOutput";
+            this.checkHighlightedOutput.TabIndex = 0;
+            this.checkHighlightedOutput.Text = "Show \"Highlighted Output\" in the PuTTY tab menu";
+            this.toolTip.SetToolTip(this.checkHighlightedOutput, "Shows a session's output beside its tab, with syntax highlighting. PuTTY itself is unchanged.");
+            this.checkHighlightedOutput.UseVisualStyleBackColor = true;
+            //
+            // checkBuiltInTerminal
+            //
+            this.checkBuiltInTerminal.AutoSize = true;
+            this.checkBuiltInTerminal.Location = new System.Drawing.Point(16, 50);
+            this.checkBuiltInTerminal.Margin = new System.Windows.Forms.Padding(4);
+            this.checkBuiltInTerminal.Name = "checkBuiltInTerminal";
+            this.checkBuiltInTerminal.TabIndex = 1;
+            this.checkBuiltInTerminal.Text = "Use the built-in terminal for SSH, Telnet, Rlogin, Raw and Serial sessions (highlighted as you type)";
+            this.toolTip.SetToolTip(this.checkBuiltInTerminal, "Connects with plink (beside PuTTY) and draws the terminal in SuperPuTTY. Applies to tabs opened after OK.");
+            this.checkBuiltInTerminal.UseVisualStyleBackColor = true;
+            //
+            // labelHighlighting
+            //
+            this.labelHighlighting.Location = new System.Drawing.Point(16, 86);
+            this.labelHighlighting.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.labelHighlighting.Name = "labelHighlighting";
+            this.labelHighlighting.Size = new System.Drawing.Size(740, 190);
+            this.labelHighlighting.TabIndex = 2;
+            this.labelHighlighting.Text = "Highlighted Output shows what a PuTTY session printed (from its session log) in an editor, coloured by rules: "
+    + "for example Cisco interfaces that are up in green and down in red. It has search, folding, Save As and a "
+    + "choice of rules and themes.\r\n\r\nThe built-in terminal replaces the PuTTY window: plink makes the connection "
+    + "with the same PuTTY profile, keys and jump host, and the output is coloured by the same rules as it arrives. "
+    + "Right-click it for Copy, Paste, Find, Clear and the highlighting and theme. It needs plink.exe beside PuTTY; "
+    + "sessions use PuTTY when it's missing.\r\n\r\nRules and themes are *.rules.json and *.theme.json files. Put your own in "
+    + "the \"highlighting\" folder of the settings folder (shared with your team) or of your own settings folder; "
+    + "the folder's README explains the format.";
+            //
+            // labelHighlightingRuntime
+            //
+            this.labelHighlightingRuntime.AutoSize = true;
+            this.labelHighlightingRuntime.Location = new System.Drawing.Point(16, 286);
+            this.labelHighlightingRuntime.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.labelHighlightingRuntime.Name = "labelHighlightingRuntime";
+            this.labelHighlightingRuntime.TabIndex = 3;
+            this.labelHighlightingRuntime.Text = "WebView2 runtime:";
+            //
+            // buttonHighlightingFolder
+            //
+            this.buttonHighlightingFolder.AutoSize = true;
+            this.buttonHighlightingFolder.Location = new System.Drawing.Point(16, 320);
+            this.buttonHighlightingFolder.Margin = new System.Windows.Forms.Padding(4);
+            this.buttonHighlightingFolder.Name = "buttonHighlightingFolder";
+            this.buttonHighlightingFolder.Size = new System.Drawing.Size(180, 32);
+            this.buttonHighlightingFolder.TabIndex = 4;
+            this.buttonHighlightingFolder.Text = "Open Rules Folder";
+            this.buttonHighlightingFolder.UseVisualStyleBackColor = true;
+            this.buttonHighlightingFolder.Click += new System.EventHandler(this.buttonHighlightingFolder_Click);
             this.groupBoxRdpDisplay.ResumeLayout(false);
             this.groupBoxRdpDisplay.PerformLayout();
             this.groupBoxRdpResources.ResumeLayout(false);
@@ -2082,6 +2165,8 @@
             this.groupBoxRdpConnection.ResumeLayout(false);
             this.groupBoxRdpConnection.PerformLayout();
             this.tabPageRdp.ResumeLayout(false);
+            this.tabPageHighlighting.ResumeLayout(false);
+            this.tabPageHighlighting.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericRdpWidth)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericRdpHeight)).EndInit();
             //
@@ -2329,6 +2414,12 @@
         private System.Windows.Forms.Label label10;
         private System.Windows.Forms.TabPage tabPageAdvanced;
         private System.Windows.Forms.TabPage tabPageRdp;
+        private System.Windows.Forms.TabPage tabPageHighlighting;
+        private System.Windows.Forms.CheckBox checkHighlightedOutput;
+        private System.Windows.Forms.CheckBox checkBuiltInTerminal;
+        private System.Windows.Forms.Label labelHighlighting;
+        private System.Windows.Forms.Label labelHighlightingRuntime;
+        private System.Windows.Forms.Button buttonHighlightingFolder;
         private System.Windows.Forms.GroupBox groupBoxRdpDisplay;
         private System.Windows.Forms.Label labelRdpSize;
         private System.Windows.Forms.ComboBox comboRdpDisplayMode;

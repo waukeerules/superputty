@@ -75,6 +75,7 @@ MSBuild.exe SuperPutty.sln /restore /p:Configuration=Debug /v:minimal
 - Microsoft.VisualBasic 10.3.0
 - Newtonsoft.Json 13.0.3 (fork only, used for the placeholder values)
 - Npgsql 8.0.5 (fork only, for Database sessions). It brings 15 support libraries (System.Memory, System.Text.Json, ...), each listed in `SuperPuttyInstaller/Product.wxs`, and `AutoGenerateBindingRedirects` writes their redirects into `SuperXPuTTY.exe.config`. When the package changes, update the installer's list from `bin\Release`
+- Microsoft.Web.WebView2 1.0.4258.31 (fork only, for Highlighted Output). Its `WebView2Loader.dll` goes to `runtimes\<arch>\native` (win-x64, win-x86, win-arm64); the installer lists all three. The runtime itself comes with Windows
 
 PuTTY, or [PuTTY Plus](https://github.com/SilverGreen93/putty), is an external runtime requirement.
 
@@ -117,6 +118,8 @@ SCP sessions go through `SuperPuTTY.OpenScpSession` → `PscpBrowserPanel` inste
 | `SessionCsv` | `Data/` | Fork feature: sessions to and from CSV (File menu, folder menu). Its columns mirror the Database sessions table; when a session field is added, add it to `SessionCsv.Columns` and to `Apply`. `-pw` passwords are never written out |
 | `Settings.UseSessionsXml` | `SuperPuTTY.cs`, `SessionTreeview.cs` | Fork feature: Options → Use Sessions.xml; off, Sessions.xml and Folders.xml are neither read nor written, and Saved sessions' root is kept out of the tree. Code that adds sessions with no folder chosen should use `SessionTreeview.DefaultRoot`, and imports must make sessions private when it's off |
 | `SessionsFileWatcher` | `Utils/` | Fork feature: reloads the sessions when Sessions.xml changes outside SuperPuTTY. `SuperPuTTY.LoadSessions` calls `Watch` and `SaveSessions` calls `Saved`, recording the file's SHA-256 so SuperPuTTY's own saves don't reload; anything else that writes Sessions.xml should go through `SaveSessions` too |
+| `HighlightedOutputPanel`, `OutputHighlighting` | `Gui/`, `Utils/`, `web/output/` | Fork feature, off by default (Options → Highlighting): a session's output in a Monaco editor with regex highlighting, beside its PuTTY tab. It only reads the session log (`SessionLog.ReadBytesFrom`); the page (`web/output/output.js`) rebuilds the screen with a hidden xterm.js terminal, because the raw log has backspaces and `--More--` erasing, then copies lines into Monaco. Rules and themes are JSON (`web/output/rules`, `themes`, and the users' `highlighting` folders); matching is in `web/shared/rules.js`, used by both pages. `web/lib` holds trimmed third-party builds (Monaco 0.57.0, xterm.js 6.0.0): when upgrading, keep only the files the pages load. The design is in `docs/MonacoTerminal.md` |
+| `TerminalControl`, `ConPty` | `Gui/`, `Utils/`, `web/terminal/` | Fork feature, off by default (Options → Highlighting → built-in terminal): SSH, Telnet, Rlogin, Raw and Serial tabs drawn by xterm.js in a WebView2 instead of a PuTTY window, highlighted live. plink connects (`PuttyStartInfo.PlinkCommandLine`, so profiles, keys and jump hosts apply; never add `-pw` for non-SSH, plink refuses it) inside a pseudo console. It's the tab's `IEmbeddedApplication`/`ICommandReceiver`, like `RdpControl`; ctlPuttyPanel's `Terminal` property is non-null for these tabs, and WAITFOR, Reconnect and the PuTTY menu items branch on it. The session log is written from the screen by the page (a line once the cursor leaves it), not from the byte stream, which the pseudo console rewrites; WAITFOR also reads the cursor's line (`MarkOutput`, `OutputSinceMark`). A clean plink exit closes the tab; any other starts the reconnect logic |
 | `PuttyWindow`, `ctlPuttyPanel.CheckConnection` | `Utils/`, top level | Fork feature: dropped sessions keep their tab, get a badge and reconnect, by finding PuTTY's "Fatal Error" box and sending its Restart Session command. A PuTTY process exiting still closes the tab |
 | `ButtonBarStrip`, `ButtonBarStore`, `SendStringParser` | `Gui/`, `Utils/` | Fork feature: the button bar above the status bar. Buttons are stored in `ButtonBars.xml` in SettingsFolder; sending uses `CommandData.SendToTerminal`, like the Send Commands toolbar and SPSL |
 | `SessionTreeview`, `LayoutsList`, `SessionDetail`, log viewers | top level | Tool windows (`ToolWindow`), shown and hidden through `SingletonToolWindowHelper<T>` |
@@ -131,9 +134,10 @@ SCP sessions go through `SuperPuTTY.OpenScpSession` → `PscpBrowserPanel` inste
 | `Gui/` | Reusable UI: Quick Selector, the shortcut editor, `DpiUtils`, image picker |
 | `Scp/` | The pscp file browser and file transfers (MVP: View, Presenter, ViewModel) |
 | `Scripting/` | SPSL, the session scripting language (`Spsl.cs` plus one class per command) |
+| `web/` | Pages shown in WebView2: `output/` (Highlighted Output, and the default rules and themes), `terminal/` (the built-in terminal), `shared/` and `lib/` (Monaco, xterm.js). Copied beside the exe and installed under `web\` |
 | `DarkModeForms/` | Copied in from [BlueMystical/Dark-Mode-Forms](https://github.com/BlueMystical/Dark-Mode-Forms): `DarkModeCS`, `Messenger` (themed message boxes), `Flat*` controls |
 | `Models/` | Fork additions (`EnvironmentVariable`) |
-| `Resources/third-party/` | Licences for bundled third-party data (Simple Icons, CC0) |
+| `Resources/third-party/` | Licences for bundled third-party data and code (Simple Icons, CC0; Monaco Editor and xterm.js, MIT) |
 
 ### Settings and files
 

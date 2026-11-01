@@ -290,6 +290,12 @@
     <Compile Include="Gui\RdpControl.cs">
       <SubType>Component</SubType>
     </Compile>
+    <Compile Include="Gui\HighlightedOutputPanel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Gui\TerminalControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Gui\ButtonBarStrip.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -404,6 +410,8 @@
     <Compile Include="Utils\IEmbeddedApplication.cs" />
     <Compile Include="Utils\ICommandReceiver.cs" />
     <Compile Include="Utils\SessionLog.cs" />
+    <Compile Include="Utils\OutputHighlighting.cs" />
+    <Compile Include="Utils\ConPty.cs" />
     <Compile Include="Utils\PuttyWindow.cs" />
     <Compile Include="Utils\ScriptRun.cs" />
     <Compile Include="Utils\RdpOptions.cs" />
@@ -624,6 +632,15 @@
     <PackageReference Include="Npgsql">
       <Version>8.0.5</Version>
     </PackageReference>
+    <PackageReference Include="Microsoft.Web.WebView2">
+      <Version>1.0.4258.31</Version>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Highlighted Output's page, its libraries (Monaco, xterm.js) and default rules, served to WebView2 from the exe's folder -->
+    <Content Include="web\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
