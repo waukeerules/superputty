@@ -41,6 +41,8 @@ namespace SuperPutty.Gui
             Add("switch", "Switch", Color.FromArgb(0x2E, 0x7D, 0x32), PaintSwitch);
             Add("l3switch", "Layer 3 switch", Color.FromArgb(0x1E, 0x63, 0xB4), PaintL3Switch);
             Add("stackswitch", "Stack switch", Color.FromArgb(0x2E, 0x7D, 0x32), PaintStackSwitch);
+            Add("coreswitch", "Core switch", Color.FromArgb(0x1E, 0x63, 0xB4), PaintCoreSwitch);
+            Add("distswitch", "Distribution switch", Color.FromArgb(0x2E, 0x7D, 0x32), PaintDistributionSwitch);
             Add("router", "Router", Color.FromArgb(0x1E, 0x63, 0xB4), PaintRouter);
             Add("voicerouter", "Voice router", Color.FromArgb(0x6A, 0x3D, 0x9A), PaintVoiceRouter);
             Add("nexus", "Data centre switch", Color.FromArgb(0x2E, 0x7D, 0x32), PaintNexus);
@@ -371,6 +373,41 @@ namespace SuperPutty.Gui
                 Arrow(g, white, new PointF(0.14f, 0.80f), new PointF(0.64f, 0.80f), 0.065f, 0.1f);
                 IsoBox(g, body, new RectangleF(0.06f, 0.32f, 0.66f, 0.28f), 0.2f, 0.23f);
                 Arrow(g, white, new PointF(0.64f, 0.46f), new PointF(0.14f, 0.46f), 0.065f, 0.1f);
+            }
+        }
+
+        /// <summary>Core switch: the layer 3 switch's arrows going out from a hub, as the backbone everything crosses</summary>
+        private static void PaintCoreSwitch(Graphics g, Color body)
+        {
+            using (GraphicsPath path = RoundRect(new RectangleF(0.06f, 0.06f, 0.88f, 0.88f), 0.14f))
+            {
+                FillBody(g, path, body);
+            }
+            OutwardCross(g, 0.5f, 0.5f, 0.36f);
+            using (Brush white = new SolidBrush(Glyph))
+            using (Brush hole = new SolidBrush(body))
+            {
+                g.FillEllipse(white, 0.34f, 0.34f, 0.32f, 0.32f);
+                g.FillEllipse(hole, 0.42f, 0.42f, 0.16f, 0.16f);
+            }
+        }
+
+        /// <summary>Distribution switch: one uplink fanning out to three arrows down to the access layer</summary>
+        private static void PaintDistributionSwitch(Graphics g, Color body)
+        {
+            using (GraphicsPath path = RoundRect(new RectangleF(0.06f, 0.06f, 0.88f, 0.88f), 0.14f))
+            {
+                FillBody(g, path, body);
+            }
+            using (Brush white = new SolidBrush(Glyph))
+            using (Pen line = new Pen(Glyph, 0.07f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                g.DrawLine(line, 0.5f, 0.16f, 0.5f, 0.44f);
+                g.DrawLine(line, 0.22f, 0.44f, 0.78f, 0.44f);
+                foreach (float x in new[] { 0.22f, 0.5f, 0.78f })
+                {
+                    Arrow(g, white, new PointF(x, 0.44f), new PointF(x, 0.84f), 0.07f, 0.11f);
+                }
             }
         }
 
