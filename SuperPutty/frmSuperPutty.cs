@@ -131,6 +131,8 @@ namespace SuperPutty
                     DockPanel.Theme = SoftDarkTheme();
                     break;
             }
+            // tabs as wide as their text, up to 30 characters, instead of DockPanelSuite's fixed 200 pixels
+            SuperPutty.DockPanelSuite.WideTabs.Apply(DockPanel.Theme);
 
             if (SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme)
             {

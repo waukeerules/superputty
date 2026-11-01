@@ -412,6 +412,13 @@
     <Compile Include="Utils\SessionLog.cs" />
     <Compile Include="Utils\OutputHighlighting.cs" />
     <Compile Include="Utils\ConPty.cs" />
+    <Compile Include="DockPanelSuite\WideTabs.cs" />
+    <Compile Include="DockPanelSuite\VS2013DockPaneStrip.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="DockPanelSuite\VS2005DockPaneStrip.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Utils\PuttyWindow.cs" />
     <Compile Include="Utils\ScriptRun.cs" />
     <Compile Include="Utils\RdpOptions.cs" />

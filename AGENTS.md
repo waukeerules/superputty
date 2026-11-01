@@ -136,6 +136,7 @@ SCP sessions go through `SuperPuTTY.OpenScpSession` → `PscpBrowserPanel` inste
 | `Scripting/` | SPSL, the session scripting language (`Spsl.cs` plus one class per command) |
 | `web/` | Pages shown in WebView2: `output/` (Highlighted Output, and the default rules and themes), `terminal/` (the built-in terminal), `shared/` and `lib/` (Monaco, xterm.js). Copied beside the exe and installed under `web\` |
 | `DarkModeForms/` | Copied in from [BlueMystical/Dark-Mode-Forms](https://github.com/BlueMystical/Dark-Mode-Forms): `DarkModeCS`, `Messenger` (themed message boxes), `Flat*` controls |
+| `DockPanelSuite/` | DockPanelSuite 3.1.1's two document tab strips, copied so tabs can be wider than its fixed 200 pixels (`WideTabs`, up to 30 characters). Changes are marked "SuperPuTTY"; keep the class and member names, which `TabIcons` and `DocumentTabs` reach by reflection, and copy them again when DockPanelSuite is upgraded |
 | `Models/` | Fork additions (`EnvironmentVariable`) |
 | `Resources/third-party/` | Licences for bundled third-party data and code (Simple Icons, CC0; Monaco Editor and xterm.js, MIT) |
 

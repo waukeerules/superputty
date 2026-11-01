@@ -1324,6 +1324,23 @@ For audits, and for teams that keep their device lists in a spreadsheet (`Data/S
   - coming back without clicking a box (like Alt+Tab) still put the focus in the terminal, twice out of twice.
 - **Not checked:** floating panes and a second monitor.
 
+## Tabs as wide as their name, up to 30 characters
+
+**Before:** every document tab was cut off at 200 pixels, so with the larger tab font (and at 150 % DPI) a name like `192.168.0.50` showed as "192.168.0....". The limit is a private constant inside DockPanelSuite's tab strips, not scaled for DPI or the font, with no setting to change it.
+
+**Now:** tabs are as wide as their text, up to 30 characters of the tab font (`WideTabs.MaxCharacters`), then cut with "...". The tab strips are copies of DockPanelSuite 3.1.1's `VS2013DockPaneStrip` (used by the VS2015 Light, Blue and Dark themes) and `VS2005DockPaneStrip` (Classic), MIT licensed, changed only where marked "SuperPuTTY": the namespace, the width limit, and the theme assembly's internal tooltip strings, button images (loaded from its resources) and drawing path, which a copy can't reach. `WideTabs.Apply` swaps a theme's strip factory for ours; frmSuperPutty calls it after choosing the theme. The copies keep DockPanelSuite's class and member names, which `TabIcons` and `DocumentTabs` look up.
+
+| File | Change |
+|---|---|
+| `DockPanelSuite/WideTabs.cs` | New. The limit, the factories, the Classic images |
+| `DockPanelSuite/VS2013DockPaneStrip.cs`, `VS2005DockPaneStrip.cs` | New. The copied strips |
+| `frmSuperPutty.cs` | Calls `WideTabs.Apply` |
+| `Resources/third-party/dockpanelsuite-LICENSE.txt` | New. DockPanelSuite's licence |
+
+**Checked:** in a test window with the real DockPanel and both themes, the copied strips were used, and three tabs ("a", "192.168.0.50", a 45-character name) were 57, 123 and 261 pixels wide in Light (24, 90 and 228 in Classic): the first two in full, the long one cut after about 30 characters. **Not checked** in SuperXPuTTY's window: the icons, colours and close buttons drawn over the tabs (TabIcons), the tab list, floating windows, and the Dark and Blue themes.
+
+**When upgrading DockPanelSuite:** copy the two strips again from the new version and redo the marked changes.
+
 ## Highlighted Output: a session's output with syntax highlighting
 
 Phase 1 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:** turn it on in **Tools → Options → Highlighting**. Then right-click a PuTTY tab → **Highlighted Output** opens a panel beside it that shows everything the session printed, in a Monaco editor (the editor of VS Code), coloured by rules: on Cisco, `show ip interface brief` lines that are up/up in green and down/down in red, `connected` / `notconnect`, `is up, line protocol is up`, syslog severities, `%` errors, addresses and MACs. **PuTTY runs exactly as before**; the panel only reads the session log PuTTY already writes (`-sessionlog`, see [Session logs](#session-logs-and-spsl-waitfor)).
