@@ -146,7 +146,8 @@ namespace SuperPutty
                 // the built-in terminal: plink in a pseudo console, drawn and highlighted by SuperPuTTY, not a PuTTY window.
                 // It writes the same session log PuTTY would have.
                 SessionData resolved = SessionVariables.Resolve(this.Session);
-                string logPath = this.m_puttyStartInfo.SessionLogPath;
+                // cmd, PowerShell and WSL have no log of their own; in the built-in terminal they get one like PuTTY's
+                string logPath = this.m_puttyStartInfo.SessionLogPath ?? SessionLog.NewLogPath(this.Session);
                 this.AppPanel.EmbeddedApplicationFactory = () =>
                 {
                     TerminalControl terminal = new TerminalControl(resolved, logPath);
@@ -409,7 +410,8 @@ namespace SuperPutty
         /// <summary>The file PuTTY logs this session's output to (see SessionLog); null for RDP, VNC, cmd and other non-PuTTY tabs</summary>
         public string SessionLogPath
         {
-            get { return this.m_puttyStartInfo.SessionLogPath; }
+            // the built-in terminal writes the log, also for cmd, PowerShell and WSL, which have none in their own window
+            get { return this.Terminal?.LogPath ?? this.m_puttyStartInfo.SessionLogPath; }
         }
 
         /// <summary>How long WAITFOR waits between looks at the log</summary>

@@ -35,6 +35,7 @@
     var darkDefault = true;
     var bellFromProfile = 'visual'; // the PuTTY profile's bell, from TerminalControl
     var cursorFromProfile = { style: 'block', blink: false }; // the PuTTY profile's cursor, from TerminalControl
+    var localShell = false;         // cmd, PowerShell or WSL rather than a connection through plink
     var cursorColor = null;         // the session's environment colour (#rrggbb) for the cursor, or null
     var settleTimer = null;
     var scanFrom = null;        // marker: first line to look at for highlighting next time
@@ -561,15 +562,17 @@
             '-',
             { label: 'Copy on Select', checked: prefOn('copyOnSelect'), action: function () { togglePref('copyOnSelect'); } },
             { label: 'Mark Matches of Selection', checked: prefOn('markMatches'), action: function () { togglePref('markMatches'); markSelectionMatches(); } },
-            '-',
+            '-'
+        ].concat(localShell ? [] : [
             // plink can't send PuTTY's Special Commands (Break, signals...); PuTTY's own window can
             { label: 'Open in PuTTY (Special Commands)', action: function () { post({ type: 'openInPutty' }); } },
-            '-',
+            '-'
+        ]).concat([
             { label: 'Close Tab', action: function () { post({ type: 'tab', command: 'close' }); } },
             { label: 'Close Other Tabs', action: function () { post({ type: 'tab', command: 'closeOthers' }); } },
             { label: 'Close Tabs to the Right', action: function () { post({ type: 'tab', command: 'closeRight' }); } },
             { label: 'Close All Tabs', action: function () { post({ type: 'tab', command: 'closeAll' }); } }
-        ];
+        ]);
     }
 
     /** Build a menu element from items; submenus open on hover. isSubmenu: the rows are a submenu's */
@@ -795,6 +798,7 @@
         bellFromProfile = config.bell || 'visual';
         if (config.bellOverload) { bellOverload = config.bellOverload; }
         if (config.cursor) { cursorFromProfile = config.cursor; }
+        localShell = !!config.local;
         applyCursor();
         cursorColor = config.cursorColor || null;
         themes = config.themes || [];

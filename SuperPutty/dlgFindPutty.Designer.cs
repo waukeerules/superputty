@@ -2118,7 +2118,7 @@
             this.checkBuiltInTerminal.Margin = new System.Windows.Forms.Padding(4);
             this.checkBuiltInTerminal.Name = "checkBuiltInTerminal";
             this.checkBuiltInTerminal.TabIndex = 1;
-            this.checkBuiltInTerminal.Text = "Use the built-in terminal for SSH, Telnet, Rlogin, Raw and Serial sessions (highlighted as you type)";
+            this.checkBuiltInTerminal.Text = "Use the built-in terminal for SSH, Telnet, Rlogin, Raw, Serial, cmd, PowerShell and WSL sessions";
             this.toolTip.SetToolTip(this.checkBuiltInTerminal, "Connects with plink (beside PuTTY) and draws the terminal in SuperPuTTY. Applies to tabs opened after OK.");
             this.checkBuiltInTerminal.UseVisualStyleBackColor = true;
             //

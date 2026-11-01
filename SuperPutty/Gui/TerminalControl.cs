@@ -43,14 +43,32 @@ namespace SuperPutty.Gui
         /// <summary>Protocols plink can connect; the others keep their own programs</summary>
         private static readonly ConnectionProtocol[] Protocols =
         {
-            ConnectionProtocol.SSH, ConnectionProtocol.Telnet, ConnectionProtocol.Rlogin, ConnectionProtocol.Raw, ConnectionProtocol.Serial
+            ConnectionProtocol.SSH, ConnectionProtocol.Telnet, ConnectionProtocol.Rlogin, ConnectionProtocol.Raw, ConnectionProtocol.Serial,
+            ConnectionProtocol.WINCMD, ConnectionProtocol.PS, ConnectionProtocol.WSL
         };
+
+        /// <summary>
+        /// Whether a protocol is a local shell (cmd, PowerShell, WSL), run directly in the pseudo console instead of
+        /// through plink
+        /// </summary>
+        /// <param name="protocol">The session's protocol</param>
+        /// <returns>true for cmd, PowerShell and WSL</returns>
+        public static bool IsLocalShell(ConnectionProtocol protocol)
+        {
+            return protocol == ConnectionProtocol.WINCMD || protocol == ConnectionProtocol.PS || protocol == ConnectionProtocol.WSL;
+        }
 
         /// <summary>The session, placeholders resolved; never a session from the tree (it would be saved)</summary>
         private readonly SessionData session;
 
         /// <summary>The session log this terminal writes (SessionLog), read by WAITFOR, Search Output and Highlighted Output</summary>
         private readonly string logPath;
+
+        /// <summary>The session log this terminal writes (ctlPuttyPanel.SessionLogPath)</summary>
+        public string LogPath
+        {
+            get { return this.logPath; }
+        }
 
         /// <summary>The browser control showing the terminal</summary>
         private readonly WebView2 webView;
@@ -122,7 +140,7 @@ namespace SuperPutty.Gui
         {
             if (puttyForNextTab || !SuperPuTTY.Settings.BuiltInTerminal || Array.IndexOf(Protocols, session.Proto) < 0)
                 return false;
-            if (JumpHosts.PlinkPath() == null)
+            if (!IsLocalShell(session.Proto) && JumpHosts.PlinkPath() == null)
             {
                 Log.Warn("The built-in terminal needs plink.exe beside PuTTY; using PuTTY for " + session.SessionId);
                 return false;
@@ -356,7 +374,7 @@ namespace SuperPutty.Gui
                 Log.Warn("Highlighting files skipped: " + string.Join("; ", problems));
             }
             bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
-            this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursor = CursorFromProfile(this.session.PuttySession), cursorColor = this.cursorColor });
+            this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursor = CursorFromProfile(this.session.PuttySession), local = IsLocalShell(this.session.Proto), cursorColor = this.cursorColor });
         }
 
         /// <summary>The session's environment colour as #rrggbb, for the cursor; null for none</summary>
@@ -458,6 +476,11 @@ namespace SuperPutty.Gui
         /// <summary>Start plink for the session; shows the reason in the terminal when it can't</summary>
         private void Connect()
         {
+            if (IsLocalShell(this.session.Proto))
+            {
+                this.StartLocalShell();
+                return;
+            }
             string plink = JumpHosts.PlinkPath();
             if (plink == null)
             {
@@ -483,6 +506,34 @@ namespace SuperPutty.Gui
                 Log.Error("Could not start plink for " + this.session.SessionId, ex);
                 this.Notice("Could not start plink: " + ex.Message + ". Press Enter to try again.", true);
                 this.SetDisconnected();
+            }
+        }
+
+        /// <summary>
+        /// Start cmd, PowerShell or WSL directly in the pseudo console, in the folder their sessions start in
+        /// (PuttyStartInfo), as Windows Terminal runs them. They read console keys themselves, so unlike plink they need
+        /// nothing done to the console mode.
+        /// </summary>
+        private void StartLocalShell()
+        {
+            string shell = PuttyStartInfo.GetExecutable(this.session);
+            string folder = Environment.ExpandEnvironmentVariables("%userprofile%");
+            try
+            {
+                ConPty started = new ConPty();
+                started.Output += this.OnOutput;
+                started.Exited += code => this.BeginInvokeSafe(() => this.OnExited(started, code));
+                Log.InfoFormat("Terminal: {0} in {1}", shell, folder);
+                started.Start("\"" + shell + "\"", this.columns, this.rows, Directory.Exists(folder) ? folder : null);
+                this.pty = started;
+                this.startedAt = DateTime.Now;
+                this.disconnected = false;
+                this.StateChanged?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Could not start " + shell + " for " + this.session.SessionId, ex);
+                this.Notice("Could not start " + Path.GetFileName(shell) + ": " + ex.Message, true);
             }
         }
 
@@ -530,7 +581,8 @@ namespace SuperPutty.Gui
                 return;
             this.pty = null;
             ended.Dispose();
-            if (code == 0)
+            // a local shell ending (exit, or exit 1) closes its tab, as its own window would; there's nothing to reconnect
+            if (code == 0 || IsLocalShell(this.session.Proto))
             {
                 this.Ended?.Invoke(this, EventArgs.Empty);
                 return;
@@ -619,11 +671,18 @@ namespace SuperPutty.Gui
         /// <param name="data">Text and key sequences</param>
         private void Type(ConPty target, string data)
         {
-            if (data.IndexOf('\x1b') >= 0 || data.IndexOf('\x03') >= 0)
+            // only plink: local shells read keys themselves, and need Ctrl+C as the console signal (to stop ping -t)
+            if (!IsLocalShell(this.session.Proto) && (data.IndexOf('\x1b') >= 0 || data.IndexOf('\x03') >= 0))
             {
                 target.EnsureVirtualTerminalInput();
             }
             target.Write(Encoding.UTF8.GetBytes(data));
+            // a local shell's running command (ping -t) only stops on the console's Ctrl+C signal, which typing 0x03
+            // doesn't raise in a pseudo console; the 0x03 still goes first, for line editors that read it as a key
+            if (IsLocalShell(this.session.Proto) && data.IndexOf('\x03') >= 0)
+            {
+                target.SendCtrlC();
+            }
         }
 
         /// <summary>Lines the page has finished showing: append them to the session log and the WAITFOR text</summary>

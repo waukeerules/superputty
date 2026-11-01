@@ -51,8 +51,9 @@ namespace SuperPutty.Utils
         /// <param name="commandLine">The full command line, executable quoted when it has spaces</param>
         /// <param name="columns">The console's width in characters</param>
         /// <param name="rows">The console's height in lines</param>
+        /// <param name="workingDirectory">The folder the program starts in; null for SuperPuTTY's own</param>
         /// <exception cref="Win32Exception">The pseudo console or the process couldn't be created</exception>
-        public void Start(string commandLine, int columns, int rows)
+        public void Start(string commandLine, int columns, int rows, string workingDirectory = null)
         {
             SafeFileHandle inputRead, inputWrite, outputRead, outputWrite;
             if (!CreatePipe(out inputRead, out inputWrite, IntPtr.Zero, 0))
@@ -66,6 +67,11 @@ namespace SuperPutty.Utils
             outputWrite.Dispose();
             if (hr != 0)
                 throw new Win32Exception(hr);
+
+            // the program inherits "ignore Ctrl+C" if SuperPuTTY has it (e.g. started from a shell that set it); then
+            // Ctrl+C could never stop a command in cmd or PowerShell. Clearing it may need a console (it does nothing
+            // otherwise); a normally started SuperPuTTY doesn't have the flag
+            SetConsoleCtrlHandler(IntPtr.Zero, false);
 
             IntPtr size = IntPtr.Zero;
             InitializeProcThreadAttributeList(IntPtr.Zero, 1, 0, ref size);
@@ -82,7 +88,7 @@ namespace SuperPutty.Utils
                         this.console, (IntPtr)IntPtr.Size, IntPtr.Zero, IntPtr.Zero))
                     throw new Win32Exception();
                 if (!CreateProcess(null, commandLine, IntPtr.Zero, IntPtr.Zero, false, EXTENDED_STARTUPINFO_PRESENT,
-                        IntPtr.Zero, null, ref startup, out this.process))
+                        IntPtr.Zero, workingDirectory, ref startup, out this.process))
                     throw new Win32Exception();
             }
             finally
@@ -166,6 +172,64 @@ namespace SuperPutty.Utils
         /// <summary>Only one console can be attached to this process at a time</summary>
         private static readonly object ConsoleLock = new object();
 
+        /// <summary>Handles console signals in SuperPuTTY by ignoring them; kept here so it isn't collected</summary>
+        private static readonly ConsoleCtrlHandler IgnoreSignal = signal => true;
+
+        /// <summary>Whether <see cref="IgnoreSignal"/> is registered</summary>
+        private static bool signalHandlerSet;
+
+        /// <summary>
+        /// Keep SuperPuTTY running when a console it's attached to gets Ctrl+C or Ctrl+Break, which would otherwise
+        /// end it. A handler rather than SetConsoleCtrlHandler(null, true): that "ignore Ctrl+C" flag is inherited, so
+        /// every cmd or PowerShell started afterwards would ignore Ctrl+C too. Any such flag SuperPuTTY inherited
+        /// itself is cleared here for the same reason. Windows only accepts these calls while this process is attached
+        /// to a console, so it's called right after AttachConsole, with <see cref="ConsoleLock"/> held.
+        /// </summary>
+        private static void KeepRunningOnConsoleSignals()
+        {
+            SetConsoleCtrlHandler(IntPtr.Zero, false);
+            if (!signalHandlerSet)
+            {
+                signalHandlerSet = SetConsoleCtrlHandler(IgnoreSignal, true);
+                if (!signalHandlerSet)
+                {
+                    Log.WarnFormat("Could not set a console signal handler: error {0}", Marshal.GetLastWin32Error());
+                }
+            }
+        }
+
+        /// <summary>
+        /// Press Ctrl+C in the program's console, as in a console window: the console signal that stops a running
+        /// command (ping -t) in cmd, PowerShell or WSL. Typing 0x03 into a pseudo console doesn't raise it. Safe to
+        /// call from any thread.
+        /// </summary>
+        public void SendCtrlC()
+        {
+            int pid = this.process.dwProcessId;
+            if (pid == 0 || this.console == IntPtr.Zero)
+                return;
+            lock (ConsoleLock)
+            {
+                if (!AttachConsole(pid))
+                {
+                    Log.DebugFormat("Could not attach to the console of process {0}: error {1}", pid, Marshal.GetLastWin32Error());
+                    return;
+                }
+                try
+                {
+                    KeepRunningOnConsoleSignals();
+                    if (!GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0))
+                    {
+                        Log.DebugFormat("Could not send Ctrl+C to process {0}: error {1}", pid, Marshal.GetLastWin32Error());
+                    }
+                }
+                finally
+                {
+                    FreeConsole();
+                }
+            }
+        }
+
         /// <summary>
         /// Make the program's console pass arrow keys and Ctrl+C through as characters. plink reads its console with
         /// only "processed input" set, so the pseudo console turns ESC [ A into an Up-arrow key event that has no
@@ -188,8 +252,7 @@ namespace SuperPutty.Utils
                 }
                 try
                 {
-                    // while attached, a Ctrl+C on that console would otherwise end SuperPuTTY too
-                    SetConsoleCtrlHandler(IntPtr.Zero, true);
+                    KeepRunningOnConsoleSignals();
                     IntPtr input = CreateFile("CONIN$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
                     if (input == INVALID_HANDLE_VALUE)
                         return;
@@ -343,6 +406,17 @@ namespace SuperPutty.Utils
         private static extern bool FreeConsole();
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetConsoleCtrlHandler(ConsoleCtrlHandler handler, bool add);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GenerateConsoleCtrlEvent(int ctrlEvent, int processGroupId);
+
+        /// <summary>A console signal handler; returns true when it has handled the signal</summary>
+        /// <param name="signal">CTRL_C_EVENT, CTRL_BREAK_EVENT...</param>
+        /// <returns>true to stop the default handling (ending the process)</returns>
+        private delegate bool ConsoleCtrlHandler(int signal);
+
+        private const int CTRL_C_EVENT = 0;
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern IntPtr CreateFile(string name, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
         [DllImport("kernel32.dll", SetLastError = true)]
