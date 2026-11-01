@@ -453,7 +453,22 @@ namespace SuperPutty.Gui
                 }
                 return;
             }
-            this.pty.Write(Encoding.UTF8.GetBytes(data));
+            this.Type(this.pty, data);
+        }
+
+        /// <summary>
+        /// Write typing to plink. Arrow keys and other keys sent as ESC sequences, and Ctrl+C, only reach the device
+        /// once plink's console passes them through (ConPty.EnsureVirtualTerminalInput)
+        /// </summary>
+        /// <param name="target">plink's pseudo console</param>
+        /// <param name="data">Text and key sequences</param>
+        private void Type(ConPty target, string data)
+        {
+            if (data.IndexOf('\x1b') >= 0 || data.IndexOf('\x03') >= 0)
+            {
+                target.EnsureVirtualTerminalInput();
+            }
+            target.Write(Encoding.UTF8.GetBytes(data));
         }
 
         /// <summary>Lines the page has finished showing: append them to the session log and the WAITFOR text</summary>
@@ -576,7 +591,7 @@ namespace SuperPutty.Gui
                 {
                     text.Append(KeySequence(command.KeyData));
                 }
-                target.Write(Encoding.UTF8.GetBytes(text.ToString()));
+                this.Type(target, text.ToString());
             }
             if (command.Delay > TimeSpan.Zero)
             {

@@ -38,9 +38,9 @@
     var logged = null;          // marker: first line not yet sent to the log
     var lastCurrent = null;     // the cursor's line as last sent to the log
     var entries = [];           // highlighted lines: {marker, decorations, text}
-    var find = { matches: [], index: -1, decorations: [] };
+    var find = { matches: [], index: -1, decorations: [], current: null };
     var menuSelection = null;   // the selection when the right button went down: {text, position}
-    var selectionMatches = [];  // markers on the other places the selected text appears
+    var selectionMatches = [];  // marks ({marker, decoration}) on the other places the selected text appears
     var sized = false;
 
     /** Send a message to TerminalControl (ignored when the page is opened in a plain browser to test it) */
@@ -286,9 +286,34 @@
         return loadPref(name) !== 'false';
     }
 
+    /**
+     * Put a background on part of a buffer line (find and selection matches)
+     * @returns {{marker, decoration}|null} to pass to unmark
+     */
+    function mark(row, x, width, colour) {
+        var marker = markLine(row);
+        if (!marker) { return null; }
+        var decoration = term.registerDecoration({
+            marker: marker, x: x, width: Math.max(1, Math.min(width, term.cols - x)), backgroundColor: colour, layer: 'top'
+        });
+        return { marker: marker, decoration: decoration };
+    }
+
+    /**
+     * Remove marks: each decoration before its marker. xterm.js 6.0.0 keeps decorations in a list sorted by their
+     * marker's line; disposing a marker first sets that line to -1 before the decoration is taken out, so it isn't
+     * found, stays in the list under the wrong line, and lookups for other lines fail: their colours disappear.
+     */
+    function unmark(marks) {
+        marks.forEach(function (m) {
+            if (m.decoration) { m.decoration.dispose(); }
+            m.marker.dispose();
+        });
+    }
+
     /** Remove the marks on the selection's other matches */
     function clearSelectionMatches() {
-        selectionMatches.forEach(function (marker) { marker.dispose(); });
+        unmark(selectionMatches);
         selectionMatches = [];
     }
 
@@ -308,19 +333,16 @@
         var colour = (theme && theme.colors && theme.colors.selectionMatch)
             || (theme && theme.base === 'vs' ? '#c8e6a0' : '#4a5a28');
         var buffer = term.buffer.active;
+        var selected = term.getSelectionPosition();
         for (var row = 0; row < buffer.length && selectionMatches.length < MAX_FIND_MATCHES; row++) {
             var line = buffer.getLine(row).translateToString(true);
             var match;
             regex.lastIndex = 0;
             while ((match = regex.exec(line)) !== null && selectionMatches.length < MAX_FIND_MATCHES) {
-                var marker = markLine(row);
-                if (!marker) { break; }
-                term.registerDecoration({
-                    marker: marker, x: match.index, width: Math.min(match[0].length, term.cols - match.index),
-                    backgroundColor: colour, layer: 'top'
-                });
-                // disposing the marker removes its decoration too
-                selectionMatches.push(marker);
+                // not the selected text itself: the mark would hide the selection
+                if (selected && row === selected.start.y && match.index === selected.start.x) { continue; }
+                var m = mark(row, match.index, match[0].length, colour);
+                if (m) { selectionMatches.push(m); }
             }
         }
     }
@@ -388,10 +410,11 @@
         term.focus();
     }
 
-    /** Remove the marks on every match */
+    /** Remove the marks on every match, and on the current one */
     function clearFindMarks() {
-        find.decorations.forEach(function (d) { d.dispose(); });
+        unmark(find.decorations.concat(find.current ? [find.current] : []));
         find.decorations = [];
+        find.current = null;
     }
 
     /** Find every match in the scrollback and screen, mark them, and select the one nearest the end */
@@ -432,14 +455,8 @@
             return;
         }
         find.matches.forEach(function (m) {
-            var marker = markLine(m.row);
-            if (!marker) { return; }
-            var decoration = term.registerDecoration({
-                marker: marker, x: m.col, width: Math.min(m.length, term.cols - m.col),
-                backgroundColor: '#806000', layer: 'top'
-            });
-            // disposing the marker removes its decoration too
-            find.decorations.push(marker);
+            var marked = mark(m.row, m.col, m.length, '#806000');
+            if (marked) { find.decorations.push(marked); }
         });
         showMatch(find.matches.length - 1);
     }
@@ -450,6 +467,9 @@
         find.index = (index + find.matches.length) % find.matches.length;
         var m = find.matches[find.index];
         term.select(m.col, m.row, m.length);
+        // the matches' marks cover the selection, so the current one gets a brighter mark of its own
+        if (find.current) { unmark([find.current]); }
+        find.current = mark(m.row, m.col, m.length, '#e0a000');
         term.scrollToLine(Math.max(0, m.row - Math.floor(term.rows / 2)));
         document.getElementById('findCount').textContent = (find.index + 1) + ' of ' + find.matches.length;
     }
@@ -756,7 +776,8 @@
             message: onMessage,
             feedText: function (text) { write(new TextEncoder().encode(text)); },
             term: term,
-            posted: []
+            posted: [],
+            matchCount: function (text) { return SpRules.matches(currentSet(), text, MAX_MATCH_LENGTH).length; }
         };
         term.focus();
         post({ type: 'ready' });

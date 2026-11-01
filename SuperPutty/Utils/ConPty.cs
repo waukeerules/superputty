@@ -163,6 +163,60 @@ namespace SuperPutty.Utils
             }
         }
 
+        /// <summary>Only one console can be attached to this process at a time</summary>
+        private static readonly object ConsoleLock = new object();
+
+        /// <summary>
+        /// Make the program's console pass arrow keys and Ctrl+C through as characters. plink reads its console with
+        /// only "processed input" set, so the pseudo console turns ESC [ A into an Up-arrow key event that has no
+        /// character, and plink drops it; and Ctrl+C is a console signal rather than 0x03 for the device. Turning on
+        /// virtual terminal input and off processed input fixes both. plink sets its console mode when the session
+        /// starts, after any login prompts, so this is checked before typing an ESC or Ctrl+C rather than once. It
+        /// attaches this process to the program's console for a moment, which is why it's serialised.
+        /// </summary>
+        public void EnsureVirtualTerminalInput()
+        {
+            int pid = this.process.dwProcessId;
+            if (pid == 0 || this.console == IntPtr.Zero)
+                return;
+            lock (ConsoleLock)
+            {
+                if (!AttachConsole(pid))
+                {
+                    Log.DebugFormat("Could not attach to the console of process {0}: error {1}", pid, Marshal.GetLastWin32Error());
+                    return;
+                }
+                try
+                {
+                    // while attached, a Ctrl+C on that console would otherwise end SuperPuTTY too
+                    SetConsoleCtrlHandler(IntPtr.Zero, true);
+                    IntPtr input = CreateFile("CONIN$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+                    if (input == INVALID_HANDLE_VALUE)
+                        return;
+                    try
+                    {
+                        uint mode;
+                        if (GetConsoleMode(input, out mode))
+                        {
+                            uint wanted = (mode | ENABLE_VIRTUAL_TERMINAL_INPUT) & ~ENABLE_PROCESSED_INPUT;
+                            if (wanted != mode && !SetConsoleMode(input, wanted))
+                            {
+                                Log.DebugFormat("Could not set the console mode of process {0}: error {1}", pid, Marshal.GetLastWin32Error());
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        CloseHandle(input);
+                    }
+                }
+                finally
+                {
+                    FreeConsole();
+                }
+            }
+        }
+
         /// <summary>Change the console's size; plink passes it on to the server</summary>
         /// <param name="columns">Width in characters</param>
         /// <param name="rows">Height in lines</param>
@@ -229,6 +283,14 @@ namespace SuperPutty.Utils
             }
         }
 
+        private const uint ENABLE_PROCESSED_INPUT = 0x0001;
+        private const uint ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200;
+        private const uint GENERIC_READ = 0x80000000;
+        private const uint GENERIC_WRITE = 0x40000000;
+        private const uint FILE_SHARE_READ = 0x1;
+        private const uint FILE_SHARE_WRITE = 0x2;
+        private const uint OPEN_EXISTING = 3;
+        private static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
         private const int STARTF_USESTDHANDLES = 0x00000100;
         private const int EXTENDED_STARTUPINFO_PRESENT = 0x00080000;
         private const int PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016;
@@ -275,5 +337,17 @@ namespace SuperPutty.Utils
         private static extern bool TerminateProcess(IntPtr process, int exitCode);
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool CloseHandle(IntPtr handle);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool AttachConsole(int processId);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FreeConsole();
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr CreateFile(string name, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetConsoleMode(IntPtr handle, out uint mode);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetConsoleMode(IntPtr handle, uint mode);
     }
 }

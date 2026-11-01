@@ -255,6 +255,15 @@ plan below:
   rewritten. So the page logs each line once the cursor leaves it, and WAITFOR also reads the cursor's line. That
   makes WAITFOR work on positions in that text rather than bytes in the file (`TerminalControl.MarkOutput`);
 - plink refuses `-pw` for anything but SSH, where PuTTY ignores it, so the command line drops it for other protocols;
+- **keys:** plink reads its console with only processed input on, so arrows (which the pseudo console turns into key
+  events without a character) were dropped and Ctrl+C was a signal. Neither a separate ESC, an ESC sent as a
+  win32-input-mode key event, nor plink's stdin on a pipe helped (plink reads login prompts from the console, not
+  stdin). What works: attach to plink's console briefly and set `ENABLE_VIRTUAL_TERMINAL_INPUT` without
+  `ENABLE_PROCESSED_INPUT` (`ConPty.EnsureVirtualTerminalInput`), checked before each ESC or Ctrl+C because plink sets
+  its mode when the session starts;
+- **xterm.js 6.0.0 decoration bug:** disposing a marker before its decorations corrupts the decoration list (the
+  marker's line is already -1 when the decoration is looked up to be removed), and other lines lose their colours.
+  Always dispose the decoration first;
 - no xterm.js addons were needed: fitting reads the same cell size the fit addon does, find and the IP/MAC colours
   use the public decoration API, and the clipboard goes through TerminalControl (the page has no clipboard access);
 - xterm.js's `scrollOnEraseInDisplay` keeps a cleared screen in the scrollback, as PuTTY does by default;
