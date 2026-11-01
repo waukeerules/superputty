@@ -112,6 +112,8 @@ A row of one-click buttons above the status bar. Show or hide it with **View →
 - **Focus:** one click is enough even while you're typing in a terminal, and the keyboard goes back to the active tab afterwards. A ToolStrip normally uses the first click on an inactive window only to activate it (`WM_MOUSEACTIVATE` → `MA_ACTIVATEANDEAT`); the bar answers `MA_ACTIVATE` instead, then calls `FocusActiveDocument`.
 - **Tooltips show above the bar.** Before the fix, a button's tooltip could flash on and off for as long as the pointer stayed on it. ToolStrip puts tooltips below the pointer. The bar is at the bottom of the screen, so Windows moved the two-line tooltip up over the pointer; when the tooltip took the mouse (it did with a terminal tab open), the strip saw the pointer leave the button and hid it, then showed it again after the hover time, about every 0.7 s. The bar now turns off ToolStrip's tooltips and shows its own (`ButtonBarStrip.ShowTip`) after the hover time, just above the button, so it's never under the pointer. Checked in the full app, with the real pointer held on a button: before, with a cmd tab open, the tooltip changed 18 times in 6 s and the window under the pointer was the tooltip; after, with and without a tab, it showed once above the bar and stayed for its 5 s.
 
+**Sharing as a file:** right-click the bar → **Export Button Bar...** saves the bar shown to a JSON file (`Utils/ButtonBarFile.cs`): its name, the tab icons it's shown for, and each button's label, tooltip, colour or icon, action and text. **Import Button Bar...** adds the bars in such a file and switches to it; one named like a bar already here comes in as "Name (2)", so nothing is overwritten. `{key}` placeholders and `{prompt:}`/`{secret:}` prompts go in the file as they are, never their values. Another JSON file, or one without bars, is refused; an action this version doesn't know is imported as Send string.
+
 **Storage:** `ButtonBars.xml` sits in the settings folder next to `Sessions.xml`, so a team that shares that folder shares the buttons; placeholders keep per-user values out of the file. Which bar is showing, and whether the bar is visible, are per-user settings (`ActiveButtonBar`, `ShowButtonBar`). The file is reloaded whenever the right-click menu opens, so edits apply to the latest version, and it's saved through a temporary file so a failed write can't leave a half-written file. If two people save at the same moment, the last one wins.
 
 **Files:**
@@ -121,11 +123,14 @@ A row of one-click buttons above the status bar. Show or hide it with **View →
 | `Data/ButtonBarData.cs` | New. `CommandButton`, `ButtonBar` and `ButtonBarList`, the XML model |
 | `Utils/ButtonBarStore.cs` | New. Loads and saves `ButtonBars.xml` |
 | `Utils/SendStringParser.cs` | New. Turns a send string with escape codes into `CommandData` steps for the existing `SendToTerminal` |
-| `Gui/ButtonBarStrip.cs` | New. The toolbar: dropdown, buttons, right-click menu, and sending on background threads |
+| `Gui/ButtonBarStrip.cs` | New. The toolbar: dropdown, buttons, right-click menu (with Export and Import Button Bar), and sending on background threads |
+| `Utils/ButtonBarFile.cs` | New. Button bars as JSON: `ToJson`, `FromJson`, `FreeName` |
 | `Gui/dlgEditCommandButton.cs` / `.Designer.cs` | New. The button editor dialog, with dark mode |
 | `frmSuperPutty.cs` / `.Designer.cs` | Hosts the bar, adds the menu item, and hides it in full screen. The Send Commands target filter is moved, unchanged, into `GetSelectedPuttyPanels()` so both toolbars use it |
 | `Utils/SessionVariables.cs` | `EnsureDefined` also checks arbitrary text, for buttons |
 | `Properties/Settings.*`, `App.config` | `ShowButtonBar` (default on) and `ActiveButtonBar` |
+
+**Export and Import checked** (`ButtonBarFile`, 8 checks, all passed): the user's two bars (6 buttons with send strings, an SPSL script, colours and an icon; and a bar with a tab icon) came back field for field from their exported text, and ButtonBars.xml was left as it was; a taken name became "Name (2)"; another JSON file, text that isn't JSON and a file without bars were refused; an unknown action became Send string and an unnamed bar was skipped. **Not checked:** the two menu items in the running app.
 
 **Not done yet:** keyboard shortcuts for buttons, a default bar per session, and other button actions (launch an application, menu functions).
 

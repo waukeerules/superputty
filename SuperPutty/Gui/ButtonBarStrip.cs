@@ -180,6 +180,9 @@ namespace SuperPutty.Gui
                 // after the menu closes, so the icon list can stay open while several icons are ticked
                 new ToolStripMenuItem("Show for Tab &Icons...", null, (s, e) => this.BeginInvoke(new MethodInvoker(this.ShowTabIconMenu))),
                 new ToolStripSeparator(),
+                new ToolStripMenuItem("E&xport Button Bar...", null, (s, e) => this.ExportBar()),
+                new ToolStripMenuItem("Im&port Button Bar...", null, (s, e) => this.ImportBars()),
+                new ToolStripSeparator(),
                 new ToolStripMenuItem("Reload", null, (s, e) => this.Reload())
             });
             this.ContextMenuStrip.Opening += this.ContextMenuStrip_Opening;
@@ -687,6 +690,73 @@ namespace SuperPutty.Gui
                 SuperPuTTY.Settings.ActiveButtonBar = this.bars.Bars[0].Name;
                 SuperPuTTY.Settings.Save();
                 this.SaveAndRefresh();
+            }
+        }
+
+        /// <summary>Save the bar shown, with its buttons, to a JSON file to share (Utils.ButtonBarFile)</summary>
+        private void ExportBar()
+        {
+            ButtonBar bar = this.CurrentBar;
+            using (SaveFileDialog dialog = new SaveFileDialog
+            {
+                Title = "Export Button Bar",
+                Filter = "Button bars (*.json)|*.json|All files|*.*",
+                FileName = bar.Name + " button bar.json"
+            })
+            {
+                if (dialog.ShowDialog(this.FindForm()) != DialogResult.OK)
+                    return;
+                try
+                {
+                    System.IO.File.WriteAllText(dialog.FileName, ButtonBarFile.ToJson(new[] { bar }));
+                    SuperPuTTY.ReportStatus("Exported the button bar \"{0}\" ({1} buttons)", bar.Name, bar.Buttons.Count);
+                }
+                catch (Exception ex) when (ex is System.IO.IOException || ex is UnauthorizedAccessException)
+                {
+                    Messenger.MessageBox("Couldn't save the file: " + ex.Message, "Export Button Bar", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Add the bars in a shared JSON file, and switch to the (last) one added. A bar named like one already here is
+        /// added as "Name (2)", so nothing is overwritten.
+        /// </summary>
+        private void ImportBars()
+        {
+            using (OpenFileDialog dialog = new OpenFileDialog
+            {
+                Title = "Import Button Bar",
+                Filter = "Button bars (*.json)|*.json|All files|*.*"
+            })
+            {
+                if (dialog.ShowDialog(this.FindForm()) != DialogResult.OK)
+                    return;
+                string error;
+                List<ButtonBar> imported;
+                try
+                {
+                    imported = ButtonBarFile.FromJson(System.IO.File.ReadAllText(dialog.FileName), out error);
+                }
+                catch (Exception ex) when (ex is System.IO.IOException || ex is UnauthorizedAccessException)
+                {
+                    imported = null;
+                    error = "Couldn't read the file: " + ex.Message;
+                }
+                if (imported == null)
+                {
+                    Messenger.MessageBox(error, "Import Button Bar", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                foreach (ButtonBar bar in imported)
+                {
+                    bar.Name = ButtonBarFile.FreeName(bar.Name, this.bars.Bars);
+                    this.bars.Bars.Add(bar);
+                }
+                SuperPuTTY.Settings.ActiveButtonBar = imported[imported.Count - 1].Name;
+                SuperPuTTY.Settings.Save();
+                this.SaveAndRefresh();
+                SuperPuTTY.ReportStatus("Imported {0}", string.Join(", ", imported.Select(b => string.Format("\"{0}\" ({1} buttons)", b.Name, b.Buttons.Count))));
             }
         }
 

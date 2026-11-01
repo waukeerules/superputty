@@ -415,6 +415,7 @@
     <Compile Include="Utils\EnvironmentVariablesManager.cs" />
     <Compile Include="Utils\SessionVariables.cs" />
     <Compile Include="Utils\ButtonBarStore.cs" />
+    <Compile Include="Utils\ButtonBarFile.cs" />
     <Compile Include="Utils\SendStringParser.cs" />
     <Compile Include="Utils\IEmbeddedApplication.cs" />
     <Compile Include="Utils\ICommandReceiver.cs" />
