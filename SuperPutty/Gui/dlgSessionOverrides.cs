@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using DarkModeForms;
 using SuperPutty.Data;
@@ -9,21 +10,36 @@ using SuperPutty.Data;
 namespace SuperPutty.Gui
 {
     /// <summary>
-    /// Edits the current user's local overrides for one session (Data.SessionOverrides): a host, port, username,
-    /// PuTTY profile, extra arguments or jump host used instead of the stored one whenever the session opens, without
-    /// changing the session. Each field has a box to tick, and shows the stored value beside it. Opened from the
-    /// Sessions tree's "Local overrides...", which saves the result. Built in code like dlgFolderSettings.
+    /// Edits the current user's local overrides (Data.SessionOverrides) for one session or several: a host, port,
+    /// username, PuTTY profile, extra arguments or jump host used instead of the stored one whenever a session opens,
+    /// without changing it. Each field has a box to tick, and shows the stored value beside it. For several sessions
+    /// the box has three states: ticked sets the value on all of them, unticked removes that override from all, and
+    /// filled (where they differ) leaves each as it is. <see cref="Merge"/> turns the choices into one session's new
+    /// overrides. Opened from the Sessions tree's "Local overrides..." and Edit Session's Local overrides button,
+    /// which save the result. Built in code like dlgFolderSettings.
     /// </summary>
     public class dlgSessionOverrides : Form
     {
-        /// <summary>One field: its tick box and its editor</summary>
-        private class Row
+        /// <summary>One overridable field: how to read and write it, and its row's controls</summary>
+        private class Field
         {
-            /// <summary>Ticked to use the user's value</summary>
-            public CheckBox Use;
+            /// <summary>Its name, as SessionOverrides.Override.Fields gives it</summary>
+            public string Name;
 
-            /// <summary>The user's value</summary>
+            /// <summary>Its editor</summary>
             public Control Editor;
+
+            /// <summary>An override's value for it, as text; null when not overridden</summary>
+            public Func<SessionOverrides.Override, string> Get;
+
+            /// <summary>Put a value (or null to remove the override) into an override</summary>
+            public Action<SessionOverrides.Override, string> Set;
+
+            /// <summary>A session's stored value, as text</summary>
+            public Func<SessionData, string> Stored;
+
+            /// <summary>Ticked to set the value, unticked to remove it, filled to leave each session as it is</summary>
+            public CheckBox Use;
         }
 
         private readonly TextBox textHost = new TextBox();
@@ -33,19 +49,30 @@ namespace SuperPutty.Gui
         private readonly TextBox textExtraArgs = new TextBox();
         private readonly TextBox textJumpHost = new TextBox();
 
-        /// <summary>The rows, by field</summary>
-        private readonly Dictionary<string, Row> rows = new Dictionary<string, Row>();
+        /// <summary>The fields, in the order shown</summary>
+        private readonly List<Field> fields;
 
-        /// <summary>The overrides as edited, read after OK; null when there are none</summary>
-        public SessionOverrides.Override Result { get; private set; }
+        /// <summary>The overrides as edited, read after OK, for a single session; null when there are none</summary>
+        public SessionOverrides.Override Result
+        {
+            get { return this.Merge(null); }
+        }
 
         /// <summary>Build the dialog for a session</summary>
         /// <param name="session">The stored session, for its name and values; it isn't changed</param>
         /// <param name="current">Its overrides now; null if it has none</param>
         public dlgSessionOverrides(SessionData session, SessionOverrides.Override current)
+            : this(new List<SessionData> { session }, new List<SessionOverrides.Override> { current })
         {
-            current = current ?? new SessionOverrides.Override();
-            this.Text = "Local overrides: " + session.SessionName;
+        }
+
+        /// <summary>Build the dialog for one session or several</summary>
+        /// <param name="sessions">The stored sessions, for their names and values; they aren't changed</param>
+        /// <param name="current">Their overrides now, in the same order; null for one that has none</param>
+        public dlgSessionOverrides(List<SessionData> sessions, List<SessionOverrides.Override> current)
+        {
+            bool several = sessions.Count > 1;
+            this.Text = several ? string.Format("Local overrides: {0} sessions", sessions.Count) : "Local overrides: " + sessions[0].SessionName;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
@@ -56,12 +83,6 @@ namespace SuperPutty.Gui
             this.Padding = new Padding(this.LogicalToDeviceUnits(12));
 
             this.comboProfile.Items.AddRange(PuttyDataHelper.GetSessionNames().Where(n => !string.IsNullOrEmpty(n)).ToArray());
-            this.textHost.Text = current.Host ?? session.Host;
-            this.numericPort.Value = Math.Max(1, Math.Min(65535, current.Port > 0 ? current.Port : session.Port > 0 ? session.Port : 22));
-            this.textUsername.Text = current.Username ?? session.Username;
-            this.comboProfile.Text = current.PuttyProfile ?? session.PuttySession;
-            this.textExtraArgs.Text = current.ExtraArgs ?? session.ExtraArgs;
-            this.textJumpHost.Text = current.JumpHost ?? session.JumpHost;
             HintText.Set(this.textJumpHost, "empty: no jump host, even if the session or folder has one");
             foreach (Control box in new Control[] { this.textHost, this.textUsername, this.comboProfile, this.textExtraArgs, this.textJumpHost })
             {
@@ -69,33 +90,45 @@ namespace SuperPutty.Gui
             }
             this.numericPort.Width = this.LogicalToDeviceUnits(90);
 
+            this.fields = new List<Field>
+            {
+                new Field { Name = "Host", Editor = this.textHost, Get = o => o.Host, Set = (o, v) => o.Host = v, Stored = s => s.Host },
+                new Field { Name = "Port", Editor = this.numericPort, Get = o => o.Port > 0 ? o.Port.ToString() : null,
+                    Set = (o, v) => o.Port = v == null ? 0 : int.Parse(v), Stored = s => s.Port.ToString() },
+                new Field { Name = "Username", Editor = this.textUsername, Get = o => o.Username, Set = (o, v) => o.Username = v, Stored = s => s.Username },
+                new Field { Name = "PuTTY profile", Editor = this.comboProfile, Get = o => o.PuttyProfile, Set = (o, v) => o.PuttyProfile = v, Stored = s => s.PuttySession },
+                // a -pw password in the stored extra arguments is never shown
+                new Field { Name = "Extra args", Editor = this.textExtraArgs, Get = o => o.ExtraArgs, Set = (o, v) => o.ExtraArgs = v,
+                    Stored = s => Regex.Replace(s.ExtraArgs ?? string.Empty, @"(-pw\s+)(""[^""]*""|\S+)", "$1****") },
+                new Field { Name = "Jump host", Editor = this.textJumpHost, Get = o => o.JumpHost, Set = (o, v) => o.JumpHost = v, Stored = s => s.JumpHost }
+            };
+
             TableLayoutPanel grid = new TableLayoutPanel { ColumnCount = 3, AutoSize = true, Dock = DockStyle.Fill };
             Label intro = new Label
             {
-                Text = "Tick a field to use your own value whenever this session opens, instead of the stored one. Only you get "
-                    + "these (they're kept beside your settings, not in the session), so they work for locked database fields "
-                    + "and shared sessions. The session itself isn't changed.",
+                Text = (several
+                        ? string.Format("For these {0} sessions: a ticked field is set on all of them, an unticked one is removed from all, "
+                            + "and a filled box (where they differ) leaves each as it is. ", sessions.Count)
+                        : "Tick a field to use your own value whenever this session opens, instead of the stored one. ")
+                    + "Only you get these (they're kept beside your settings, not in the session), so they work for locked database "
+                    + "fields and shared sessions. The sessions themselves aren't changed.",
                 AutoSize = true,
                 MaximumSize = new Size(this.LogicalToDeviceUnits(560), 0),
                 Margin = new Padding(0, 0, 0, this.LogicalToDeviceUnits(8))
             };
             grid.Controls.Add(intro, 0, 0);
             grid.SetColumnSpan(intro, 3);
-            this.AddRow(grid, 1, "Host", this.textHost, current.Host != null, session.Host);
-            this.AddRow(grid, 2, "Port", this.numericPort, current.Port > 0, session.Port.ToString());
-            this.AddRow(grid, 3, "Username", this.textUsername, current.Username != null, session.Username);
-            this.AddRow(grid, 4, "PuTTY profile", this.comboProfile, current.PuttyProfile != null, session.PuttySession);
-            // the stored extra arguments can hold a -pw password: never shown
-            this.AddRow(grid, 5, "Extra args", this.textExtraArgs, current.ExtraArgs != null,
-                System.Text.RegularExpressions.Regex.Replace(session.ExtraArgs ?? string.Empty, @"(-pw\s+)(""[^""]*""|\S+)", "$1****"));
-            this.AddRow(grid, 6, "Jump host", this.textJumpHost, current.JumpHost != null, session.JumpHost);
+            List<SessionOverrides.Override> overrides = current.Select(o => o ?? new SessionOverrides.Override()).ToList();
+            for (int i = 0; i < this.fields.Count; i++)
+            {
+                this.AddRow(grid, i + 1, this.fields[i], sessions, overrides, several);
+            }
 
             FlowLayoutPanel close = new FlowLayoutPanel { Dock = DockStyle.Bottom, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, Padding = new Padding(0, this.LogicalToDeviceUnits(8), 0, 0) };
             Button cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true, MinimumSize = new Size(this.LogicalToDeviceUnits(88), 0) };
             Button ok = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true, MinimumSize = new Size(this.LogicalToDeviceUnits(88), 0) };
             Button clear = new Button { Text = "Clear all", AutoSize = true, MinimumSize = new Size(this.LogicalToDeviceUnits(88), 0) };
-            ok.Click += (s, e) => this.ReadBack();
-            clear.Click += (s, e) => { foreach (Row row in this.rows.Values) row.Use.Checked = false; };
+            clear.Click += (s, e) => { foreach (Field field in this.fields) field.Use.CheckState = CheckState.Unchecked; };
             close.Controls.AddRange(new Control[] { cancel, ok, clear });
             this.AcceptButton = ok;
             this.CancelButton = cancel;
@@ -112,21 +145,40 @@ namespace SuperPutty.Gui
             }
         }
 
-        /// <summary>Add a field as a row: its tick box, its editor (enabled while ticked) and the stored value</summary>
+        /// <summary>
+        /// Add a field as a row: its tick box (three states for several sessions), its editor (enabled while ticked)
+        /// and the stored value. The box starts ticked when every session has the same override, unticked when none has
+        /// one, and filled otherwise; the editor starts with the shared override, or else the first session's value.
+        /// </summary>
         /// <param name="grid">The layout</param>
         /// <param name="row">The row</param>
-        /// <param name="field">The field's name</param>
-        /// <param name="editor">The editor</param>
-        /// <param name="overridden">Whether the user has a value for it now</param>
-        /// <param name="stored">The session's own value, shown beside it</param>
-        private void AddRow(TableLayoutPanel grid, int row, string field, Control editor, bool overridden, string stored)
+        /// <param name="field">The field</param>
+        /// <param name="sessions">The sessions</param>
+        /// <param name="overrides">Their overrides, in the same order</param>
+        /// <param name="several">Whether there's more than one session</param>
+        private void AddRow(TableLayoutPanel grid, int row, Field field, List<SessionData> sessions, List<SessionOverrides.Override> overrides, bool several)
         {
-            CheckBox use = new CheckBox { Text = field, AutoSize = true, Checked = overridden, Anchor = AnchorStyles.Left, Margin = new Padding(0, 6, 8, 0) };
-            editor.Enabled = overridden;
-            use.CheckedChanged += (s, e) => editor.Enabled = use.Checked;
+            List<string> values = overrides.Select(field.Get).ToList();
+            List<string> stored = sessions.Select(field.Stored).Distinct().ToList();
+            CheckState state = values.All(v => v == null) ? CheckState.Unchecked
+                : values.All(v => v != null && v == values[0]) ? CheckState.Checked
+                : CheckState.Indeterminate;
+            SetEditorText(field.Editor, values.FirstOrDefault(v => v != null) ?? field.Stored(sessions[0]));
+
+            field.Use = new CheckBox
+            {
+                Text = field.Name,
+                AutoSize = true,
+                ThreeState = several,
+                CheckState = state,
+                Anchor = AnchorStyles.Left,
+                Margin = new Padding(0, 6, 8, 0)
+            };
+            field.Editor.Enabled = state == CheckState.Checked;
+            field.Use.CheckStateChanged += (s, e) => field.Editor.Enabled = field.Use.CheckState == CheckState.Checked;
             Label storedLabel = new Label
             {
-                Text = "Stored: " + (string.IsNullOrEmpty(stored) ? "(none)" : stored),
+                Text = "Stored: " + (stored.Count > 1 ? "(varies)" : string.IsNullOrEmpty(stored[0]) ? "(none)" : stored[0]),
                 AutoSize = true,
                 AutoEllipsis = true,
                 MaximumSize = new Size(this.LogicalToDeviceUnits(220), 0),
@@ -134,23 +186,41 @@ namespace SuperPutty.Gui
                 Anchor = AnchorStyles.Left,
                 Margin = new Padding(8, 6, 0, 0)
             };
-            grid.Controls.Add(use, 0, row);
-            grid.Controls.Add(editor, 1, row);
+            grid.Controls.Add(field.Use, 0, row);
+            grid.Controls.Add(field.Editor, 1, row);
             grid.Controls.Add(storedLabel, 2, row);
-            this.rows[field] = new Row { Use = use, Editor = editor };
         }
 
-        /// <summary>Put the ticked fields in <see cref="Result"/>; none ticked leaves it null</summary>
-        private void ReadBack()
+        /// <summary>Put a value in an editor: the port box takes a number, the others text</summary>
+        /// <param name="editor">The editor</param>
+        /// <param name="value">The value; an unreadable port leaves 22</param>
+        private static void SetEditorText(Control editor, string value)
         {
-            SessionOverrides.Override result = new SessionOverrides.Override();
-            if (this.rows["Host"].Use.Checked) result.Host = this.textHost.Text.Trim();
-            if (this.rows["Port"].Use.Checked) result.Port = (int)this.numericPort.Value;
-            if (this.rows["Username"].Use.Checked) result.Username = this.textUsername.Text.Trim();
-            if (this.rows["PuTTY profile"].Use.Checked) result.PuttyProfile = this.comboProfile.Text.Trim();
-            if (this.rows["Extra args"].Use.Checked) result.ExtraArgs = this.textExtraArgs.Text.Trim();
-            if (this.rows["Jump host"].Use.Checked) result.JumpHost = this.textJumpHost.Text.Trim();
-            this.Result = result.IsEmpty ? null : result;
+            NumericUpDown number = editor as NumericUpDown;
+            int port;
+            if (number != null)
+                number.Value = int.TryParse(value, out port) ? Math.Max(1, Math.Min(65535, port)) : 22;
+            else
+                editor.Text = value ?? string.Empty;
+        }
+
+        /// <summary>
+        /// One session's overrides after the choices made here: a ticked field gets the value, an unticked one is
+        /// removed, and a filled one keeps the session's own
+        /// </summary>
+        /// <param name="current">The session's overrides now; null if it has none</param>
+        /// <returns>Its new overrides; null when none are left</returns>
+        public SessionOverrides.Override Merge(SessionOverrides.Override current)
+        {
+            SessionOverrides.Override result = current == null ? new SessionOverrides.Override() : current.Clone();
+            foreach (Field field in this.fields)
+            {
+                if (field.Use.CheckState == CheckState.Checked)
+                    field.Set(result, field.Editor is NumericUpDown ? ((int)((NumericUpDown)field.Editor).Value).ToString() : field.Editor.Text.Trim());
+                else if (field.Use.CheckState == CheckState.Unchecked)
+                    field.Set(result, null);
+            }
+            return result.IsEmpty ? null : result;
         }
     }
 }

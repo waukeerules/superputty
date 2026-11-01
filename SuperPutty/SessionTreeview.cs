@@ -1394,6 +1394,7 @@ namespace SuperPutty
             this.connectToolStripMenuItem.Text = count > 1 ? string.Format("Connect {0} sessions", count) : "Connect";
             this.deleteToolStripMenuItem.Text = count > 1 ? string.Format("Delete {0} sessions", count) : "Delete";
             this.settingsToolStripMenuItem.Text = count > 1 ? string.Format("Edit {0} sessions...", count) : "Edit";
+            this.overridesToolStripMenuItem.Text = count > 1 ? string.Format("Local overrides for {0} sessions...", count) : "Local overrides...";
             if (count > 1)
             {
                 // each one's lock is checked when it's deleted or edited
@@ -1439,7 +1440,7 @@ namespace SuperPutty
         /// </summary>
         void AddOverridesMenuItem()
         {
-            this.overridesToolStripMenuItem = new ToolStripMenuItem("Local overrides...", null, (s, e) => this.EditOverrides(this.SelectedSession))
+            this.overridesToolStripMenuItem = new ToolStripMenuItem("Local overrides...", null, (s, e) => this.EditOverrides(this.SelectedOverrideSessions()))
             {
                 ToolTipText = "Your own host, port, username, profile... for this session, used when it opens; only you get them"
             };
@@ -1447,17 +1448,34 @@ namespace SuperPutty
             this.contextMenuStripAddTreeItem.Items.Insert(edit + 1, this.overridesToolStripMenuItem);
         }
 
-        /// <summary>Edit a session's local overrides and save them</summary>
-        /// <param name="session">The session; nothing happens for null</param>
-        void EditOverrides(SessionData session)
+        /// <summary>The sessions "Local overrides..." acts on: all the selected ones, or the one right-clicked</summary>
+        /// <returns>The sessions; empty when none is selected</returns>
+        List<SessionData> SelectedOverrideSessions()
         {
-            if (session == null)
+            List<TreeNode> nodes = this.SelectedSessionNodes();
+            if (nodes.Count > 1)
+                return nodes.Select(n => (SessionData)n.Tag).ToList();
+            SessionData session = this.SelectedSession;
+            return session == null ? new List<SessionData>() : new List<SessionData> { session };
+        }
+
+        /// <summary>
+        /// Edit the local overrides of one session or several and save them; for several, each keeps its own value for
+        /// the fields left as they are (dlgSessionOverrides.Merge)
+        /// </summary>
+        /// <param name="sessions">The sessions; nothing happens when empty</param>
+        void EditOverrides(List<SessionData> sessions)
+        {
+            if (sessions.Count == 0)
                 return;
-            using (dlgSessionOverrides dialog = new dlgSessionOverrides(session, SessionOverrides.Get(session.SessionId)))
+            List<SessionOverrides.Override> current = sessions.Select(s => SessionOverrides.Get(s.SessionId)).ToList();
+            using (dlgSessionOverrides dialog = new dlgSessionOverrides(sessions, current))
             {
-                if (dialog.ShowDialog(this) == DialogResult.OK)
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                    return;
+                for (int i = 0; i < sessions.Count; i++)
                 {
-                    SessionOverrides.Set(session.SessionId, dialog.Result);
+                    SessionOverrides.Set(sessions[i].SessionId, dialog.Merge(current[i]));
                 }
             }
         }
