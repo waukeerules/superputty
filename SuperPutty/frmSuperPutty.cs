@@ -113,24 +113,28 @@ namespace SuperPutty
             InitializeComponent();
             
             // set both DockPanel and Interface theme
+            ThemeBase theme;
             switch (SuperPuTTY.Settings.InterfaceTheme)
             {
                 case (int)InterfaceTheme.DarkTheme:
-                    DockPanel.Theme = SoftDarkTheme();
+                    theme = SoftDarkTheme();
                     break;
                 case (int)InterfaceTheme.DarkBlueTheme:
-                    DockPanel.Theme = new VS2015BlueTheme();
+                    theme = new VS2015BlueTheme();
                     break;
                 case (int)InterfaceTheme.LightTheme:
-                    DockPanel.Theme = new VS2015LightTheme();
+                    theme = new VS2015LightTheme();
                     break;
                 case (int)InterfaceTheme.ClassicTheme:
-                    DockPanel.Theme = new VS2005Theme();
+                    theme = new VS2005Theme();
                     break;
                 default:
-                    DockPanel.Theme = SoftDarkTheme();
+                    theme = SoftDarkTheme();
                     break;
             }
+            // before the theme is set: its splitter controls take the size when they're made
+            WidenSplitters(theme);
+            DockPanel.Theme = theme;
             // tabs as wide as their text, up to 30 characters, instead of DockPanelSuite's fixed 200 pixels
             SuperPutty.DockPanelSuite.WideTabs.Apply(DockPanel.Theme);
 
@@ -334,6 +338,17 @@ namespace SuperPutty
             {
                 old.Dispose();
             }
+        }
+
+        /// <summary>
+        /// Make the splitters between docked panes (the Sessions pane's edge, say) easier to grab: 8 pixels at 100 %,
+        /// scaled for the display. The VS2015 themes use 6 pixels, not scaled, so at 150 % there were 6 physical pixels
+        /// to find with the mouse.
+        /// </summary>
+        /// <param name="theme">The DockPanel's theme, before it's given to the DockPanel</param>
+        private static void WidenSplitters(ThemeBase theme)
+        {
+            theme.Measures.SplitterSize = Math.Max(theme.Measures.SplitterSize, DpiUtils.ScaleWidth(8));
         }
 
         /// <summary>The Dark theme with muted selected and hovered tab colours instead of bright blue</summary>

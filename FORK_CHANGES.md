@@ -1555,6 +1555,17 @@ Then with the outline and the icons drawn smaller on the circle (84 %, then 78 %
 
 Manual test: colour a session red and a folder green: both icons sit, at their full size, on larger circles of their colour, and the names stay white (dark theme) or black (light). Rows are taller than before. Open the red session: the green dot shows on top of the circle, and the tab's icon has a dark outline. Change Options → Icon size: the circles are redrawn at the new size.
 
+## Fix: the Sessions pane's edge was hard to grab for resizing
+
+**Symptom:** finding the spot to drag the Sessions pane (or any docked pane) wider or narrower took several tries, on a high-DPI display especially.
+
+**Cause:** DockPanelSuite's VS2015 themes make the splitter between docked panes 6 pixels wide, and don't scale it for the display. At 150 % that's 6 physical pixels to hit, next to the pane's scrollbar. Setting the width after the theme is given to the DockPanel does nothing: the theme's splitter controls copy it when they're made, which is when the theme is set.
+
+**Fix:** `frmSuperPutty.WidenSplitters` sets the theme's `Measures.SplitterSize` to 8 pixels at 100 %, scaled for the display (12 at 150 %), before the theme is set. It looks the same, a strip of the background colour, just wider.
+
+**Checked** with a program moving the pointer one pixel at a time across the Sessions pane's right edge in the real window, at 150 %, and recording where the cursor was the resize arrow: 6 pixels before the fix (and still 6 when the width was set after the theme), 12 after. The look in a screenshot.
+**Not checked:** dragging (DockPanelSuite's own, unchanged), the Classic (VS2005) theme, and panes docked elsewhere.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
