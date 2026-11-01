@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
 using SuperPutty.Models;
@@ -19,6 +20,13 @@ namespace SuperPutty
             InitializeComponent();
             _envManager = new EnvironmentVariablesManager();
             LoadVariables();
+
+            // a right-click removes the row under the mouse (or the selected rows, if it's one of them)
+            ContextMenuStrip menu = new ContextMenuStrip();
+            menu.Items.Add("Remove", null, (s, e) => RemoveSelectedRows());
+            dgvEnvironment.ContextMenuStrip = menu;
+            dgvEnvironment.CellMouseDown += dgvEnvironment_CellMouseDown;
+            new ToolTip().SetToolTip(btnRemove, "Remove the selected variables (also on the right-click menu)");
 
             if (SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme)
             {
@@ -45,7 +53,7 @@ namespace SuperPutty
             catch (Exception ex)
             {
                 Log.ErrorFormat("Error loading variables: {0}", ex.Message);
-                MessageBox.Show($"Error loading variables: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Messenger.MessageBox($"Error loading variables: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -65,12 +73,11 @@ namespace SuperPutty
 
                 _envManager.SaveVariables(_variables);
                 Log.InfoFormat("Saved {0} environment variables", _variables.Variables.Count);
-                MessageBox.Show("Variables saved successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
                 Log.ErrorFormat("Error saving variables: {0}", ex.Message);
-                MessageBox.Show($"Error saving variables: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Messenger.MessageBox($"Error saving variables: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -85,11 +92,72 @@ namespace SuperPutty
             this.Close();
         }
 
+        /// <summary>
+        /// Add a variable with a key that isn't taken yet (new_key, new_key2, ...) and an empty value, and start editing
+        /// its key with the text selected, so typing replaces it. The grid has no empty "new row" line of its own: that
+        /// made rows by accident, which an empty key then wouldn't let go of.
+        /// </summary>
+        /// <param name="sender">The Add button</param>
+        /// <param name="e">Not used</param>
         private void btnAdd_Click(object sender, EventArgs e)
         {
-            _variables.Variables.Add(new EnvironmentVariable { Key = "NewKey", Value = "NewValue" });
-            dgvEnvironment.Refresh();
+            if (dgvEnvironment.IsCurrentCellInEditMode && !dgvEnvironment.EndEdit())
+                return;
+            string key = "new_key";
+            for (int n = 2; _variables.Variables.Any(v => string.Equals(v.Key, key, StringComparison.OrdinalIgnoreCase)); n++)
+            {
+                key = "new_key" + n;
+            }
+            _variables.Variables.Add(new EnvironmentVariable { Key = key, Value = string.Empty });
+            int row = _variables.Variables.Count - 1;
+            dgvEnvironment.CurrentCell = dgvEnvironment.Rows[row].Cells[colKey.Index];
+            dgvEnvironment.BeginEdit(true);
             Log.Info("Added new environment variable");
+        }
+
+        /// <summary>Remove the selected variables</summary>
+        /// <param name="sender">The Remove button</param>
+        /// <param name="e">Not used</param>
+        private void btnRemove_Click(object sender, EventArgs e)
+        {
+            RemoveSelectedRows();
+        }
+
+        /// <summary>
+        /// Remove the rows with a selected cell (or the current row). An edit in progress is dropped first, so a row
+        /// whose key is empty or not valid can still be removed; the Remove button doesn't trigger the key's validation.
+        /// </summary>
+        private void RemoveSelectedRows()
+        {
+            dgvEnvironment.CancelEdit();
+            dgvEnvironment.EndEdit();
+            List<int> rows = dgvEnvironment.SelectedCells.Cast<DataGridViewCell>().Select(c => c.RowIndex)
+                .Concat(dgvEnvironment.CurrentCell == null ? Enumerable.Empty<int>() : new[] { dgvEnvironment.CurrentCell.RowIndex })
+                .Where(r => r >= 0 && r < _variables.Variables.Count)
+                .Distinct().OrderByDescending(r => r).ToList();
+            foreach (int row in rows)
+            {
+                _variables.Variables.RemoveAt(row);
+            }
+            if (rows.Count > 0)
+            {
+                Log.InfoFormat("Removed {0} environment variables", rows.Count);
+            }
+        }
+
+        /// <summary>Before the right-click menu opens, select the row under the mouse unless it's already selected</summary>
+        /// <param name="sender">The grid</param>
+        /// <param name="e">The cell under the mouse</param>
+        private void dgvEnvironment_CellMouseDown(object sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Right || e.RowIndex < 0 || e.ColumnIndex < 0)
+                return;
+            DataGridViewCell cell = dgvEnvironment.Rows[e.RowIndex].Cells[e.ColumnIndex];
+            if (!cell.Selected)
+            {
+                dgvEnvironment.CancelEdit();
+                dgvEnvironment.CurrentCell = cell;
+            }
         }
 
         private void dgvEnvironment_UserAddedRow(object sender, DataGridViewRowEventArgs e)
@@ -151,27 +219,41 @@ namespace SuperPutty
             }
         }
 
+        /// <summary>
+        /// Whether the left button is down on a control: the grid checks a key when it loses focus, before a button's
+        /// click, so this is how a click on Remove or Cancel is told apart from leaving the key some other way
+        /// </summary>
+        /// <param name="control">The control</param>
+        /// <returns>true while it's being clicked</returns>
+        private static bool BeingClicked(Control control)
+        {
+            return (Control.MouseButtons & MouseButtons.Left) != 0 && control.RectangleToScreen(control.ClientRectangle).Contains(Control.MousePosition);
+        }
+
         private void dgvEnvironment_CellValidating(object sender, DataGridViewCellValidatingEventArgs e)
         {
+            // no key check on the way to Remove (the row goes) or Cancel (nothing is saved)
+            if (BeingClicked(btnRemove) || BeingClicked(btnCancel))
+                return;
             if (e.ColumnIndex == 0) // Key column
             {
                 string newKey = e.FormattedValue?.ToString();
                 if (string.IsNullOrWhiteSpace(newKey))
                 {
                     e.Cancel = true;
-                    MessageBox.Show("Key cannot be empty.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    Messenger.MessageBox("Key cannot be empty.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 else if (!System.Text.RegularExpressions.Regex.IsMatch(newKey, @"^\w+$"))
                 {
                     e.Cancel = true;
-                    MessageBox.Show("Key can only contain letters, numbers and underscores, e.g. user or vault_user.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    Messenger.MessageBox("Key can only contain letters, numbers and underscores, e.g. user or vault_user.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 else if (_variables.Variables.Any(v => v.Key != null &&
                                                      v.Key.Equals(newKey, StringComparison.OrdinalIgnoreCase) &&
                                                      _variables.Variables.IndexOf(v) != e.RowIndex))
                 {
                     e.Cancel = true;
-                    MessageBox.Show("Key must be unique.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    Messenger.MessageBox("Key must be unique.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }

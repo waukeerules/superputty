@@ -1680,6 +1680,24 @@ Inside a folder the sessions were in reverse order; fixed separately (see "Fix: 
 
 **Checked** in the real window: Test opened as cmd Test, PowerShell Test, RDP Test, RDP Test - 127.0.0.1, RDP Test -172.27.133.195; Recent stayed most recent first, in the order SessionShortcuts.json has.
 
+## Environment Variables dialog: one-click editing, and removing rows
+
+The dialog (Tools → Environment Variables) needed two or three clicks to edit a value, rows couldn't be removed, and rows made by accident got stuck: the grid's empty last line made a row as soon as it was touched, and an empty key then couldn't be left ("Key cannot be empty").
+
+- **One click** edits a key or value, or ticks Secret (`EditMode = EditOnEnter`).
+- **Remove** (button, or right-click a row) removes the selected rows, even one whose key is empty or not valid: the key isn't checked on the way to Remove or Cancel (`EnvironmentVariablesForm.BeingClicked`), and an edit in progress is dropped first.
+- **Add** makes a row with an unused key (`new_key`, `new_key2`, ...) and an empty value, ready to type over; the grid's own empty new-row line is gone.
+- Add and Remove sit on the left, OK and Cancel on the right; Esc cancels; the Value column takes the spare width.
+- OK no longer shows "Variables saved successfully!", and its messages follow the theme (`Messenger.MessageBox`).
+
+| File | Change |
+|---|---|
+| `EnvironmentVariablesForm.cs` | `btnAdd_Click`, `btnRemove_Click`, `RemoveSelectedRows`, the right-click menu, `BeingClicked` in the key check |
+| `EnvironmentVariablesForm.Designer.cs` | Edit on enter, no new-row line, the Remove button and the button layout |
+
+**Checked** by opening the dialog on its own and clicking: one click on a value started editing it; one click on Secret ticked it and another unticked it; Add made `new_key` with its text selected; emptying that key and clicking Remove removed the row with no message; Cancel closed it. The user's EnvironmentVariables.json was the same before and after.
+**Not checked:** the light theme, and removing several rows at once.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
