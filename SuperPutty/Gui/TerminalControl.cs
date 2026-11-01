@@ -164,6 +164,8 @@ namespace SuperPutty.Gui
         /// <summary>Load the page; the session starts once the page reports its size</summary>
         public async void Start()
         {
+            // a new session gets the keyboard, as PuTTY's window does, if its tab is still in front once loaded
+            this.focusWanted = true;
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(this.logPath));
@@ -201,13 +203,45 @@ namespace SuperPutty.Gui
             }
         }
 
-        /// <summary>Give the terminal the keyboard</summary>
+        /// <summary>
+        /// Whether the tab asked for the keyboard before the page could take it; the page gets it once it's ready
+        /// </summary>
+        private bool focusWanted;
+
+        /// <summary>
+        /// Give the terminal the keyboard. A new tab asks before its page has loaded, so the request is remembered
+        /// and carried out when the page reports it's ready (<see cref="FocusIfStillActive"/>).
+        /// </summary>
         public void FocusApplication()
         {
-            if (this.webView.CoreWebView2 == null)
+            if (this.webView.CoreWebView2 == null || !this.pageLoaded)
+            {
+                this.focusWanted = true;
                 return;
+            }
             this.webView.Focus();
             this.Post(new { type = "focus" });
+        }
+
+        /// <summary>Whether the page has loaded and can take the keyboard</summary>
+        private bool pageLoaded;
+
+        /// <summary>
+        /// The page has loaded: give it the keyboard if the tab asked while it was loading and is still the one
+        /// in front, so opening a session leaves the cursor in it as with PuTTY, without taking the keyboard from a
+        /// tab the user has moved to since
+        /// </summary>
+        private void FocusIfStillActive()
+        {
+            this.pageLoaded = true;
+            if (!this.focusWanted)
+                return;
+            this.focusWanted = false;
+            ctlPuttyPanel panel = this.FindForm() as ctlPuttyPanel;
+            if (panel == null || panel.DockPanel == null || panel.DockPanel.ActiveDocument == panel)
+            {
+                this.FocusApplication();
+            }
         }
 
         /// <summary>Handle a message from the page</summary>
@@ -229,6 +263,7 @@ namespace SuperPutty.Gui
             {
                 case "ready":
                     this.SendConfig();
+                    this.FocusIfStillActive();
                     break;
                 case "size":
                     this.OnSize((int)message["cols"], (int)message["rows"]);

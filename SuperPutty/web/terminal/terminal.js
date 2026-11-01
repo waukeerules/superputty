@@ -530,8 +530,8 @@
         ];
     }
 
-    /** Build a menu element from items; submenus open on hover */
-    function buildMenu(element, items) {
+    /** Build a menu element from items; submenus open on hover. isSubmenu: the rows are a submenu's */
+    function buildMenu(element, items, isSubmenu) {
         element.innerHTML = '';
         items.forEach(function (item) {
             if (item === '-') {
@@ -552,7 +552,11 @@
             if (item.items) {
                 row.addEventListener('mouseenter', function () { openSubmenu(row, item.items); });
             } else {
-                row.addEventListener('mouseenter', function () { closeSubmenu(); });
+                // a row of the main menu closes an open submenu, after a moment: the way to the submenu often
+                // crosses the row below. A submenu's own rows leave it open.
+                if (!isSubmenu) {
+                    row.addEventListener('mouseenter', scheduleCloseSubmenu);
+                }
                 row.addEventListener('mousedown', function (e) { e.preventDefault(); });
                 row.addEventListener('click', function () {
                     if (item.enabled === false) { return; }
@@ -573,17 +577,35 @@
         var sub = document.createElement('div');
         sub.className = 'menu submenu';
         sub.id = 'submenu';
-        buildMenu(sub, items);
+        buildMenu(sub, items, true);
+        sub.addEventListener('mouseenter', cancelCloseSubmenu);
         document.body.appendChild(sub);
         var r = row.getBoundingClientRect();
-        var left = r.right + 2;
-        if (left + sub.offsetWidth > window.innerWidth) { left = r.left - sub.offsetWidth - 2; }
+        // overlapping the main menu a little leaves no gap to cross
+        var left = r.right - 4;
+        if (left + sub.offsetWidth > window.innerWidth) { left = r.left - sub.offsetWidth + 4; }
         sub.style.left = Math.max(0, left) + 'px';
         sub.style.top = Math.max(0, Math.min(r.top - 5, window.innerHeight - sub.offsetHeight)) + 'px';
     }
 
+    /** Pending close of the submenu, from scheduleCloseSubmenu */
+    var submenuCloseTimer = null;
+
+    /** Close the submenu shortly, unless the mouse reaches it first */
+    function scheduleCloseSubmenu() {
+        cancelCloseSubmenu();
+        submenuCloseTimer = window.setTimeout(closeSubmenu, 250);
+    }
+
+    /** The mouse reached the submenu (or another submenu opened): keep it */
+    function cancelCloseSubmenu() {
+        window.clearTimeout(submenuCloseTimer);
+        submenuCloseTimer = null;
+    }
+
     /** Close the open submenu, if any */
     function closeSubmenu() {
+        cancelCloseSubmenu();
         var sub = document.getElementById('submenu');
         if (sub) { sub.remove(); }
         Array.prototype.forEach.call(document.querySelectorAll('.menu .item.open'), function (r) { r.classList.remove('open'); });
