@@ -194,6 +194,9 @@ namespace SuperPutty
             {
                 // larger cells than the icons, so an environment colour's circle fits round a full-size icon
                 this.treeView1.ImageList = IconLibrary.NewPaddedList(SuperPuTTY.Images);
+                // a little room between rows, so neighbouring circles don't touch; the tree view rounds odd heights down
+                int height = Math.Max(this.treeView1.ItemHeight, this.treeView1.ImageList.ImageSize.Height + this.LogicalToDeviceUnits(2));
+                this.treeView1.ItemHeight = height + height % 2;
             }
             this.BuildShortcutMenus();
             this.BuildToolbar();
