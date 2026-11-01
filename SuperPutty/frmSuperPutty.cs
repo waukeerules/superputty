@@ -134,6 +134,7 @@ namespace SuperPutty
             }
             // before the theme is set: its splitter controls take the size when they're made
             WidenSplitters(theme);
+            SplitterGrips.Apply(theme, SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme);
             DockPanel.Theme = theme;
             // tabs as wide as their text, up to 30 characters, instead of DockPanelSuite's fixed 200 pixels
             SuperPutty.DockPanelSuite.WideTabs.Apply(DockPanel.Theme);

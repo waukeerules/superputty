@@ -1561,10 +1561,17 @@ Manual test: colour a session red and a folder green: both icons sit, at their f
 
 **Cause:** DockPanelSuite's VS2015 themes make the splitter between docked panes 6 pixels wide, and don't scale it for the display. At 150 % that's 6 physical pixels to hit, next to the pane's scrollbar. Setting the width after the theme is given to the DockPanel does nothing: the theme's splitter controls copy it when they're made, which is when the theme is set.
 
-**Fix:** `frmSuperPutty.WidenSplitters` sets the theme's `Measures.SplitterSize` to 8 pixels at 100 %, scaled for the display (12 at 150 %), before the theme is set. It looks the same, a strip of the background colour, just wider.
+**Fix:** `frmSuperPutty.WidenSplitters` sets the theme's `Measures.SplitterSize` to 8 pixels at 100 %, scaled for the display (12 at 150 %), before the theme is set.
 
-**Checked** with a program moving the pointer one pixel at a time across the Sessions pane's right edge in the real window, at 150 %, and recording where the cursor was the resize arrow: 6 pixels before the fix (and still 6 when the width was set after the theme), 12 after. The look in a screenshot.
-**Not checked:** dragging (DockPanelSuite's own, unchanged), the Classic (VS2005) theme, and panes docked elsewhere.
+That alone left the cursor flickering as you moved over the edge: the splitter was a strip of the background colour, and the line you see and aim at is the pane's own 1-pixel border, just left of it. Resting on it, the smallest movement crossed between the pane (normal pointer) and the splitter (resize arrow). So the splitter now has a line of its own, 2 pixels at 100 %, down its middle, which lights up under the pointer (`Gui/SplitterGrips.cs`: a `VS2013WindowSplitterControl` subclass, made by a factory put in the theme before it's set). Aiming at it puts the pointer in the middle of the zone. The Classic (VS2005) theme's splitters are a different control and are left as they were.
+
+| File | Change |
+|---|---|
+| `frmSuperPutty.cs` | The theme is built, then widened and given the grips, then set; `WidenSplitters` |
+| `Gui/SplitterGrips.cs` | New. The splitter with the line, and the factory that makes it |
+
+**Checked** with a program moving the pointer one pixel at a time across the Sessions pane's right edge in the real window, at 150 %, and recording where the cursor was the resize arrow: 6 pixels before the fix (and still 6 when the width was set after the theme), 12 after. Then, with a recorder of every cursor change while you moved over the edge: the cursor flipped between the pane's border pixel and the splitter's first. With the grip line: its colour read from the screen, dim with the pointer away and lighter over it, in the middle of the 12 pixels (dark theme, 150 %).
+**Not checked:** dragging (DockPanelSuite's own, unchanged), the light themes' line colour, the Classic (VS2005) theme, and panes docked elsewhere.
 
 ## Open questions
 

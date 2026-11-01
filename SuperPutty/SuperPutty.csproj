@@ -121,6 +121,7 @@
     <Compile Include="Gui\DataGridViewProgressColumn.cs" />
     <Compile Include="Gui\DpiUtils.cs" />
     <Compile Include="Gui\HintText.cs" />
+    <Compile Include="Gui\SplitterGrips.cs" />
     <Compile Include="Utils\SessionsFileWatcher.cs" />
     <Compile Include="Data\SessionCsv.cs" />
     <Compile Include="Data\FolderSettings.cs" />
