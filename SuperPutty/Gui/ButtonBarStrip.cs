@@ -14,7 +14,7 @@ namespace SuperPutty.Gui
 {
     /// <summary>
     /// The button bar: a toolbar of user-defined buttons that send a string or run an SPSL script in
-    /// terminal sessions, modelled on SecureCRT's Button Bar.
+    /// terminal sessions.
     /// <para>
     /// A click sends to the active tab; Shift+click sends to every tab selected for the Send Commands
     /// toolbar. The tabs come from the callback given to the constructor (frmSuperPutty.GetButtonBarTargets).
@@ -314,7 +314,7 @@ namespace SuperPutty.Gui
             }
         }
 
-        /// <summary>Draw a filled, anti-aliased circle, like SecureCRT's colored buttons</summary>
+        /// <summary>Draw a filled, anti-aliased circle, for a button's colored icon</summary>
         /// <param name="color">Fill color</param>
         /// <param name="size">Width and height of the bitmap in pixels</param>
         /// <returns>A new bitmap; the caller must dispose it</returns>

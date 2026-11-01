@@ -7,7 +7,7 @@ namespace SuperPutty.Utils
 {
     /// <summary>
     /// Turns a button bar "send string" into the <see cref="CommandData"/> steps that
-    /// <see cref="CommandData.SendToTerminal"/> types into a terminal. Supports SecureCRT-style escape codes:
+    /// <see cref="CommandData.SendToTerminal"/> types into a terminal. Supports these escape codes:
     /// <list type="table">
     /// <item><term>\r</term><description>Enter (a key press, followed by a short pause like SPSL's SENDLINE)</description></item>
     /// <item><term>\n</term><description>line feed character (Ctrl+J)</description></item>

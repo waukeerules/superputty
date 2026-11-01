@@ -99,7 +99,7 @@ The focus retry loop also returns immediately now, since PuTTY isn't running yet
 
 ## Button bar
 
-A row of one-click buttons above the status bar, modelled on SecureCRT's Button Bar. Show or hide it with **View → Toolbars → Button Bar**. The Send Commands toolbar is unchanged and still works alongside it.
+A row of one-click buttons above the status bar. Show or hide it with **View → Toolbars → Button Bar**. The Send Commands toolbar is unchanged and still works alongside it.
 
 **Using it:**
 - **Click** a button to send it to the active tab. **Shift+click** sends it to every tab selected in the Send Commands toolbar's "Select documents" picker, filtered by its icon group the same way.
@@ -108,7 +108,7 @@ A row of one-click buttons above the status bar, modelled on SecureCRT's Button 
   - **Send string:** escape codes `\r` Enter, `\n` line feed, `\t` Tab, `\b` Backspace, `\e` Escape, `\p` 1-second pause, `\v` paste clipboard, `\\` backslash. A line break typed in the editor also means Enter.
   - **SPSL script:** the existing scripting language (`SENDLINE`, `SENDKEY`, `SLEEP`, ...).
 - `{key}` placeholders work in both and are filled in from **Tools → Environment Variables**. A button that uses an undefined key stops and offers to open that dialog, the same way a session does.
-- **Icons:** a button can show a colored circle, like SecureCRT's (eight presets or any custom color), or one of SuperPuTTY's session icons. The circle is stored as `Color="#3FB950"` and the icon as `ImageKey`.
+- **Icons:** a button can show a colored circle (eight presets or any custom color), or one of SuperPuTTY's session icons. The circle is stored as `Color="#3FB950"` and the icon as `ImageKey`.
 - **Focus:** one click is enough even while you're typing in a terminal, and the keyboard goes back to the active tab afterwards. A ToolStrip normally uses the first click on an inactive window only to activate it (`WM_MOUSEACTIVATE` → `MA_ACTIVATEANDEAT`); the bar answers `MA_ACTIVATE` instead, then calls `FocusActiveDocument`.
 - **Tooltips show above the bar.** Before the fix, a button's tooltip could flash on and off for as long as the pointer stayed on it. ToolStrip puts tooltips below the pointer. The bar is at the bottom of the screen, so Windows moved the two-line tooltip up over the pointer; when the tooltip took the mouse (it did with a terminal tab open), the strip saw the pointer leave the button and hid it, then showed it again after the hover time, about every 0.7 s. The bar now turns off ToolStrip's tooltips and shows its own (`ButtonBarStrip.ShowTip`) after the hover time, just above the button, so it's never under the pointer. Checked in the full app, with the real pointer held on a button: before, with a cmd tab open, the tooltip changed 18 times in 6 s and the window under the pointer was the tooltip; after, with and without a tab, it showed once above the bar and stayed for its 5 s.
 
@@ -127,7 +127,7 @@ A row of one-click buttons above the status bar, modelled on SecureCRT's Button 
 | `Utils/SessionVariables.cs` | `EnsureDefined` also checks arbitrary text, for buttons |
 | `Properties/Settings.*`, `App.config` | `ShowButtonBar` (default on) and `ActiveButtonBar` |
 
-**Not done yet:** keyboard shortcuts for buttons, a default bar per session, and SecureCRT's other button actions (launch an application, menu functions).
+**Not done yet:** keyboard shortcuts for buttons, a default bar per session, and other button actions (launch an application, menu functions).
 
 ## Session search across all fields
 
@@ -406,7 +406,7 @@ With the PuTTY path (Tools → Options) set to KiTTY, SuperPuTTY now finds KiTTY
 
 ## Sharp, larger, colourable icons
 
-Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom network icons in colour variants such as `green_switch` and `blue_router`). They were loaded into a 16 px list that ignored display scaling, so on a 125%+ display they looked tiny and pixelated next to SecureCRT or MobaXterm. Icons are now drawn at the size they're shown.
+Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom network icons in colour variants such as `green_switch` and `blue_router`). They were loaded into a 16 px list that ignored display scaling, so on a 125%+ display they looked tiny and pixelated next to other terminal programs. Icons are now drawn at the size they're shown.
 
 - **Icon size:** Tools → Options → GUI → Misc → **Icon size**: 16, 20, 24 (default) or 32. It's scaled for the display and applies after a restart.
   - **Covers:** the session tree, document tabs (bigger icons also make the tab font, and so the tabs, a little taller), the top toolbars and the button bar.
