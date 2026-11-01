@@ -48,9 +48,11 @@ namespace SuperPutty.Gui
         {
             TableLayoutPanel table = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill,
+                // as tall as its rows, so the Options page can size the box around it at any DPI
+                Dock = DockStyle.Top,
                 ColumnCount = 2,
                 AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Padding = new Padding(4)
             };
             table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -86,6 +88,11 @@ namespace SuperPutty.Gui
             int row = table.RowCount++;
             table.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(3, 6, 12, 3) }, 0, row);
             control.Margin = new Padding(3);
+            if (control is ComboBox)
+            {
+                // the drop-downs fill the row, whatever the DPI
+                control.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            }
             table.Controls.Add(control, 1, row);
         }
 

@@ -557,17 +557,44 @@ namespace SuperPutty
         /// </summary>
         private void AddTerminalOptions()
         {
-            GroupBox group = new GroupBox
+            this.terminalDefaults = new GroupBox
             {
                 Text = "Defaults for terminal tabs (each terminal's right-click menu changes them too)",
-                Location = new System.Drawing.Point(12, 74),
-                Size = new System.Drawing.Size(748, 334),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Padding = new Padding(8)
             };
-            this.terminalOptions = new TerminalOptionsPanel { Dock = DockStyle.Fill };
-            group.Controls.Add(this.terminalOptions);
-            this.tabPageHighlighting.Controls.Add(group);
+            this.terminalOptions = new TerminalOptionsPanel { Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+            this.terminalDefaults.Controls.Add(this.terminalOptions);
+            this.tabPageHighlighting.Controls.Add(this.terminalDefaults);
+            this.tabPageHighlighting.Layout += (s, e) => this.LayOutTerminalPage();
+        }
+
+        /// <summary>The box holding <see cref="terminalOptions"/></summary>
+        private GroupBox terminalDefaults;
+
+        /// <summary>
+        /// Place the defaults box under the switches, as wide as the page and as tall as its rows, and the note, runtime
+        /// and button below it. It's laid out here rather than given a size: it's added after the designer's controls
+        /// were scaled for the screen's DPI, so a fixed size was too small at 150 % and cut off the last row.
+        /// </summary>
+        private void LayOutTerminalPage()
+        {
+            if (this.terminalDefaults == null)
+                return;
+            int gap = this.LogicalToDeviceUnits(6);
+            int left = this.checkHighlightedOutput.Left - this.LogicalToDeviceUnits(4);
+            int width = this.tabPageHighlighting.ClientSize.Width - 2 * left;
+            this.terminalDefaults.Location = new System.Drawing.Point(left, this.checkHighlightedOutput.Bottom + gap);
+            this.terminalDefaults.MinimumSize = new System.Drawing.Size(width, 0);
+            this.terminalDefaults.MaximumSize = new System.Drawing.Size(width, 0);
+            // then the note, as tall as its text wraps to, and the runtime with the button beside it
+            this.labelHighlighting.Location = new System.Drawing.Point(this.checkHighlightedOutput.Left, this.terminalDefaults.Bottom + gap);
+            this.labelHighlighting.Size = new System.Drawing.Size(width - this.LogicalToDeviceUnits(8), 0);
+            this.labelHighlighting.Height = this.labelHighlighting.GetPreferredSize(new System.Drawing.Size(this.labelHighlighting.Width, 0)).Height;
+            int row = this.labelHighlighting.Bottom + gap;
+            this.buttonHighlightingFolder.Top = row;
+            this.labelHighlightingRuntime.Top = row + (this.buttonHighlightingFolder.Height - this.labelHighlightingRuntime.Height) / 2;
         }
 
         /// <summary>Open the folder for the user's own highlighting rules and themes, creating it with a README</summary>

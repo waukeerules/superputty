@@ -2129,8 +2129,7 @@
             this.labelHighlighting.Name = "labelHighlighting";
             this.labelHighlighting.Size = new System.Drawing.Size(740, 50);
             this.labelHighlighting.TabIndex = 3;
-            this.labelHighlighting.Text = "Highlighting rules and themes are *.rules.json and *.theme.json files. Put your own in the \"highlighting\" "
-    + "folder of the settings folder (shared with your team) or of your own settings folder; its README explains the format.";
+            this.labelHighlighting.Text = "Your own highlighting rules and themes (*.rules.json, *.theme.json) go in a \"highlighting\" folder in the settings folder (shared) or your own; see its README.";
             //
             // labelHighlightingRuntime
             //
