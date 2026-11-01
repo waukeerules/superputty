@@ -1540,19 +1540,19 @@ Manual tests:
 
 ## Environment colours in the tree as a circle behind the icon
 
-The Sessions tree showed an environment colour as the name's text colour, and red or orange names were hard to read, on the dark theme especially. Now the names keep the tree's text colour and the colour is a filled circle behind the icon, which is drawn at 78 % of its size on it with a thin dark outline following its shape, so it reads on any circle colour (an orange logo on red) (`IconLibrary.EnsureWithEnvironment`, `DrawOnCircle`). At 84 % square icons hid almost all of the circle. It's another drawn variant of the icon, like the open-tab dot, which still goes on top (key `switch#1E63B4|env#C62828|connected`). The same nodes get it as before: folders where a colour starts, and sessions with their own colour. Favorites and Recent entries now show their session's colour too; before, they weren't coloured.
+The Sessions tree showed an environment colour as the name's text colour, and red or orange names were hard to read, on the dark theme especially. Now the names keep the tree's text colour and the colour is a filled circle behind the icon, larger than it, with a thin dark outline following the icon's shape so it reads on any circle colour (an orange logo on red) (`IconLibrary.EnsureWithEnvironment`, `DrawOnCircle`). The icon keeps its full size: the tree has its own copy of the icon list whose cells are 36 % larger than the icons (`IconLibrary.NewPaddedList`), so every row is taller and the circle shows in the room round the icon. The open-tab dot is sized for the icon and sits over its corner. Edit Session's icon button keeps the normal list. It's another drawn variant of the icon, like the open-tab dot, which still goes on top (key `switch#1E63B4|env#C62828|connected`). The same nodes get it as before: folders where a colour starts, and sessions with their own colour. Favorites and Recent entries now show their session's colour too; before, they weren't coloured.
 
 | File | Change |
 |---|---|
-| `Gui/IconLibrary.cs` | `EnsureWithEnvironment`, `DrawOnCircle` |
-| `SessionTreeview.cs` | `ColorNode` sets the icon instead of the text colour; `SessionImageKey` adds the circle |
+| `Gui/IconLibrary.cs` | `EnsureWithEnvironment`, `DrawOnCircle`; `NewPaddedList` (icons at their size in larger cells), which `Ensure`, `Fill` and `DrawStateDot` follow |
+| `SessionTreeview.cs` | `ColorNode` sets the icon instead of the text colour; `SessionImageKey` adds the circle; the tree's padded icon list |
 | `Gui/EnvironmentColors.cs` | `ForText` removed (it lightened the text colour on the dark theme) |
 
 **Checked:** built, and the real main window on the dark theme: Favorites, Recent and Saved sessions showed red, green, orange and grey circles behind the icons, the open-tab dot kept its place, and every name was in the normal text colour.
-Then with the outline, at 84 % and at 78 %: the outline showed round every icon, including green on green.
+Then with the outline and the icons drawn smaller on the circle (84 %, then 78 %): square icons hid most of the circle, so the cells were made larger instead. With the padded list: coloured icons the same size as uncoloured ones, the circle round each, taller rows.
 **Not checked:** the light theme (the drawing doesn't depend on it), icon sizes other than the one set here, and coloured Database folders.
 
-Manual test: colour a session red and a folder green: both icons sit on circles of their colour and the names stay white (dark theme) or black (light). Open the red session: the green dot shows on top of the circle. Change Options → Icon size: the circles are redrawn at the new size.
+Manual test: colour a session red and a folder green: both icons sit, at their full size, on larger circles of their colour, and the names stay white (dark theme) or black (light). Rows are taller than before. Open the red session: the green dot shows on top of the circle. Change Options → Icon size: the circles are redrawn at the new size.
 
 ## Open questions
 

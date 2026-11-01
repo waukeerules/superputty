@@ -308,15 +308,79 @@ namespace SuperPutty.Gui
         /// <param name="list">The list, already sized</param>
         public static void Fill(ImageList list)
         {
-            int size = list.ImageSize.Width;
+            int size = IconPixels(list);
             foreach (string name in IconTemplates.Keys.Concat(BrandLogos.Keys).Concat(legacy.Keys).Concat(CustomIcons.Keys()))
             {
                 Bitmap image = list.Images.ContainsKey(name) ? null : RenderDrawn(name, size);
                 if (image != null)
                 {
-                    list.Images.Add(name, image);
+                    list.Images.Add(name, ToCell(list, image));
                 }
             }
+        }
+
+        /// <summary>
+        /// A copy of an icon list whose cells are larger than its icons, each icon at its full size in the middle. The
+        /// Sessions tree uses one, so an environment colour's circle (<see cref="EnsureWithEnvironment"/>) can be
+        /// bigger than the icon, and its rows get the extra height. The icon size is kept in the list's Tag.
+        /// </summary>
+        /// <param name="source">The icons (SuperPuTTY.Images)</param>
+        /// <returns>The new list, with every icon the source has</returns>
+        public static ImageList NewPaddedList(ImageList source)
+        {
+            int icon = source.ImageSize.Width;
+            int cell = icon + 2 * (int)Math.Round(icon * CellPadding);
+            ImageList list = new ImageList { ColorDepth = ColorDepth.Depth32Bit, ImageSize = new Size(cell, cell), Tag = icon };
+            foreach (string key in source.Images.Keys)
+            {
+                using (Image image = source.Images[key])
+                {
+                    list.Images.Add(key, Pad(image, cell));
+                }
+            }
+            return list;
+        }
+
+        /// <summary>
+        /// How much room a padded list (<see cref="NewPaddedList"/>) leaves on each side of an icon, as a share of the
+        /// icon's size: enough for the circle to show round it, and to reach nearly round a square icon's corners
+        /// </summary>
+        private const float CellPadding = 0.18f;
+
+        /// <summary>The size icons are drawn at in a list: smaller than its cells for a padded list</summary>
+        /// <param name="list">The list</param>
+        /// <returns>The icon's width and height in pixels</returns>
+        private static int IconPixels(ImageList list)
+        {
+            return list.Tag is int ? (int)list.Tag : list.ImageSize.Width;
+        }
+
+        /// <summary>An icon drawn for a list, put in the middle of a cell when the list is padded</summary>
+        /// <param name="list">The list it's for</param>
+        /// <param name="icon">The icon at <see cref="IconPixels"/>; disposed when a new image is made</param>
+        /// <returns>The image to add</returns>
+        private static Bitmap ToCell(ImageList list, Bitmap icon)
+        {
+            if (icon.Width == list.ImageSize.Width)
+                return icon;
+            using (icon)
+            {
+                return Pad(icon, list.ImageSize.Width);
+            }
+        }
+
+        /// <summary>An image centred, at its own size, on a transparent square</summary>
+        /// <param name="image">The image</param>
+        /// <param name="cell">The square's size in pixels</param>
+        /// <returns>A new bitmap</returns>
+        private static Bitmap Pad(Image image, int cell)
+        {
+            Bitmap bitmap = new Bitmap(cell, cell);
+            using (Graphics g = Graphics.FromImage(bitmap))
+            {
+                g.DrawImage(image, (cell - image.Width) / 2, (cell - image.Height) / 2, image.Width, image.Height);
+            }
+            return bitmap;
         }
 
         /// <summary>
@@ -332,10 +396,10 @@ namespace SuperPutty.Gui
                 return false;
             if (list.Images.ContainsKey(key))
                 return true;
-            Bitmap drawn = RenderDrawn(key, list.ImageSize.Width);
+            Bitmap drawn = RenderDrawn(key, IconPixels(list));
             if (drawn == null)
                 return false;
-            list.Images.Add(key, drawn);
+            list.Images.Add(key, ToCell(list, drawn));
             return true;
         }
 
@@ -368,7 +432,7 @@ namespace SuperPutty.Gui
                 using (Image icon = list.Images[baseKey])
                 {
                     Bitmap bitmap = new Bitmap(icon);
-                    DrawStateDot(bitmap, state == OpenState.Connected ? Color.FromArgb(0x2E, 0xB8, 0x4E) : Color.FromArgb(0xD3, 0x2F, 0x2F));
+                    DrawStateDot(bitmap, state == OpenState.Connected ? Color.FromArgb(0x2E, 0xB8, 0x4E) : Color.FromArgb(0xD3, 0x2F, 0x2F), IconPixels(list));
                     list.Images.Add(key, bitmap);
                 }
             }
@@ -393,26 +457,28 @@ namespace SuperPutty.Gui
             {
                 using (Image icon = list.Images[baseKey])
                 {
-                    list.Images.Add(key, DrawOnCircle(icon, color.Value));
+                    list.Images.Add(key, DrawOnCircle(icon, color.Value, IconPixels(list)));
                 }
             }
             return key;
         }
 
         /// <summary>
-        /// An icon drawn a little smaller, centred on a filled circle of a colour that takes the whole square, so the
-        /// colour shows around it, and outlined in dark so it reads on any circle (an orange logo on red, say)
+        /// An icon on a filled circle of a colour that takes the whole cell, outlined in dark so it reads on any circle
+        /// (an orange logo on red, say). In a padded list's cell the icon keeps its full size and the circle shows in
+        /// the room round it; in a cell the icon's own size, the icon is drawn smaller so the colour shows.
         /// </summary>
-        /// <param name="icon">The icon</param>
+        /// <param name="icon">The icon's cell</param>
         /// <param name="color">The circle's colour</param>
-        /// <returns>A new image the icon's size</returns>
-        public static Bitmap DrawOnCircle(Image icon, Color color)
+        /// <param name="iconPixels">The icon's size in the cell (<see cref="IconPixels"/>)</param>
+        /// <returns>A new image the cell's size</returns>
+        public static Bitmap DrawOnCircle(Image icon, Color color, int iconPixels)
         {
             int size = icon.Width;
             Bitmap bitmap = new Bitmap(size, icon.Height);
-            float inner = size * 0.78f;
+            float inner = iconPixels < size ? size : size * 0.78f;
             float offset = (size - inner) / 2;
-            float outline = Math.Max(1f, size / 20f);
+            float outline = Math.Max(1f, iconPixels / 20f);
             using (Graphics g = Graphics.FromImage(bitmap))
             using (Brush fill = new SolidBrush(color))
             using (ImageAttributes dark = new ImageAttributes())
@@ -448,12 +514,15 @@ namespace SuperPutty.Gui
         /// </summary>
         /// <param name="bitmap">The icon, drawn on in place</param>
         /// <param name="color">The dot's colour</param>
-        public static void DrawStateDot(Bitmap bitmap, Color color)
+        /// <param name="iconPixels">The icon's size in the bitmap: the dot is sized for it, and in a padded cell sits
+        /// over the icon's corner, half into the room round it</param>
+        public static void DrawStateDot(Bitmap bitmap, Color color, int iconPixels)
         {
             float size = bitmap.Width;
-            float dot = size * 0.42f;
-            float ring = Math.Max(1.5f, size * 0.07f);
-            RectangleF bounds = new RectangleF(size - dot - ring, size - dot - ring, dot, dot);
+            float dot = iconPixels * 0.42f;
+            float ring = Math.Max(1.5f, iconPixels * 0.07f);
+            float inset = (size - iconPixels) / 4;
+            RectangleF bounds = new RectangleF(size - inset - dot - ring, size - inset - dot - ring, dot, dot);
             Color background = DarkBackground ? Color.FromArgb(0x25, 0x25, 0x26) : Color.White;
             using (Graphics g = Graphics.FromImage(bitmap))
             using (Brush ringBrush = new SolidBrush(background))

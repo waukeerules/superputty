@@ -192,7 +192,8 @@ namespace SuperPutty
             this.treeView1.HideSelection = false;
             if (SuperPuTTY.Images != null)
             {
-                this.treeView1.ImageList = SuperPuTTY.Images;
+                // larger cells than the icons, so an environment colour's circle fits round a full-size icon
+                this.treeView1.ImageList = IconLibrary.NewPaddedList(SuperPuTTY.Images);
             }
             this.BuildShortcutMenus();
             this.BuildToolbar();
@@ -689,7 +690,7 @@ namespace SuperPutty
                 this.EnsureFolderFilled(nodeRef);
             }
 
-            dlgEditSession form = new dlgEditSession(session, treeView1.ImageList) {Text = title};
+            dlgEditSession form = new dlgEditSession(session, SuperPuTTY.Images) {Text = title};
             if (node != null && session.IsDatabase)
             {
                 // fields the database's locked_fields names are shown but can't be changed
