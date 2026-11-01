@@ -1593,6 +1593,16 @@ That alone left the cursor flickering as you moved over the edge: the splitter w
 
 Manual test: select three sessions with Shift+click, right-click one → Connect 3 sessions: three tabs open. Ctrl+click one out, right-click → Edit 2 sessions..., tick Username and set it: both get it. Press Delete: one question for the two; Yes deletes both and Sessions.xml is saved once.
 
+## Fix: changing a session's connection type replaced its icon
+
+**Symptom:** a duplicate of Windows 7 Host (RDP, with a green Windows icon) changed to SSH in the dialog was saved with the plain computer icon. The same happened editing any session: changing the connection type threw away the icon chosen for it.
+
+**Cause:** Edit Session sets an icon for each connection type (a computer for SSH, a map for RDP, a terminal for cmd...) whenever the type changes, whatever icon was there.
+
+**Fix:** it only does so while the icon is still one of those defaults (`dlgEditSession.IsProtocolIcon`); an icon chosen for the session, or a coloured one, stays.
+
+**Checked** in the real window: a duplicate of Windows 7 Host kept `windows#2E7D32` after its type was switched to SSH and saved. The copy was deleted afterwards.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

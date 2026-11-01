@@ -547,7 +547,10 @@ namespace SuperPutty
 
             UpdateRdpOptionsButton();
 
-            // Default icons
+            // Default icons, only in place of another protocol's default: an icon chosen for the session (a copy's
+            // included) stays when the connection type changes
+            if (!IsProtocolIcon(buttonImageSelect.ImageKey))
+                return;
             switch (proto)
             {
                 case ConnectionProtocol.SSH:
@@ -573,6 +576,18 @@ namespace SuperPutty
                     buttonImageSelect.ImageKey = "ubuntu";
                     break;
             }
+        }
+
+        /// <summary>
+        /// Whether an icon is one of the defaults the connection type sets (or the plain session icon), which a change of
+        /// connection type may replace; any other was chosen for the session and is kept
+        /// </summary>
+        /// <param name="imageKey">The icon's key</param>
+        /// <returns>true for a default icon, or none</returns>
+        public static bool IsProtocolIcon(string imageKey)
+        {
+            return string.IsNullOrEmpty(imageKey) || imageKey == SessionTreeview.ImageKeySession
+                || new[] { "computer", "application_osx_terminal", "map", "application_xp_terminal", "ubuntu" }.Contains(imageKey);
         }
 
         public static int GetDefaultPort(ConnectionProtocol protocol)
