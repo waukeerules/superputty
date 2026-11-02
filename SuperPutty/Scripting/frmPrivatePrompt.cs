@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
+using DarkModeForms;
 
 namespace SuperPutty
 {
@@ -9,9 +10,25 @@ namespace SuperPutty
         private Label displayMessage;
         private TextBox textBox1;
 
-        public frmPrivatePrompt(String arg)
+        /// <summary>
+        /// Build the prompt SPSL's PWDPROMPT (hidden typing) and PROMPT (typing shown) ask with, in the interface's
+        /// theme like the other dialogs
+        /// </summary>
+        /// <param name="arg">The message shown above the box</param>
+        /// <param name="hidden">Whether the typing is hidden, for a password</param>
+        public frmPrivatePrompt(String arg, bool hidden = true)
         {
             InitializeComponent(arg);
+            textBox1.UseSystemPasswordChar = hidden;
+
+            if (SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme)
+            {
+                new DarkModeCS(this)
+                {
+                    ColorMode = DarkModeCS.DisplayMode.DarkMode,
+                    ColorizeIcons = false
+                };
+            }
         }
 
         private void InitializeComponent(String arg)

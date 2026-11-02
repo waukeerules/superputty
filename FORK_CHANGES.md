@@ -1734,6 +1734,22 @@ The dialog (Tools → Environment Variables) needed two or three clicks to edit 
 
 **Checked** in the real window: cmd Test (red) opened by double-clicking it in the tree had a 4-pixel #C62828 frame round the terminal; before the fix, the same frame was #373737, in this build and in the one before the splitter changes.
 
+## SPSL's PROMPT and PWDPROMPT follow the dark theme
+
+The box `PWDPROMPT` asks for a password with was always light, and `PROMPT` used Visual Basic's `InputBox`, which can't be themed.
+
+- `frmPrivatePrompt` applies `DarkModeCS` like the other dialogs, and takes whether the typing is hidden.
+- `PROMPT` uses it too, with the typing shown. Cancel still sends an empty line, as `InputBox` did.
+
+| File | Change |
+|---|---|
+| `Scripting/frmPrivatePrompt.cs` | The theme, and hidden or shown typing |
+| `Scripting/PromptCommand.cs` | Uses `frmPrivatePrompt` instead of `InputBox` |
+
+**Checked:** both prompts opened on their own on the dark theme: dark background, buttons and box, the password masked and PROMPT's text shown.
+**Not checked:** the light theme (no theme is applied there, as before), and running PROMPT from a script.
+**Left as it was:** Cancel on `PWDPROMPT` sends the word "Cancelled" (and Enter) to the session, as upstream does.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
