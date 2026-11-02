@@ -115,6 +115,9 @@ namespace SuperPuTTY.Scripting
                     return SuperPutty.SuperPuTTY.GetSessionById(args) == null
                         ? "!There's no saved session with the ID \"" + args + "\"; the line will do nothing."
                         : null;
+                case "SENDBREAK":
+                    return "SENDBREAK isn't available: a Break isn't a key, so a script can't send one. Use the tab's "
+                        + "Special Command > Break in a PuTTY tab; this line would do nothing.";
                 case "CLOSESESSION":
                     return "CLOSESESSION isn't available: SPSL lists it but doesn't implement it, so the script would stop here.";
                 default:

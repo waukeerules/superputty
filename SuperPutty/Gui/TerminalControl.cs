@@ -185,12 +185,13 @@ namespace SuperPutty.Gui
         /// can do, such as its Special Commands (Break, signals), which plink has no way to send
         /// </summary>
         /// <param name="session">The stored session (not a resolved copy: opening resolves it again)</param>
-        public static void OpenInPutty(SessionData session)
+        /// <returns>The new tab, or null if it didn't open</returns>
+        public static ctlPuttyPanel OpenInPutty(SessionData session)
         {
             puttyForNextTab = true;
             try
             {
-                SuperPuTTY.OpenProtoSession(session);
+                return SuperPuTTY.OpenProtoSession(session);
             }
             finally
             {
@@ -369,11 +370,11 @@ namespace SuperPutty.Gui
                     this.pty?.ClearScreen();
                     break;
                 case "openInPutty":
+                    // through the tab, which replaces itself for a serial session (its port can only be open once)
                     ctlPuttyPanel owner = this.FindForm() as ctlPuttyPanel;
                     if (owner != null)
                     {
-                        SessionData stored = owner.Session;
-                        this.BeginInvokeSafe(() => OpenInPutty(stored));
+                        this.BeginInvokeSafe(() => owner.OpenInPutty());
                     }
                     break;
                 case "tab":
@@ -430,7 +431,7 @@ namespace SuperPutty.Gui
                 Log.Warn("Highlighting files skipped: " + string.Join("; ", problems));
             }
             bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
-            this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursor = CursorFromProfile(this.session.PuttySession), local = IsLocalShell(this.session.Proto),
+            this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursor = CursorFromProfile(this.session.PuttySession), local = IsLocalShell(this.session.Proto), serial = this.session.Proto == ConnectionProtocol.Serial,
                 profileFont = FontFromProfile(this.session.PuttySession), fonts = MonospaceFonts(), prefs = TerminalPreferences.All(), cursorColor = this.cursorColor,
                 keys = KeysFromProfile(this.session.PuttySession), sessionRules = this.session.HighlightRules ?? string.Empty,
                 unlimitedScrollback = TerminalPreferences.UnlimitedScrollback,

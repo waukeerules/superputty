@@ -121,6 +121,15 @@ namespace SuperPuTTY.Scripting
             },
             new Entry
             {
+                Name = "SENDBREAK", IsCommand = true, Available = false, Syntax = "SENDBREAK",
+                Description = "Not available: a Break (to stop a router's boot, for instance) is a signal on the serial "
+                    + "or Telnet line, not a key, so a script can't type one. Send it from the tab's right-click menu, "
+                    + "Special Command > Break, in a PuTTY tab; a built-in terminal tab can be opened in PuTTY from "
+                    + "there. Check script reports SENDBREAK as an error; run anyway, the line does nothing.",
+                Example = "# SENDBREAK is not available: use Special Command > Break"
+            },
+            new Entry
+            {
                 Name = "Keys for SENDKEY", Syntax = "SENDKEY name  |  SENDKEY ^x  |  SENDKEY {name count}",
                 Description = "Key names (any case, with or without braces): " + KeyNameList() + "."
                     + Environment.NewLine + Environment.NewLine

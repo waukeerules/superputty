@@ -41,6 +41,7 @@
     var bellFromProfile = 'visual'; // the PuTTY profile's bell, from TerminalControl
     var cursorFromProfile = { style: 'block', blink: false }; // the PuTTY profile's cursor, from TerminalControl
     var localShell = false;         // cmd, PowerShell or WSL rather than a connection through plink
+    var serialSession = false;      // a serial port: Open in PuTTY replaces this tab, as the port can only be open once
     var menuKeys = [];              // Send Key's keys ({key, label, hint}), from TerminalKeys.MenuKeys
     var keysFromProfile = { backspace: 'del', homeEnd: 'standard', functionKeys: 'tilde' }; // the PuTTY profile's keys, from TerminalControl
     var sessionRules = '';          // the session's or its folder's highlighting rules; empty: Options > Terminal's
@@ -635,11 +636,17 @@
             // typed through the tab (ctlPuttyPanel.SendKey), as SENDKEY types them; Other Key... asks there
             { label: 'Send Key', items: menuKeys.map(function (k) {
                 return { label: k.label, key: k.hint, action: function () { post({ type: 'sendKey', key: k.key }); } };
-            }).concat(['-', { label: 'Other Key...', action: function () { post({ type: 'sendKey' }); } }]) },
+            }).concat([
+                // a Break is a signal on the line, not a key: plink can't send one, PuTTY's Special Command can
+                { label: 'Break', key: 'needs PuTTY', enabled: false },
+                '-',
+                { label: 'Other Key...', action: function () { post({ type: 'sendKey' }); } }
+            ]) },
             '-'
         ].concat(localShell ? [] : [
             // plink can't send PuTTY's Special Commands (Break, signals...); PuTTY's own window can
-            { label: 'Open in PuTTY (Special Commands)', action: function () { post({ type: 'openInPutty' }); } },
+            { label: serialSession ? 'Open in PuTTY (Special Commands, replaces this tab)' : 'Open in PuTTY (Special Commands)',
+                action: function () { post({ type: 'openInPutty' }); } },
             '-'
         ]).concat([
             { label: 'Close Tab', action: function () { post({ type: 'tab', command: 'close' }); } },
@@ -987,6 +994,7 @@
         if (config.bellOverload) { bellOverload = config.bellOverload; }
         if (config.cursor) { cursorFromProfile = config.cursor; }
         localShell = !!config.local;
+        serialSession = !!config.serial;
         menuKeys = config.menuKeys || [];
         if (config.keys) { keysFromProfile = config.keys; }
         sessionRules = config.sessionRules || '';

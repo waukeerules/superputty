@@ -1864,7 +1864,7 @@ Two submenus in the tab's right-click menu, after Watch for Silence. Send Key is
   - **How it's found:** by its commands' IDs (PuTTY's IDM_SPECIAL range, 0x0400-0x07F0), not its title, so KiTTY and translated builds work.
   - **Sending:** choosing an item sends PuTTY that command (`SendPuttyCommand`, as the PuTTY items above do).
   - **Not connected yet:** PuTTY only fills the menu once connected; until then the submenu says so.
-  - **Built-in terminal tabs:** plink can't send these, so the submenu says so and offers **Open in PuTTY**.
+  - **Built-in terminal tabs:** plink can't send these, so the submenu says so and offers **Open in PuTTY** (for a serial session, "replaces this tab": see below).
 - **frmPrivatePrompt.SetValue** fills the prompt's box in, for Other Key....
 
 | File | Change |
@@ -1884,6 +1884,36 @@ Two submenus in the tab's right-click menu, after Watch for Silence. Send Key is
 - The keys themselves are those checked for SENDKEY above.
 
 **Not checked:** the WinForms tab menu itself in a running SuperXPuTTY (opening it, the submenus' look on both themes), Other Key..., RDP tabs, and Special Command on SSH or serial.
+
+## Open in PuTTY replaces a serial session's tab; Break and SENDBREAK shown as not available
+
+**Symptom:** in a serial session in the built-in terminal, Open in PuTTY (the terminal's menu, or the tab's Special Command) opened a PuTTY tab that failed with "Unable to open connection to COM6 ... Error 5: Access is denied".
+
+**Cause:** a serial port can only be open once, and the built-in terminal's plink still had it.
+
+**Fix:**
+- For a **serial** session in the built-in terminal, Open in PuTTY closes the tab, which ends plink, and opens the PuTTY tab in its place: the same position in the same tab group (`ctlPuttyPanel.OpenInPutty`, `DockPane.SetContentIndex`). The menu items say "replaces this tab". Other protocols open the PuTTY tab beside the old one, as before.
+- `ConPty.Dispose` now waits (up to 2 seconds) for the program it terminates to exit. `TerminateProcess` returns before the process is gone, and the port is only free then.
+- `TerminalControl.OpenInPutty` returns the new tab.
+
+**Break and SENDBREAK, shown as not available.** A Break is a signal on the line, not a key, so neither a script nor plink can send one:
+- **Send Key:** both menus list **Break**, greyed out. The tab menu's hint says to use Special Command; the built-in terminal's says it needs PuTTY.
+- **SENDBREAK:** the SPSL Commands list has it as "SENDBREAK (not available)", like CLOSESESSION, pointing to Special Command > Break. Check script reports it as an error; run anyway, the line does nothing, as for any unknown command.
+
+| File | Change |
+|---|---|
+| `ctlPuttyPanel.cs` | `OpenInPutty`; greyed Break in Send Key; the Special Command item's label |
+| `Gui/TerminalControl.cs` | Open in PuTTY through the tab; `serial` in the page's config; `OpenInPutty` returns the tab |
+| `Utils/ConPty.cs` | Wait for the terminated program to exit |
+| `web/terminal/terminal.js` | Greyed Break; "replaces this tab" for serial sessions |
+| `Scripting/SpslReference.cs`, `Scripting/SpslChecker.cs` | SENDBREAK (not available) |
+
+**Checked:**
+- Disposing the pseudo console with a running program (`ping -t`), five times: the process had exited each time Dispose returned (1-5 ms).
+- Check script on SENDBREAK gives the error.
+- The terminal page set up as a serial session shows "Open in PuTTY (Special Commands, replaces this tab)" and a disabled Break; clicking Break posts nothing.
+
+**Not checked:** the replacement with the real COM port in a running SuperXPuTTY: that the PuTTY tab opens the port and lands where the old tab was.
 
 ## Open questions
 

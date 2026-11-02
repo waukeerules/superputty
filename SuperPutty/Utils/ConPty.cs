@@ -376,6 +376,9 @@ namespace SuperPutty.Utils
             if (this.process.hProcess != IntPtr.Zero && WaitForSingleObject(this.process.hProcess, 0) != 0)
             {
                 TerminateProcess(this.process.hProcess, 1);
+                // termination finishes after the call returns; a serial port is only free once plink has gone, and
+                // Open in PuTTY opens the same port right after closing this tab
+                WaitForSingleObject(this.process.hProcess, 2000);
             }
             this.ClosePseudoConsole();
             this.input?.Dispose();

@@ -1334,6 +1334,13 @@ namespace SuperPutty
                     ShortcutKeyDisplayString = key[2]
                 });
             }
+            // a Break is a signal on the line, not a key: only PuTTY sends one, from its Special Command menu
+            this.menuSendKey.DropDownItems.Add(new ToolStripMenuItem("Break")
+            {
+                Enabled = false,
+                ShortcutKeyDisplayString = "not a key: Special Command",
+                ToolTipText = "A Break isn't a key, so it can't be typed: use Special Command > Break in a PuTTY tab"
+            });
             this.menuSendKey.DropDownItems.Add(new ToolStripSeparator());
             this.menuSendKey.DropDownItems.Add(new ToolStripMenuItem("Other Key...", null, (s, e) => this.AskAndSendKey()));
             this.menuSpecialCommand = new ToolStripMenuItem("S&pecial Command");
@@ -1363,8 +1370,8 @@ namespace SuperPutty
             if (this.Terminal != null)
             {
                 this.menuSpecialCommand.DropDownItems.Add(new ToolStripMenuItem("Not in the built-in terminal: plink can't send them") { Enabled = false });
-                SessionData stored = this.Session;
-                this.menuSpecialCommand.DropDownItems.Add(new ToolStripMenuItem("Open in PuTTY", null, (s, e) => TerminalControl.OpenInPutty(stored)));
+                this.menuSpecialCommand.DropDownItems.Add(new ToolStripMenuItem(
+                    Session.Proto == ConnectionProtocol.Serial ? "Open in PuTTY (replaces this tab)" : "Open in PuTTY", null, (s, e) => this.OpenInPutty()));
                 return;
             }
             List<PuttyWindow.SpecialCommand> commands = this.AppPanel.ExternalProcessCaptured
@@ -1432,6 +1439,37 @@ namespace SuperPutty
             }
             this.SendCommand(step);
             this.SetFocusToChildApplication("SendKey");
+        }
+
+        /// <summary>
+        /// Open this tab's session in a PuTTY tab, for what only PuTTY can do, such as a Break. A serial port can only be
+        /// open once, so for a serial session in the built-in terminal this tab is closed first (ending plink, which
+        /// frees the port: ConPty waits for it) and the PuTTY tab takes its place; otherwise it opens beside this one.
+        /// </summary>
+        public void OpenInPutty()
+        {
+            SessionData stored = this.Session;
+            if (this.Terminal == null || stored.Proto != ConnectionProtocol.Serial)
+            {
+                TerminalControl.OpenInPutty(stored);
+                return;
+            }
+            DockPane pane = this.Pane;
+            int index = pane == null ? -1 : pane.Contents.IndexOf(this);
+            // after the menu or page message that asked for it has finished, as this tab goes away
+            SuperPuTTY.MainForm.BeginInvoke(new Action(() =>
+            {
+                Log.InfoFormat("Replacing the built-in terminal tab of serial session {0} with PuTTY", stored.SessionId);
+                this.Close();
+                if (!this.IsDisposed)
+                    return;
+                ctlPuttyPanel replacement = TerminalControl.OpenInPutty(stored);
+                if (replacement != null && pane != null && !pane.IsDisposed && replacement.Pane == pane
+                    && index >= 0 && index < pane.Contents.Count)
+                {
+                    pane.SetContentIndex(replacement, index);
+                }
+            }));
         }
 
         /// <summary>Ask for a key, written as in SENDKEY, and press it in this tab (Send Key > Other Key...)</summary>
