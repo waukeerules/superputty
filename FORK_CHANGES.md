@@ -1963,6 +1963,22 @@ The Remote Desktop ActiveX control paints itself white until the connection is u
 
 **Not checked:** a real connection, which should reveal Windows' login screen or the desktop when connected; the light theme.
 
+## Fix: white strip down the left of the Sessions tree's submenus on the dark theme
+
+**Symptom:** on the dark theme, the Sessions tree's submenus (Colour, Move to, Copy to) had a white strip down their left side, behind the colour swatches.
+
+**Cause:** `SessionTreeview.OnLoad` gave the tree's menus DarkModeCS's renderer with `new CustomColorTable(new OSThemeColors())`. A new `OSThemeColors` holds the light defaults, and the colour table is where the renderer takes the image margin's colour from. The top-level menus hide their image margin, so only submenus showed it. The renderer's own colours (`MyColors`) were the dark ones, which is why the rest looked right. Upstream's commit c75cb89 started this; the fork's Favorites and Recent menus copied it.
+
+**Fix:** the dark colours are read once (`DarkModeCS.GetSystemColors`) and given to both the colour table and the renderer.
+
+| File | Change |
+|---|---|
+| `SessionTreeview.cs` | The menus' colour table gets the dark colours |
+
+**Checked:** the colour table's image margin was `ButtonFace` before and dark grey (55, 55, 55) after. A dark menu built the same way, with a Colour submenu of swatches, rendered with no white strip.
+
+**Not checked:** the tree's own menus in the running app.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

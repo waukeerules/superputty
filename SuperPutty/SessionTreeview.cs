@@ -299,20 +299,23 @@ namespace SuperPutty
 
             if (SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme)
             {
-                // Assign custom renderer for context menus
-                contextMenuStripFolder.Renderer = new MyRenderer(new CustomColorTable(new OSThemeColors()), false)
+                // Assign custom renderer for context menus. The colour table needs the dark colours too: a new
+                // OSThemeColors holds the light defaults, and the table colours the image margin down the left of
+                // submenus (Colour, Move to, Copy to), which came out white
+                OSThemeColors colors = DarkModeCS.GetSystemColors(null, 0);
+                contextMenuStripFolder.Renderer = new MyRenderer(new CustomColorTable(colors), false)
                 {
-                    MyColors = DarkModeCS.GetSystemColors(null, 0)
+                    MyColors = colors
                 };
-                contextMenuStripAddTreeItem.Renderer = new MyRenderer(new CustomColorTable(new OSThemeColors()), false)
+                contextMenuStripAddTreeItem.Renderer = new MyRenderer(new CustomColorTable(colors), false)
                 {
-                    MyColors = DarkModeCS.GetSystemColors(null, 0)
+                    MyColors = colors
                 };
                 foreach (ToolStrip menu in new ToolStrip[] { this.contextMenuStripShortcut, this.contextMenuStripRecentGroup, this.contextMenuStripDatabaseRoot, this.toolStripTree })
                 {
-                    menu.Renderer = new MyRenderer(new CustomColorTable(new OSThemeColors()), false)
+                    menu.Renderer = new MyRenderer(new CustomColorTable(colors), false)
                     {
-                        MyColors = DarkModeCS.GetSystemColors(null, 0)
+                        MyColors = colors
                     };
                 }
             }
