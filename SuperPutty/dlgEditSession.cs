@@ -589,6 +589,16 @@ namespace SuperPutty
                     return;
                 }
             }
+            string free = this.FreeSessionName == null ? null : this.FreeSessionName(textBoxSessionName.Text.Trim());
+            if (free != null && free != textBoxSessionName.Text.Trim())
+            {
+                if (Messenger.MessageBox("A session named \"" + textBoxSessionName.Text.Trim() + "\" already exists here.\n\nSave this one as \"" + free + "\"?",
+                        "Session name", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.No)
+                {
+                    return;
+                }
+                textBoxSessionName.Text = free;
+            }
             Session.SessionName  = textBoxSessionName.Text.Trim();
             Session.PuttySession = comboBoxPuttyProfile.Text.Trim();
             Session.Host         = textBoxHostname.Text.Trim();
@@ -761,6 +771,12 @@ namespace SuperPutty
         #region Validation Logic
 
         public SessionNameValidationHandler SessionNameValidator { get; set; }
+
+        /// <summary>
+        /// Given the name typed, a free one in the session's folder: the same name if nobody has it, else with -1, -2...
+        /// added. Set by SessionTreeview; when the name is taken, Save asks whether to use the free one.
+        /// </summary>
+        public Func<string, string> FreeSessionName { get; set; }
 
         private void textBoxSessionName_Validating(object sender, CancelEventArgs e)
         {

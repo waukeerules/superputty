@@ -788,9 +788,11 @@ namespace SuperPutty
             }
             form.SessionNameValidator += delegate(string txt, out string error)
             {
-                bool IsValid = ValidateSessionNameChange(nodeRef, node, txt, out error);
+                bool IsValid = ValidateSessionNameChange(nodeRef, node, txt, out error, true);
                 return IsValid;
             };
+            // a name already taken there is offered with -1, -2... added when it's saved
+            form.FreeSessionName = txt => this.UniqueName(nodeRef, txt, node);
             
             if (form.ShowDialog(this) == DialogResult.OK)
             {
@@ -834,7 +836,50 @@ namespace SuperPutty
             
         }
 
-        private bool ValidateSessionNameChange(TreeNode ParentNode, TreeNode Node, String NewName, out String Error)
+        /// <summary>
+        /// A free name for a session in a folder: the name itself, else with -1, -2... added. Free means no other node
+        /// there has it and no other session has the ID it makes (Saved and Private sessions share IDs). A moving
+        /// session's own folder is checked too, since it's renamed there before it moves.
+        /// </summary>
+        /// <param name="folder">The folder or root it goes in</param>
+        /// <param name="name">The name wanted</param>
+        /// <param name="except">The session's own node when it's renamed or moved, else null</param>
+        /// <returns>e.g. "192.168.3.2-1"</returns>
+        string UniqueName(TreeNode folder, string name, TreeNode except)
+        {
+            string candidate = name;
+            for (int i = 1; this.NameTaken(folder, candidate, except) || (except != null && except.Parent != null && this.NameTaken(except.Parent, candidate, except)); i++)
+                candidate = name + "-" + i;
+            return candidate;
+        }
+
+        /// <summary>Whether a session name is taken in a folder: by another node there, or by another session's ID</summary>
+        /// <param name="folder">The folder or root</param>
+        /// <param name="name">The name</param>
+        /// <param name="except">A node that doesn't count (the session being renamed), or null</param>
+        /// <returns>true if it's taken</returns>
+        bool NameTaken(TreeNode folder, string name, TreeNode except)
+        {
+            this.EnsureFolderFilled(folder);
+            TreeNode same = folder.Nodes[name];
+            if (same != null && same != except)
+                return true;
+            string id = IsDatabaseNode(folder) ? DatabaseSessions.MakeSessionId(DatabaseFolder(folder), name) : SessionData.CombineSessionIds(FolderPath(folder), name);
+            SessionData existing = SuperPuTTY.GetSessionById(id);
+            return existing != null && (except == null || existing != except.Tag);
+        }
+
+        /// <summary>
+        /// Check a session's name in a folder. A name already taken there is an error, unless <paramref name="allowTaken"/>:
+        /// the Edit Session dialog then offers a free one when it's saved (<see cref="UniqueName"/>).
+        /// </summary>
+        /// <param name="ParentNode">The folder it's in or goes in</param>
+        /// <param name="Node">The session's node when it's edited or renamed, null for a new session</param>
+        /// <param name="NewName">The name</param>
+        /// <param name="Error">Why it can't be used</param>
+        /// <param name="allowTaken">Don't count a taken name as an error</param>
+        /// <returns>true if it can be used</returns>
+        private bool ValidateSessionNameChange(TreeNode ParentNode, TreeNode Node, String NewName, out String Error, bool allowTaken = false)
         {
             bool IsEdit = Node != null;
             Error = String.Empty;
@@ -846,6 +891,11 @@ namespace SuperPutty
 
             string newId = SessionData.CombineSessionIds(FolderPath(ParentNode), NewName);
             SessionData sameId = string.IsNullOrEmpty(NewName) ? null : SuperPuTTY.GetSessionById(newId);
+            if (allowTaken)
+            {
+                IsDupeNode = false;
+                sameId = null;
+            }
             if (IsDupeNode)
             {
                 Error = "Session with same name exists";
@@ -1649,6 +1699,19 @@ namespace SuperPutty
                 return SessionData.CombineSessionIds(NullIfEmpty(targetFolder), NullIfEmpty(relative)) ?? string.Empty;
             };
             Func<SessionData, string> nameOf = s => SessionData.GetSessionNameFromId(fromDatabase ? DatabaseSessions.TreePath(s.SessionId) : s.SessionId);
+            Func<SessionData, string> targetId = s => kind == RootKind.Database
+                ? DatabaseSessions.MakeSessionId(newFolder(s), nameOf(s))
+                : SessionData.CombineSessionIds(NullIfEmpty(newFolder(s)), nameOf(s));
+            // sessions whose name is taken there (by a Saved or Private session at the same path, both roots share
+            // IDs) can go anyway with -1, -2... added; asked once for them all
+            List<SessionData> taken = sessions.Where(s => SuperPuTTY.GetSessionById(targetId(s)) != null).ToList();
+            bool renameTaken = taken.Count > 0 && DialogResult.Yes == Messenger.MessageBox(
+                string.Format("{0} at that place{1}:\n\n{2}\n\n{3} anyway, with -1, -2... added to the name? No leaves {4} out.",
+                    taken.Count == 1 ? "A session with this name is already" : taken.Count + " sessions with these names are already",
+                    kind == RootKind.Database ? " in Database sessions" : " (Saved and Private sessions can't share a folder and name)",
+                    string.Join("\n", taken.Take(10).Select(s => nameOf(s))) + (taken.Count > 10 ? "\n..." : ""),
+                    verb, taken.Count == 1 ? "it" : "them"),
+                verb, MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             List<string> problems = new List<string>();
             List<KeyValuePair<SessionData, string>> arrived = new List<KeyValuePair<SessionData, string>>();
 
@@ -1663,6 +1726,14 @@ namespace SuperPutty
                     {
                         SessionData copy = PlainCopy(session);
                         copy.SessionName = nameOf(session);
+                        if (renameTaken && taken.Contains(session))
+                        {
+                            string folder = newFolder(session);
+                            string name = copy.SessionName;
+                            for (int i = 1; SuperPuTTY.GetSessionById(DatabaseSessions.MakeSessionId(folder, name)) != null; i++)
+                                name = copy.SessionName + "-" + i;
+                            copy.SessionName = name;
+                        }
                         inserts.Add(new DatabaseOutbox.PendingChange { Kind = DatabaseOutbox.ChangeKind.Insert, Session = copy, Folder = newFolder(session) });
                     }
                     List<string> errors;
@@ -1692,10 +1763,8 @@ namespace SuperPutty
                     {
                         string newId = SessionData.CombineSessionIds(NullIfEmpty(newFolder(session)), nameOf(session));
                         SessionData existing = SuperPuTTY.GetSessionById(newId);
-                        if (existing == session && !move)
+                        if (existing != null && renameTaken)
                         {
-                            // a Saved session copied to Private at the same path: IDs are shared by both roots, so the
-                            // copy needs its own name ("cmd Test-1")
                             newId = SuperPuTTY.MakeUniqueSessionId(newId);
                             existing = null;
                         }
@@ -3072,7 +3141,7 @@ namespace SuperPutty
                 return;
             TreeNode otherRoot = IsPrivateNode(node) ? this.nodeRoot : this.nodePrivate;
             TreeNode target = FindOrCreateParentNode(otherRoot, SessionData.CombineSessionIds(FolderPath(node.Parent), PlainName(node)));
-            if (target.Nodes.ContainsKey(PlainName(node)))
+            if (!IsSessionNode(node) && target.Nodes.ContainsKey(PlainName(node)))
             {
                 Messenger.MessageBox("\"" + PlainName(node) + "\" is already in " + otherRoot.Text + ". Rename one of them first.",
                     "Move", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -3101,6 +3170,16 @@ namespace SuperPutty
             this.FillSubtree(nodePayload);
             this.EnsureFolderFilled(target);
             string conflict = FindMoveConflict(nodePayload, target);
+            if (conflict != null && IsSessionNode(nodePayload))
+            {
+                string name = this.UniqueName(target, PlainName(nodePayload), nodePayload);
+                if (DialogResult.Yes != Messenger.MessageBox("There is already a session " + conflict + ".\n\nMove this one there anyway, as \"" + name + "\"?",
+                    "Move", MessageBoxButtons.YesNo, MessageBoxIcon.Question))
+                    return null;
+                // the new name is shown on the node at once (SessionPropertyChanged), and the move gives it its new ID
+                ((SessionData)nodePayload.Tag).SessionName = name;
+                conflict = FindMoveConflict(nodePayload, target);
+            }
             if (conflict != null)
             {
                 Messenger.MessageBox("There is already a session " + conflict + ". Rename one of them first.",
@@ -3144,6 +3223,8 @@ namespace SuperPutty
                 // every level below, not just the folder's own sessions, so sessions in subfolders follow too
                 UpdateSessionId(nodeNew);
             }
+            // the folders' counts change (a session leaving Private sessions left it showing "(1)")
+            this.MarkIndexDirty();
             target.Expand();
             return nodeNew;
         }
@@ -3704,8 +3785,8 @@ namespace SuperPutty
                         e.Effect = DragDropEffects.Copy;
                     }
                 }
-                // into or out of Database sessions: copied (moving is on the menu, as it deletes from one side)
-                else if (node != null && IsDatabaseNode(node) != IsDatabaseNode(nodePayload) && IsFolderNode(node) && !IsQuickNode(node)
+                // into another root (Saved, Private or Database sessions): copied (moving is on the menu)
+                else if (node != null && KindOf(node) != KindOf(nodePayload) && IsFolderNode(node) && !IsQuickNode(node)
                     && !(IsDatabaseNode(node) && DatabaseLocked(node)))
                 {
                     tree.SelectedNode = hovered;
@@ -3715,8 +3796,9 @@ namespace SuperPutty
                 else if (node != null && node != nodePayload && nodePayload.Nodes.Find(PlainName(node), true).Length == 0)
                 {
                     tree.SelectedNode = hovered;
-                    // folder that is not the same parent and new node name is not already present
-                    if (IsFolderNode(node) && node != nodePayload.Parent && !node.Nodes.ContainsKey(PlainName(nodePayload))
+                    // folder that is not the same parent and new node name is not already present (a session's
+                    // can be: the drop offers it a new name)
+                    if (IsFolderNode(node) && node != nodePayload.Parent && (IsSessionNode(nodePayload) || !node.Nodes.ContainsKey(PlainName(nodePayload)))
                         && !IsDatabaseNode(node) && !IsDatabaseNode(nodePayload))
                     {
                         e.Effect = DragDropEffects.Copy;
@@ -3751,14 +3833,10 @@ namespace SuperPutty
                     this.MoveInDatabase(nodeDropped, node);
                 }
             }
-            else if (node != null && IsDatabaseNode(node) != IsDatabaseNode(nodeDropped) && IsFolderNode(node) && !IsQuickNode(node))
+            else if (node != null && KindOf(node) != KindOf(nodeDropped) && IsFolderNode(node) && !IsQuickNode(node))
             {
+                // into another root: a copy, so the one it came from (perhaps shared) keeps it
                 this.Transfer(nodeDropped, KindOf(node), NodePath(node), false);
-            }
-            else if (node != null && IsFolderNode(node) && IsPrivateNode(node) && !IsPrivateNode(nodeDropped) && !IsDatabaseNode(nodeDropped))
-            {
-                // into Private sessions from Saved sessions: a copy, so the shared Sessions.xml keeps it
-                this.Transfer(nodeDropped, RootKind.Private, NodePath(node), false);
             }
             else if (node != null && IsFolderNode(node) && !IsDatabaseNode(node) && !IsDatabaseNode(nodeDropped))
             {

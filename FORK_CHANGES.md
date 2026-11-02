@@ -2032,7 +2032,7 @@ The first-run dialog (also Tools → Options → Paths) labelled the PuTTY and p
 - **Move to:** Private sessions is shown greyed, "(use Copy to)". Copy to → Private sessions copies.
 - **Dragging** from Saved sessions into Private sessions copies, as dragging out of Database sessions already did.
 - **The copy's name:** session IDs are shared by Saved and Private sessions, so a Saved session copied to the same folder in Private sessions gets its own name, "cmd Test-1", as Duplicate does. Before, Copy to → Private sessions refused it as "already in Saved sessions".
-- Moving out of Private sessions (Move to, or dragging into Saved sessions) still moves.
+- Moving out of Private sessions with Move to still moves. (Dragging into another root later became a copy everywhere; see below.)
 
 **Dropping on a session:** dropping a dragged session or folder onto a session now drops it into that session's folder, so with many sessions, or a search that leaves the folder far above, you don't have to scroll up to the folder. The session under the mouse is highlighted while dragging, since highlighting its folder would scroll the tree. This applies everywhere a folder accepts a drop: Saved, Private and Database sessions, and across them.
 
@@ -2041,6 +2041,21 @@ The first-run dialog (also Tools → Options → Paths) labelled the PuTTY and p
 | `SessionTreeview.cs` | `DropTarget`; `treeView1_DragOver` / `treeView1_DragDrop` use it, and copy into Private sessions; `FillTransferMenu` greys Private under Move to; `Transfer` names a same-path copy uniquely |
 
 **Test:** see step 4 of the manual tests.
+
+**Not checked:** in the running app.
+
+## Name clashes offer "-1"; dragging into another root always copies; Private count after a move
+
+- **Name clashes:** a name already taken where a session goes no longer just stops it. Edit Session (new, or a rename) asks on Save whether to use the name with -1, -2... added. Dragging a session into a folder that has one with its name asks whether to move it there as "name-1". Copy to and drags into another root ask once for all the taken names; No leaves them out, as before. "Taken" means another session in that folder, or (Saved and Private sessions share IDs) one at the same path in the other of the two.
+- **Dragging into another root** (Saved, Private or Database sessions) now always copies, out of Private sessions too: the one it came from keeps it. Move to still moves, except into Private sessions.
+- **Fix: "Private sessions (1)" after its only session was dragged out.** Dragging between folders (`MoveNode`) didn't mark the folder counts for refreshing (`MarkIndexDirty`), so the counts stayed as they were until something else changed.
+
+| File | Change |
+|---|---|
+| `SessionTreeview.cs` | `UniqueName`, `NameTaken`; `ValidateSessionNameChange` can allow a taken name; `MoveNode` offers a new name and marks the counts; `Transfer` asks about taken names; drags into another root go through `Transfer` |
+| `dlgEditSession.cs` | `FreeSessionName`: Save offers the free name |
+
+**Test:** New session in a folder with a name it already has: Save asks to use "name-1". Drag a session onto a folder holding one with the same name: it asks, and moves it as "name-1". Drag a Private session to Saved sessions: it's copied (asking about the name at the same path), and Private sessions' count stays right. Drag the only Private session somewhere in Private sessions: the counts follow.
 
 **Not checked:** in the running app.
 
@@ -2142,7 +2157,7 @@ Favorites, Recent and private sessions:
 2. Open two sessions: they appear under Recent, the latest first. Load a layout: its sessions aren't added. Right-click Recent → **Clear Recent**. Untick Options → GUI → **Show recent**: the group goes.
 3. Rename a favourite (Edit session): it stays in Favorites under its new name.
 3a. Start SuperXPuTTY: Favorites and Recent are closed, with their counts and a ▸ arrow; Saved, Private and Database sessions show an open arrow. Double-click Favorites open, restart: it's still open. Close it, restart: closed. Search for something: both open with the matches; clear the search: they go back as you left them.
-4. Right-click **Private sessions** → New session...: it's saved to `PrivateSessions.xml` in `Documents\SuperXPuTTY` (or beside the exe if portable), not `Sessions.xml`. Right-click it → **Move to → Saved sessions**; Move to shows Private sessions greyed, and **Copy to → Private sessions** copies it back as "<name>-1" while the Saved one stays. Drag a folder from Saved sessions to Private sessions: it's copied. Drag a Private session onto a session in Saved sessions: it moves into that session's folder.
+4. Right-click **Private sessions** → New session...: it's saved to `PrivateSessions.xml` in `Documents\SuperXPuTTY` (or beside the exe if portable), not `Sessions.xml`. Right-click it → **Move to → Saved sessions**; Move to shows Private sessions greyed, and **Copy to → Private sessions** asks, then copies it back as "<name>-1" while the Saved one stays. Drag a folder from Saved sessions to Private sessions: it's copied. Drag a Private session onto a session in Saved sessions: it's copied into that session's folder.
 5. Try to create a shared session with the same folder and name as a private one: it's refused, with the reason.
 6. Change Options → Icon size to 32 and back to 16: the search box, its buttons and the toolbar follow (after a restart, as for the other icons). Check the dark theme.
 7. Toolbar: select a session, click **New session**: it's created in that session's folder. **New folder**, **Expand all**, **Collapse all**. **Sort** twice: Z to A, then A to Z; restart: A to Z.
