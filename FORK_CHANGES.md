@@ -1770,6 +1770,8 @@ The built-in terminal and jump hosts run plink, which they only looked for as pl
 **Checked:** built; the Paths page drawn on the dark theme with the new row and hint; `PlinkPath` with KiTTY and with PuTTY, each with nothing chosen (klink beside KiTTY, plink beside PuTTY), a chosen klink (used), and a chosen path that doesn't exist (back to the one beside PuTTY). klink run by hand with SuperPuTTY's command line and a portable KiTTY profile.
 **Not checked:** a whole session in the built-in terminal through klink against a real device, a jump host through klink, the light theme, and saving the Options dialog.
 
+**Fix: a portable KiTTY's profile wasn't applied in the built-in terminal.** A session whose KiTTY profile sets an auto-login username still asked "login as:". A portable KiTTY's klink reads `kitty.ini` and the `Sessions` folder from the *current directory*, not from beside itself, and the terminal started it in SuperPuTTY's own folder, so `-load "root"` found no profile and klink used its defaults. `TerminalControl.Connect` now starts plink or klink in its own folder (cmd, PowerShell and WSL still start in the user's folder). Checked by running klink through `ConPty` with a test profile: started elsewhere it found no profile and printed its usage; in its folder it loaded the profile and connected to the profile's host. Not checked against the user's server, or for a jump host through an embedded KiTTY window (the proxy klink then runs in KiTTY's current directory).
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

@@ -719,7 +719,9 @@ namespace SuperPutty.Gui
                 started.Exited += code => this.BeginInvokeSafe(() => this.OnExited(started, code));
                 // the command line holds the password when -pw is allowed: log the masked one
                 Log.InfoFormat("Terminal: {0}", PuttyStartInfo.PlinkCommandLine(this.session, plink, false));
-                started.Start(PuttyStartInfo.PlinkCommandLine(this.session, plink, true), this.columns, this.rows);
+                // in its own folder: a portable KiTTY's klink reads kitty.ini and the Sessions folder from the current
+                // directory, not from beside itself, so started anywhere else -load finds no profile (no username, ...)
+                started.Start(PuttyStartInfo.PlinkCommandLine(this.session, plink, true), this.columns, this.rows, Path.GetDirectoryName(plink));
                 this.pty = started;
                 this.startedAt = DateTime.Now;
                 this.disconnected = false;
