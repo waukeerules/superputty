@@ -644,6 +644,13 @@ namespace SuperPutty
                         this.SendCommand(step);
                     }
                 }
+                catch (OperationCanceledException ex)
+                {
+                    // the user cancelled a prompt (PWDPROMPT): not an error, and nothing more is typed
+                    Log.InfoFormat("Script {0} stopped at line {1}: {2}", where, i + 1, ex.Message);
+                    SuperPuTTY.ReportStatus($"Script {where} stopped at line {i + 1}: {ex.Message}");
+                    return;
+                }
                 catch (Exception ex)
                 {
                     Log.Error("Script " + where + " stopped at line " + (i + 1) + " (" + keyword + ")", ex);

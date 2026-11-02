@@ -1745,10 +1745,11 @@ The box `PWDPROMPT` asks for a password with was always light, and `PROMPT` used
 |---|---|
 | `Scripting/frmPrivatePrompt.cs` | The theme, and hidden or shown typing |
 | `Scripting/PromptCommand.cs` | Uses `frmPrivatePrompt` instead of `InputBox` |
+| `Scripting/PwdpromptCommand.cs`, `ctlPuttyPanel.cs`, `Scripting/SpslReference.cs` | Cancel stops the script |
 
 **Checked:** both prompts opened on their own on the dark theme: dark background, buttons and box, the password masked and PROMPT's text shown.
 **Not checked:** the light theme (no theme is applied there, as before), and running PROMPT from a script.
-**Left as it was:** Cancel on `PWDPROMPT` sends the word "Cancelled" (and Enter) to the session, as upstream does.
+**Cancel on `PWDPROMPT` stops the script.** It used to type the word "Cancelled" and press Enter, so a device took it as the password. The prompt now throws `OperationCanceledException`, which `ctlPuttyPanel.RunScriptLines` reports in the status bar ("Script ... stopped at line 3: you cancelled the password prompt") and logs as information, not an error; nothing more is typed. The SPSL reference says so. Checked by running the command with its box answered automatically: Cancel stopped it with that message, OK gave the typed text.
 
 ## Open questions
 

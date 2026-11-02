@@ -92,7 +92,7 @@ namespace SuperPuTTY.Scripting
             new Entry
             {
                 Name = "PWDPROMPT", IsCommand = true, Syntax = "PWDPROMPT",
-                Description = "Asks you for a password, hidden as you type, then types it and presses Enter.",
+                Description = "Asks you for a password, hidden as you type, then types it and presses Enter. Cancel stops the script.",
                 Example = "PWDPROMPT"
             },
             new Entry
