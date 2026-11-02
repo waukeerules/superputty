@@ -1947,6 +1947,22 @@ It gives "quiet" for:
 
 **Not checked:** the refusal against the real server, and so which text Windows gives for it (with extended reason 0, it may be a general "disconnected by the server" rather than mstsc's wording).
 
+## RDP tabs stay dark while connecting and after the session ends
+
+The Remote Desktop ActiveX control paints itself white until the connection is up and after it ends, and has no setting for that colour; on the dark theme the tab glared white behind "Connecting" and behind the disconnect message.
+
+- `RdpControl` covers itself with a panel in the theme's colour (dark grey, or the light theme's control colour), saying **"Connecting to <session>..."** while it connects and **"Disconnected from <session>"** once it ends, before any message box.
+- **Shown again:** when the connection is up (the control's `OnConnected` event, newly declared in `IMsTscAxEvents`), before Windows' own login screen, so a login prompt in the session stays visible; and on login, to be sure.
+- **Why a cover:** it's a sibling in front of the control rather than the control hidden, so the control stays active while it connects.
+
+| File | Change |
+|---|---|
+| `Gui/RdpControl.cs` | `ShowCover`, `HideCover`, `OnConnected` |
+
+**Checked** by hosting the control in a test window and connecting to 127.0.0.1:1 (nothing listening): dark grey with "Connecting to Cover test..." while connecting; dark grey with "Disconnected from Cover test" behind the error box.
+
+**Not checked:** a real connection, which should reveal Windows' login screen or the desktop when connected; the light theme.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

@@ -62,6 +62,12 @@ namespace SuperPutty.Gui
         /// <summary>True while the tab is closing, so the disconnect it causes doesn't raise <see cref="Ended"/></summary>
         private bool closing;
 
+        /// <summary>
+        /// A panel in the theme's colour over the control until the connection is up and after it ends: the control
+        /// paints itself white then, and has no setting for that colour (see <see cref="ShowCover"/>)
+        /// </summary>
+        private Label cover;
+
         /// <summary>Create the control for a session; nothing connects until <see cref="Start"/></summary>
         /// <param name="session">The session, with {key} placeholders already replaced</param>
         public RdpControl(SessionData session) : base(ClsidMsRdpClient9NotSafeForScripting)
@@ -134,6 +140,7 @@ namespace SuperPutty.Gui
         public void Start()
         {
             this.CreateControl();
+            this.ShowCover("Connecting to " + this.session.SessionName + "...");
             Size size = this.FitsTab
                 ? ClampDesktopSize(this.ClientSize)
                 : ClampDesktopSize(new Size(this.options.FixedWidth.Value, this.options.FixedHeight.Value));
@@ -352,6 +359,7 @@ namespace SuperPutty.Gui
         private void OnLoginComplete()
         {
             this.loggedIn = true;
+            this.HideCover();
             Log.InfoFormat("Logged in to {0}", this.session.Host);
             // the tab may have been resized while connecting
             if (ClampDesktopSize(this.ClientSize) != new Size((int)this.client.DesktopWidth, (int)this.client.DesktopHeight))
@@ -383,6 +391,7 @@ namespace SuperPutty.Gui
                 Log.Debug("Could not read the extended disconnect reason", ex);
             }
             Log.InfoFormat("Disconnected from {0}, reason {1}, extended reason {2}", this.session.Host, reason, extended);
+            this.ShowCover("Disconnected from " + this.session.SessionName);
             if (ShouldReport(reason, extended, wasLoggedIn))
             {
                 string description = "error " + reason;
@@ -398,6 +407,50 @@ namespace SuperPutty.Gui
                     "Remote Desktop", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             this.Ended?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Called when the connection is up, before Windows' own login screen, which must stay visible</summary>
+        private void OnConnected()
+        {
+            this.HideCover();
+        }
+
+        /// <summary>
+        /// Cover the control with a panel in the theme's colour, showing <paramref name="text"/>: before the connection
+        /// is up and after it ends, the ActiveX control paints itself white, which glares on the dark theme, and it has
+        /// no setting for that colour. The panel is a sibling in front of the control rather than the control hidden,
+        /// so the control stays active while it connects.
+        /// </summary>
+        /// <param name="text">What's happening, e.g. "Connecting to Windows 10 Host..."</param>
+        private void ShowCover(string text)
+        {
+            if (this.Parent == null || this.IsDisposed)
+                return;
+            if (this.cover == null)
+            {
+                bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
+                this.cover = new Label
+                {
+                    Dock = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    BackColor = dark ? Color.FromArgb(30, 30, 30) : SystemColors.Control,
+                    ForeColor = dark ? Color.FromArgb(150, 150, 150) : SystemColors.GrayText,
+                    Font = new Font(this.Font.FontFamily, 11f)
+                };
+                this.Parent.Controls.Add(this.cover);
+            }
+            this.cover.Text = text;
+            this.cover.Visible = true;
+            this.cover.BringToFront();
+        }
+
+        /// <summary>Take the cover away once the remote's screen is showing</summary>
+        private void HideCover()
+        {
+            if (this.cover != null)
+            {
+                this.cover.Visible = false;
+            }
         }
 
         /// <summary>
@@ -431,6 +484,7 @@ namespace SuperPutty.Gui
             if (disposing)
             {
                 this.resizeTimer.Dispose();
+                this.cover?.Dispose();
                 try
                 {
                     if (this.client != null && (int)this.client.Connected != 0)
@@ -467,6 +521,9 @@ namespace SuperPutty.Gui
         [ComImport, ComVisible(true), Guid("336d5562-efa8-482e-8cb3-c5c0fc7a7db6"), InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
         public interface IMsTscAxEvents
         {
+            /// <summary>The connection is up (Windows' login screen may follow)</summary>
+            [DispId(2)] void OnConnected();
+
             /// <summary>Login completed</summary>
             [DispId(3)] void OnLoginComplete();
 
@@ -515,6 +572,12 @@ namespace SuperPutty.Gui
             public EventSink(RdpControl owner)
             {
                 this.owner = owner;
+            }
+
+            /// <summary>Forward the connection being up</summary>
+            public void OnConnected()
+            {
+                this.owner.OnConnected();
             }
 
             /// <summary>Forward login completion</summary>
