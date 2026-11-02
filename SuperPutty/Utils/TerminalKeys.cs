@@ -15,6 +15,21 @@ namespace SuperPutty.Utils
     /// </summary>
     public static class TerminalKeys
     {
+        /// <summary>
+        /// The keys offered by Send Key, in the tab menu (ctlPuttyPanel) and the built-in terminal's menu (TerminalControl
+        /// passes them to the page): each is the key as SENDKEY writes it, its label, and what it's for
+        /// </summary>
+        public static readonly string[][] MenuKeys =
+        {
+            new[] { "^C", "Ctrl+C", "interrupt" },
+            new[] { "^Z", "Ctrl+Z", "end, leave config" },
+            new[] { "^6", "Ctrl+Shift+6", "Cisco escape" },
+            new[] { "^]", "Ctrl+]", "Telnet escape" },
+            new[] { "^D", "Ctrl+D", "end of input" },
+            new[] { "^\\", "Ctrl+\\", "quit" },
+            new[] { "ESC", "Esc", "" }
+        };
+
         /// <summary>Which key types a character on the current keyboard layout, and the Shift, Ctrl or Alt it needs</summary>
         /// <param name="ch">The character</param>
         /// <returns>The key in the low byte; in the high byte 1 for Shift, 2 for Ctrl, 4 for Alt; -1 if no key types it</returns>

@@ -385,6 +385,21 @@ namespace SuperPutty.Gui
                         this.BeginInvokeSafe(() => tab.RunTabCommand(command));
                     }
                     break;
+                case "sendKey":
+                    // the menu's Send Key, through the tab like the tab menu's; no key means Other Key... (it asks)
+                    string sendKey = (string)message["key"];
+                    ctlPuttyPanel keyTab = this.FindForm() as ctlPuttyPanel;
+                    if (keyTab != null)
+                    {
+                        this.BeginInvokeSafe(() =>
+                        {
+                            if (string.IsNullOrEmpty(sendKey))
+                                keyTab.AskAndSendKey();
+                            else
+                                keyTab.SendKey(sendKey);
+                        });
+                    }
+                    break;
                 case "document":
                     ctlPuttyPanel panel = this.FindForm() as ctlPuttyPanel;
                     if (panel != null)
@@ -418,7 +433,8 @@ namespace SuperPutty.Gui
             this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursor = CursorFromProfile(this.session.PuttySession), local = IsLocalShell(this.session.Proto),
                 profileFont = FontFromProfile(this.session.PuttySession), fonts = MonospaceFonts(), prefs = TerminalPreferences.All(), cursorColor = this.cursorColor,
                 keys = KeysFromProfile(this.session.PuttySession), sessionRules = this.session.HighlightRules ?? string.Empty,
-                unlimitedScrollback = TerminalPreferences.UnlimitedScrollback });
+                unlimitedScrollback = TerminalPreferences.UnlimitedScrollback,
+                menuKeys = Array.ConvertAll(TerminalKeys.MenuKeys, k => new { key = k[0], label = k[1], hint = k[2] }) });
         }
 
         /// <summary>

@@ -41,6 +41,7 @@
     var bellFromProfile = 'visual'; // the PuTTY profile's bell, from TerminalControl
     var cursorFromProfile = { style: 'block', blink: false }; // the PuTTY profile's cursor, from TerminalControl
     var localShell = false;         // cmd, PowerShell or WSL rather than a connection through plink
+    var menuKeys = [];              // Send Key's keys ({key, label, hint}), from TerminalKeys.MenuKeys
     var keysFromProfile = { backspace: 'del', homeEnd: 'standard', functionKeys: 'tilde' }; // the PuTTY profile's keys, from TerminalControl
     var sessionRules = '';          // the session's or its folder's highlighting rules; empty: Options > Terminal's
     var tabRules = null;            // rules chosen in this tab's menu, for this tab only; null: the session's or default
@@ -630,6 +631,11 @@
             '-',
             { label: 'Copy on Select', checked: prefOn('copyOnSelect'), action: function () { togglePref('copyOnSelect'); } },
             { label: 'Mark Matches of Selection', checked: prefOn('markMatches'), action: function () { togglePref('markMatches'); markSelectionMatches(); } },
+            '-',
+            // typed through the tab (ctlPuttyPanel.SendKey), as SENDKEY types them; Other Key... asks there
+            { label: 'Send Key', items: menuKeys.map(function (k) {
+                return { label: k.label, key: k.hint, action: function () { post({ type: 'sendKey', key: k.key }); } };
+            }).concat(['-', { label: 'Other Key...', action: function () { post({ type: 'sendKey' }); } }]) },
             '-'
         ].concat(localShell ? [] : [
             // plink can't send PuTTY's Special Commands (Break, signals...); PuTTY's own window can
@@ -981,6 +987,7 @@
         if (config.bellOverload) { bellOverload = config.bellOverload; }
         if (config.cursor) { cursorFromProfile = config.cursor; }
         localShell = !!config.local;
+        menuKeys = config.menuKeys || [];
         if (config.keys) { keysFromProfile = config.keys; }
         sessionRules = config.sessionRules || '';
         if (config.unlimitedScrollback) { unlimitedScrollback = config.unlimitedScrollback; }

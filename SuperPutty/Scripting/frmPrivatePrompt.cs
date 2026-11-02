@@ -80,5 +80,13 @@ namespace SuperPutty
         {
             return textBox1.Text;
         }
+
+        /// <summary>Fill the box in before it's shown, all selected so typing replaces it (Send Key > Other Key...)</summary>
+        /// <param name="value">The text</param>
+        public void SetValue(string value)
+        {
+            textBox1.Text = value ?? string.Empty;
+            textBox1.SelectAll();
+        }
     }
 }

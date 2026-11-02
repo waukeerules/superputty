@@ -69,6 +69,7 @@ namespace SuperPutty
             ApplyEnvironmentColor();
             AdjustMenu();
             AddOutputMenuItems();
+            AddKeyMenuItems();
             // the black check glyph is hard to see on the dark menu
             MenuCheckMarks.Apply(this.contextMenuStrip1);
 
@@ -1305,6 +1306,145 @@ namespace SuperPutty
         {
             CreateMenu();
             UpdateOutputMenuItems();
+            UpdateKeyMenuItems();
+        }
+
+        /// <summary>The tab menu's Send Key submenu: the keys of <see cref="TerminalKeys.MenuKeys"/>, then Other Key...</summary>
+        private ToolStripMenuItem menuSendKey;
+
+        /// <summary>The tab menu's Special Command submenu: PuTTY's own, read when the menu opens</summary>
+        private ToolStripMenuItem menuSpecialCommand;
+
+        /// <summary>The last key typed into Other Key..., offered next time</summary>
+        private static string lastOtherKey = "^C";
+
+        /// <summary>
+        /// Add "Send Key" (Ctrl+C, Ctrl+Z, Ctrl+Shift+6, Ctrl+] and the like, typed through SENDKEY, so they work in PuTTY,
+        /// the built-in terminal and RDP tabs) and "Special Command" (PuTTY's own: a serial or Telnet Break, SSH
+        /// signals) to the tab's menu, after the output items
+        /// </summary>
+        private void AddKeyMenuItems()
+        {
+            this.menuSendKey = new ToolStripMenuItem("Send &Key");
+            foreach (string[] key in TerminalKeys.MenuKeys)
+            {
+                string spec = key[0];
+                this.menuSendKey.DropDownItems.Add(new ToolStripMenuItem(key[1], null, (s, e) => this.SendKey(spec))
+                {
+                    ShortcutKeyDisplayString = key[2]
+                });
+            }
+            this.menuSendKey.DropDownItems.Add(new ToolStripSeparator());
+            this.menuSendKey.DropDownItems.Add(new ToolStripMenuItem("Other Key...", null, (s, e) => this.AskAndSendKey()));
+            this.menuSpecialCommand = new ToolStripMenuItem("S&pecial Command");
+
+            int index = this.contextMenuStrip1.Items.IndexOf(this.menuWatchSilence) + 1;
+            this.contextMenuStrip1.Items.Insert(index, new ToolStripSeparator());
+            this.contextMenuStrip1.Items.Insert(index + 1, this.menuSendKey);
+            this.contextMenuStrip1.Items.Insert(index + 2, this.menuSpecialCommand);
+        }
+
+        /// <summary>
+        /// Before the menu opens: Send Key is enabled when the tab takes typing; Special Command shows PuTTY's own
+        /// commands as they are now, is shown only for tabs PuTTY could run, and in the built-in terminal (plink can't
+        /// send them) offers to open the session in PuTTY instead
+        /// </summary>
+        private void UpdateKeyMenuItems()
+        {
+            this.menuSendKey.Enabled = this.CanReceiveCommands;
+            bool puttyProtocol = !(Session.Proto == ConnectionProtocol.VNC || Session.Proto == ConnectionProtocol.Mintty
+                || Session.Proto == ConnectionProtocol.RDP || Session.Proto == ConnectionProtocol.WINCMD
+                || Session.Proto == ConnectionProtocol.PS || Session.Proto == ConnectionProtocol.WSL);
+            this.menuSpecialCommand.Visible = puttyProtocol;
+            this.menuSpecialCommand.DropDownItems.Clear();
+            if (!puttyProtocol)
+                return;
+
+            if (this.Terminal != null)
+            {
+                this.menuSpecialCommand.DropDownItems.Add(new ToolStripMenuItem("Not in the built-in terminal: plink can't send them") { Enabled = false });
+                SessionData stored = this.Session;
+                this.menuSpecialCommand.DropDownItems.Add(new ToolStripMenuItem("Open in PuTTY", null, (s, e) => TerminalControl.OpenInPutty(stored)));
+                return;
+            }
+            List<PuttyWindow.SpecialCommand> commands = this.AppPanel.ExternalProcessCaptured
+                ? PuttyWindow.SpecialCommands(this.AppPanel.AppWindowHandle)
+                : new List<PuttyWindow.SpecialCommand>();
+            if (commands.Count == 0)
+            {
+                this.menuSpecialCommand.DropDownItems.Add(new ToolStripMenuItem("None right now (PuTTY lists them once connected)") { Enabled = false });
+                return;
+            }
+            this.AddSpecialCommands(this.menuSpecialCommand.DropDownItems, commands);
+        }
+
+        /// <summary>Add PuTTY's special commands to a menu, with their separators and submenus</summary>
+        /// <param name="items">The menu's items</param>
+        /// <param name="commands">The commands, from <see cref="PuttyWindow.SpecialCommands"/></param>
+        private void AddSpecialCommands(ToolStripItemCollection items, List<PuttyWindow.SpecialCommand> commands)
+        {
+            foreach (PuttyWindow.SpecialCommand command in commands)
+            {
+                if (command.IsSeparator)
+                {
+                    items.Add(new ToolStripSeparator());
+                }
+                else if (command.Items != null)
+                {
+                    ToolStripMenuItem sub = new ToolStripMenuItem(command.Text);
+                    this.AddSpecialCommands(sub.DropDownItems, command.Items);
+                    items.Add(sub);
+                }
+                else
+                {
+                    uint id = (uint)command.Command;
+                    string text = command.Text;
+                    items.Add(new ToolStripMenuItem(text, null, (s, e) =>
+                    {
+                        Log.InfoFormat("Special command \"{0}\" to {1}", text, this.Session.SessionId);
+                        this.SendPuttyCommand(id);
+                    }));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Press a key in this tab, written as SPSL's SENDKEY writes it ("^C", "{DOWN 3}"), and give the tab the focus.
+        /// Used by Send Key in the tab menu and the built-in terminal's menu.
+        /// </summary>
+        /// <param name="key">The key</param>
+        public void SendKey(string key)
+        {
+            CommandData step;
+            try
+            {
+                SPSL.TryParseScriptLine("SENDKEY " + key, out step);
+            }
+            catch (ArgumentException ex)
+            {
+                SuperPuTTY.ReportStatus("Send key {0}: {1}", key, ex.Message);
+                return;
+            }
+            if (step == null)
+            {
+                SuperPuTTY.ReportStatus("Send key: \"{0}\" isn't a key; write it as in SENDKEY, e.g. ^C, ESC or {{DOWN 3}}", key);
+                return;
+            }
+            this.SendCommand(step);
+            this.SetFocusToChildApplication("SendKey");
+        }
+
+        /// <summary>Ask for a key, written as in SENDKEY, and press it in this tab (Send Key > Other Key...)</summary>
+        public void AskAndSendKey()
+        {
+            using (frmPrivatePrompt prompt = new frmPrivatePrompt("Key, as in SENDKEY: ^C, %F, {DOWN 3}", false))
+            {
+                prompt.SetValue(lastOtherKey);
+                if (prompt.ShowDialog(this) != DialogResult.OK || string.IsNullOrWhiteSpace(prompt.GetResult()))
+                    return;
+                lastOtherKey = prompt.GetResult().Trim();
+            }
+            this.SendKey(lastOtherKey);
         }
 
         private void newSessionTSMI_Click(object sender, EventArgs e)

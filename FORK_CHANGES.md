@@ -1851,6 +1851,40 @@ Also:
 
 **Not checked:** the light theme, and the Script Editor's prompt box (the code path is a button's).
 
+## Send Key and Special Command in the tab menu
+
+Two submenus in the tab's right-click menu, after Watch for Silence. Send Key is also in the built-in terminal's own menu.
+
+- **Send Key:**
+  - **Keys:** Ctrl+C (interrupt), Ctrl+Z (end, leave config), Ctrl+Shift+6 (Cisco escape), Ctrl+] (Telnet escape), Ctrl+D (end of input), Ctrl+\ (quit) and Esc. The list is `TerminalKeys.MenuKeys`; the built-in terminal's page gets it in its `config` message, so both menus show the same keys.
+  - **Other Key...** asks for any key written as in SENDKEY (`%F`, `{DOWN 3}`, `+F5`) and remembers the last one.
+  - **How keys are sent:** through `ctlPuttyPanel.SendKey`, which parses `SENDKEY <key>` and sends it like a script would. So it works in PuTTY, built-in terminal and RDP tabs, and the tab gets the focus back. Enabled when the tab takes typing (`CanReceiveCommands`).
+- **Special Command** (tabs PuTTY could run: SSH, Telnet, Rlogin, Raw, Serial):
+  - **Contents:** PuTTY's own Special Command menu, read from PuTTY's window menu when the tab menu opens (`PuttyWindow.SpecialCommands`). That gives a serial Break, Telnet's Break, Are You There, Interrupt Process and so on, and SSH's Break and signals, with PuTTY's submenus and separators.
+  - **How it's found:** by its commands' IDs (PuTTY's IDM_SPECIAL range, 0x0400-0x07F0), not its title, so KiTTY and translated builds work.
+  - **Sending:** choosing an item sends PuTTY that command (`SendPuttyCommand`, as the PuTTY items above do).
+  - **Not connected yet:** PuTTY only fills the menu once connected; until then the submenu says so.
+  - **Built-in terminal tabs:** plink can't send these, so the submenu says so and offers **Open in PuTTY**.
+- **frmPrivatePrompt.SetValue** fills the prompt's box in, for Other Key....
+
+| File | Change |
+|---|---|
+| `Utils/PuttyWindow.cs` | `SpecialCommands` reads PuTTY's Special Command menu; `SendSpecialCommand` |
+| `Utils/TerminalKeys.cs` | `MenuKeys` |
+| `ctlPuttyPanel.cs` | The two submenus; `SendKey`, `AskAndSendKey` |
+| `Gui/TerminalControl.cs`, `web/terminal/terminal.js` | Send Key in the built-in terminal's menu (`sendKey` message) |
+| `Scripting/frmPrivatePrompt.cs` | `SetValue` |
+
+**Checked:**
+- A test PuTTY connected by Telnet to a local listener:
+  - its Special Command menu was read from outside (Are You There 0x0400 ... End Of File 0x04E0, with both separators);
+  - Break and Are You There reached the listener as `FF F3` and `FF F6`.
+- Embedding only removes PuTTY's border, so its window menu stays readable.
+- The built-in terminal's page in a browser: Send Key lists the seven keys with their hints and Other Key...; choosing Ctrl+] posts `sendKey` with `^]`.
+- The keys themselves are those checked for SENDKEY above.
+
+**Not checked:** the WinForms tab menu itself in a running SuperXPuTTY (opening it, the submenus' look on both themes), Other Key..., RDP tabs, and Special Command on SSH or serial.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
