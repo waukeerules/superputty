@@ -2025,6 +2025,25 @@ The first-run dialog (also Tools → Options → Paths) labelled the PuTTY and p
 
 **Not checked:** in the running app; the Database rename and remove against a real table.
 
+## Sessions go into Private sessions only as copies; dropping on a session drops into its folder
+
+**Copies into Private:** moving a session or folder from Saved sessions (the shared Sessions.xml) or Database sessions into Private sessions took it away from everyone else; from Database sessions it deleted the rows. Now it only ever arrives in Private sessions as a copy:
+
+- **Move to:** Private sessions is shown greyed, "(use Copy to)". Copy to → Private sessions copies.
+- **Dragging** from Saved sessions into Private sessions copies, as dragging out of Database sessions already did.
+- **The copy's name:** session IDs are shared by Saved and Private sessions, so a Saved session copied to the same folder in Private sessions gets its own name, "cmd Test-1", as Duplicate does. Before, Copy to → Private sessions refused it as "already in Saved sessions".
+- Moving out of Private sessions (Move to, or dragging into Saved sessions) still moves.
+
+**Dropping on a session:** dropping a dragged session or folder onto a session now drops it into that session's folder, so with many sessions, or a search that leaves the folder far above, you don't have to scroll up to the folder. The session under the mouse is highlighted while dragging, since highlighting its folder would scroll the tree. This applies everywhere a folder accepts a drop: Saved, Private and Database sessions, and across them.
+
+| File | Change |
+|---|---|
+| `SessionTreeview.cs` | `DropTarget`; `treeView1_DragOver` / `treeView1_DragDrop` use it, and copy into Private sessions; `FillTransferMenu` greys Private under Move to; `Transfer` names a same-path copy uniquely |
+
+**Test:** see step 4 of the manual tests.
+
+**Not checked:** in the running app.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
@@ -2123,7 +2142,7 @@ Favorites, Recent and private sessions:
 2. Open two sessions: they appear under Recent, the latest first. Load a layout: its sessions aren't added. Right-click Recent → **Clear Recent**. Untick Options → GUI → **Show recent**: the group goes.
 3. Rename a favourite (Edit session): it stays in Favorites under its new name.
 3a. Start SuperXPuTTY: Favorites and Recent are closed, with their counts and a ▸ arrow; Saved, Private and Database sessions show an open arrow. Double-click Favorites open, restart: it's still open. Close it, restart: closed. Search for something: both open with the matches; clear the search: they go back as you left them.
-4. Right-click **Private sessions** → New session...: it's saved to `PrivateSessions.xml` in `Documents\SuperXPuTTY` (or beside the exe if portable), not `Sessions.xml`. Right-click it → **Move to Saved sessions**, then back. Drag a folder from Saved sessions to Private sessions.
+4. Right-click **Private sessions** → New session...: it's saved to `PrivateSessions.xml` in `Documents\SuperXPuTTY` (or beside the exe if portable), not `Sessions.xml`. Right-click it → **Move to → Saved sessions**; Move to shows Private sessions greyed, and **Copy to → Private sessions** copies it back as "<name>-1" while the Saved one stays. Drag a folder from Saved sessions to Private sessions: it's copied. Drag a Private session onto a session in Saved sessions: it moves into that session's folder.
 5. Try to create a shared session with the same folder and name as a private one: it's refused, with the reason.
 6. Change Options → Icon size to 32 and back to 16: the search box, its buttons and the toolbar follow (after a restart, as for the other icons). Check the dark theme.
 7. Toolbar: select a session, click **New session**: it's created in that session's folder. **New folder**, **Expand all**, **Collapse all**. **Sort** twice: Z to A, then A to Z; restart: A to Z.

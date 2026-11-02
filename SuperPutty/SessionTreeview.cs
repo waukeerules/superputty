@@ -1544,7 +1544,8 @@ namespace SuperPutty
 
         /// <summary>
         /// Fill a Copy to or Move to submenu with the other roots: Saved, Private and (when it's on) Database sessions.
-        /// Database sessions can be chosen only while the table can be written, and moving out of it likewise.
+        /// Database sessions can be chosen only while the table can be written, and moving out of it likewise. Private
+        /// sessions are greyed under Move to: sessions only ever go there as copies.
         /// </summary>
         /// <param name="menu">The submenu</param>
         /// <param name="node">The session or folder</param>
@@ -1559,6 +1560,12 @@ namespace SuperPutty
             {
                 if (kind == from || (kind == RootKind.Database && this.nodeDatabase == null) || (kind == RootKind.Shared && !SuperPuTTY.Settings.UseSessionsXml))
                     continue;
+                if (move && kind == RootKind.Private)
+                {
+                    // into Private sessions is only ever a copy: moving would take a shared session away from everyone else
+                    menu.DropDownItems.Add(new ToolStripMenuItem(RootName(kind) + " (use Copy to)") { Enabled = false });
+                    continue;
+                }
                 RootKind target = kind;
                 bool enabled = (target != RootKind.Database || DatabaseSessions.Writable) && !(move && from == RootKind.Database && DatabaseLocked(node));
                 menu.DropDownItems.Add(new ToolStripMenuItem(RootName(target), null, (s, e) => this.TransferToRoot(node, target, move)) { Enabled = enabled });
@@ -1685,6 +1692,13 @@ namespace SuperPutty
                     {
                         string newId = SessionData.CombineSessionIds(NullIfEmpty(newFolder(session)), nameOf(session));
                         SessionData existing = SuperPuTTY.GetSessionById(newId);
+                        if (existing == session && !move)
+                        {
+                            // a Saved session copied to Private at the same path: IDs are shared by both roots, so the
+                            // copy needs its own name ("cmd Test-1")
+                            newId = SuperPuTTY.MakeUniqueSessionId(newId);
+                            existing = null;
+                        }
                         if (existing != null)
                         {
                             problems.Add(newId + ": already in " + RootName(existing.IsPrivate ? RootKind.Private : RootKind.Shared));
@@ -1692,7 +1706,7 @@ namespace SuperPutty
                         }
                         SessionData copy = PlainCopy(session);
                         copy.SessionId = newId;
-                        copy.SessionName = nameOf(session);
+                        copy.SessionName = SessionData.GetSessionNameFromId(newId);
                         copy.IsPrivate = kind == RootKind.Private;
                         SuperPuTTY.AddSession(copy);
                         arrived.Add(new KeyValuePair<SessionData, string>(session, newId));
@@ -3627,6 +3641,17 @@ namespace SuperPutty
 
         #region Drag Drop
 
+        /// <summary>
+        /// Where a drop on a node goes: a session's own folder, so a session can be dropped beside another one without
+        /// scrolling up to their folder (with many sessions, or a search that leaves the folder far above)
+        /// </summary>
+        /// <param name="node">The node under the mouse, or null</param>
+        /// <returns>The session's folder or root, else the node itself</returns>
+        TreeNode DropTarget(TreeNode node)
+        {
+            return IsSessionNode(node) && node.Parent != null ? node.Parent : node;
+        }
+
         private void treeView1_ItemDrag(object sender, ItemDragEventArgs e)
         {
             // Get the tree
@@ -3663,7 +3688,8 @@ namespace SuperPutty
                 // Convert to a point in the TreeView's coordinate system.
                 pt = tree.PointToClient(pt);
 
-                TreeNode node = tree.GetNodeAt(pt);
+                TreeNode hovered = tree.GetNodeAt(pt);
+                TreeNode node = this.DropTarget(hovered);
                 // a session dropped on Favorites becomes a favourite
                 if (node != null && RootOf(node) == this.nodeFavorites && IsSessionNode(nodePayload))
                 {
@@ -3672,7 +3698,7 @@ namespace SuperPutty
                 // within Database sessions, sessions and folders move to another folder there
                 else if (node != null && IsDatabaseNode(node) && IsDatabaseNode(nodePayload))
                 {
-                    tree.SelectedNode = node;
+                    tree.SelectedNode = hovered;
                     if (CanMoveInDatabase(nodePayload, node))
                     {
                         e.Effect = DragDropEffects.Copy;
@@ -3682,13 +3708,13 @@ namespace SuperPutty
                 else if (node != null && IsDatabaseNode(node) != IsDatabaseNode(nodePayload) && IsFolderNode(node) && !IsQuickNode(node)
                     && !(IsDatabaseNode(node) && DatabaseLocked(node)))
                 {
-                    tree.SelectedNode = node;
+                    tree.SelectedNode = hovered;
                     e.Effect = DragDropEffects.Copy;
                 }
                 // Is the mouse over a valid node?
                 else if (node != null && node != nodePayload && nodePayload.Nodes.Find(PlainName(node), true).Length == 0)
                 {
-                    tree.SelectedNode = node;
+                    tree.SelectedNode = hovered;
                     // folder that is not the same parent and new node name is not already present
                     if (IsFolderNode(node) && node != nodePayload.Parent && !node.Nodes.ContainsKey(PlainName(nodePayload))
                         && !IsDatabaseNode(node) && !IsDatabaseNode(nodePayload))
@@ -3710,8 +3736,8 @@ namespace SuperPutty
             // Convert to a point in the TreeView's coordinate system.
             pt = tree.PointToClient(pt);
 
-            // Get the node underneath the mouse.
-            TreeNode node = tree.GetNodeAt(pt);
+            // Get the node underneath the mouse; on a session, its folder
+            TreeNode node = this.DropTarget(tree.GetNodeAt(pt));
 
             TreeNode nodeDropped = (TreeNode)e.Data.GetData(typeof(TreeNode));
             if (node != null && RootOf(node) == this.nodeFavorites && IsSessionNode(nodeDropped))
@@ -3728,6 +3754,11 @@ namespace SuperPutty
             else if (node != null && IsDatabaseNode(node) != IsDatabaseNode(nodeDropped) && IsFolderNode(node) && !IsQuickNode(node))
             {
                 this.Transfer(nodeDropped, KindOf(node), NodePath(node), false);
+            }
+            else if (node != null && IsFolderNode(node) && IsPrivateNode(node) && !IsPrivateNode(nodeDropped) && !IsDatabaseNode(nodeDropped))
+            {
+                // into Private sessions from Saved sessions: a copy, so the shared Sessions.xml keeps it
+                this.Transfer(nodeDropped, RootKind.Private, NodePath(node), false);
             }
             else if (node != null && IsFolderNode(node) && !IsDatabaseNode(node) && !IsDatabaseNode(nodeDropped))
             {
