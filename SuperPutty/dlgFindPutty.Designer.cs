@@ -108,8 +108,8 @@
             this.linkCygwin = new System.Windows.Forms.LinkLabel();
             this.linkMsys = new System.Windows.Forms.LinkLabel();
             this.label2 = new System.Windows.Forms.Label();
-            this.linkPscp = new System.Windows.Forms.LinkLabel();
-            this.puttyLink = new System.Windows.Forms.LinkLabel();
+            this.labelPscp = new System.Windows.Forms.Label();
+            this.labelPutty = new System.Windows.Forms.Label();
             this.PuttyDefParamLbl = new System.Windows.Forms.Label();
             this.labelRDP = new System.Windows.Forms.Label();
             this.tabPageGUI = new System.Windows.Forms.TabPage();
@@ -1019,9 +1019,9 @@
             this.panel1.Controls.Add(this.linkCygwin);
             this.panel1.Controls.Add(this.linkMsys);
             this.panel1.Controls.Add(this.label2);
-            this.panel1.Controls.Add(this.linkPscp);
+            this.panel1.Controls.Add(this.labelPscp);
             this.panel1.Controls.Add(this.labelPlink);
-            this.panel1.Controls.Add(this.puttyLink);
+            this.panel1.Controls.Add(this.labelPutty);
             this.panel1.Controls.Add(this.PuttyDefParamLbl);
             this.panel1.Controls.Add(this.labelRDP);
             this.panel1.Controls.Add(this.label4);
@@ -1142,17 +1142,15 @@
             this.label2.TabIndex = 60;
             this.label2.Text = "or";
             // 
-            // linkPscp
+            // labelPscp
             // 
-            this.linkPscp.AutoSize = true;
-            this.linkPscp.Location = new System.Drawing.Point(132, 72);
-            this.linkPscp.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
-            this.linkPscp.Name = "linkPscp";
-            this.linkPscp.Size = new System.Drawing.Size(66, 20);
-            this.linkPscp.TabIndex = 59;
-            this.linkPscp.TabStop = true;
-            this.linkPscp.Text = "pscp.exe";
-            this.linkPscp.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.puttyLink_LinkClicked);
+            this.labelPscp.AutoSize = true;
+            this.labelPscp.Location = new System.Drawing.Point(160, 72);
+            this.labelPscp.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.labelPscp.Name = "labelPscp";
+            this.labelPscp.Size = new System.Drawing.Size(38, 20);
+            this.labelPscp.TabIndex = 59;
+            this.labelPscp.Text = "pscp";
             // 
             // labelPlink
             // 
@@ -1166,17 +1164,15 @@
             this.labelPlink.Text = "plink / klink";
             this.toolTip.SetToolTip(this.labelPlink, "plink.exe, or KiTTY's klink.exe, which the built-in terminal and jump hosts use. Empty: the one beside PuTTY");
             // 
-            // puttyLink
+            // labelPutty
             // 
-            this.puttyLink.AutoSize = true;
-            this.puttyLink.Location = new System.Drawing.Point(19, 4);
-            this.puttyLink.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
-            this.puttyLink.Name = "puttyLink";
-            this.puttyLink.Size = new System.Drawing.Size(102, 20);
-            this.puttyLink.TabIndex = 57;
-            this.puttyLink.TabStop = true;
-            this.puttyLink.Text = "putty-plus.exe";
-            this.puttyLink.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.puttyLink_LinkClicked);
+            this.labelPutty.AutoSize = true;
+            this.labelPutty.Location = new System.Drawing.Point(19, 4);
+            this.labelPutty.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.labelPutty.Name = "labelPutty";
+            this.labelPutty.Size = new System.Drawing.Size(102, 20);
+            this.labelPutty.TabIndex = 57;
+            this.labelPutty.Text = "PuTTY / KiTTY";
             // 
             // PuttyDefParamLbl
             // 
@@ -2565,8 +2561,8 @@
         private System.Windows.Forms.LinkLabel linkCygwin;
         private System.Windows.Forms.LinkLabel linkMsys;
         private System.Windows.Forms.Label label2;
-        private System.Windows.Forms.LinkLabel linkPscp;
-        private System.Windows.Forms.LinkLabel puttyLink;
+        private System.Windows.Forms.Label labelPscp;
+        private System.Windows.Forms.Label labelPutty;
         private System.Windows.Forms.Label PuttyDefParamLbl;
         private System.Windows.Forms.Label labelRDP;
         private System.Windows.Forms.Label label4;

@@ -868,7 +868,7 @@ namespace SuperPutty
 
             if (String.IsNullOrEmpty(SuperPuTTY.Settings.PuttyExe))
             {
-                Messenger.MessageBox("Cannot find PuTTY executable. Please visit https://github.com/SilverGreen93/putty/releases to download a copy",
+                Messenger.MessageBox("Cannot find the PuTTY executable. Install PuTTY or KiTTY, then choose its putty.exe or kitty.exe",
                     "PuTTY Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 Application.Exit();
                 System.Environment.Exit(1);
@@ -936,11 +936,6 @@ namespace SuperPutty
         static string ToShortString(Font font)
         {
             return String.Format("{0}, {1} pt, {2}", font.FontFamily.Name, font.Size, font.Style);
-        }
-
-        private void puttyLink_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
-        {
-            Process.Start("https://github.com/SilverGreen93/putty/releases");
         }
 
         private void linkCygwin_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)

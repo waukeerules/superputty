@@ -1979,6 +1979,17 @@ The Remote Desktop ActiveX control paints itself white until the connection is u
 
 **Not checked:** the tree's own menus in the running app.
 
+## The setup dialog no longer links to PuTTY Plus
+
+The first-run dialog (also Tools → Options → Paths) labelled the PuTTY and pscp boxes with links, "putty-plus.exe" and "pscp.exe", that opened PuTTY Plus's releases page. This fork works with PuTTY, PuTTY Plus or KiTTY, so they're now plain labels, "PuTTY / KiTTY" and "pscp". The "PuTTY Not Found" message no longer names the PuTTY Plus page either. The other download links (Cygwin, MSYS2, WinSCP, FileZilla, TightVNC, VcXsrv) are unchanged.
+
+| File | Change |
+|---|---|
+| `dlgFindPutty.Designer.cs` | `puttyLink` and `linkPscp` become the labels `labelPutty` and `labelPscp` |
+| `dlgFindPutty.cs` | `puttyLink_LinkClicked` removed; the "PuTTY Not Found" text |
+
+**Test:** open Tools → Options → Paths (or start with no settings): the two labels are plain text and clicking them does nothing.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.
