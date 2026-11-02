@@ -103,17 +103,27 @@ namespace SuperPuTTY.Scripting
         /// <returns>A CommandData object with keystrokes, or null if no matching keyword found</returns>
         internal static CommandData SendKeyHandler(string arg)
         {            
-            int key = ParseKeys(arg);
+            int count;
+            int key = ParseKeys(arg, out count);
 
             if (key > 0)
-                return new CommandData(new KeyEventArgs((Keys)key));
+                return new CommandData(new KeyEventArgs((Keys)key)) { KeyRepeat = count };
             else
                 return null;
 
         }
 
-        private static int ParseKeys(String keys)
+        /// <summary>
+        /// Parse a SENDKEY argument: a key name ("ENTER"), a character, or a key in braces with a repeat count
+        /// ("{TAB 3}"), each after optional ^ (Ctrl), % (Alt) and + (Shift)
+        /// </summary>
+        /// <param name="keys">The argument</param>
+        /// <param name="count">How many times to press the key: the braces' count, else 1</param>
+        /// <returns>The key with modifiers, or -1 if there's none</returns>
+        /// <exception cref="ArgumentException">Mismatched braces, or a character no key types</exception>
+        private static int ParseKeys(String keys, out int count)
         {
+            count = 1;
             int named = ParseKeyName(keys);
             if (named > 0)
                 return named;
@@ -210,6 +220,9 @@ namespace SuperPuTTY.Scripting
                         }
 
                         vk = MatchKeyword(keyName);
+                        // a character in braces, e.g. {] 2}, as SendKeys allows
+                        if (vk < 0 && keyName.Length == 1)
+                            vk = CharacterKey(keyName[0]);
                         break;
                     case '+':
                         haveKeys[HAVESHIFT] = (int)Keys.Shift;
@@ -225,11 +238,13 @@ namespace SuperPuTTY.Scripting
                         i++;
                         continue;
                                              
-                    default:                                                                        
-                        vk = (int)Char.ToUpperInvariant(keys[i]);
+                    default:
+                        vk = CharacterKey(keys[i]);
                         break;
                 }
 
+                // the repeat count used to be read and dropped, so {TAB 3} pressed Tab once
+                count = Math.Max(1, repeat);
                 return vk | haveKeys[HAVESHIFT] | haveKeys[HAVECTRL] | haveKeys[HAVEALT];
             }
             return -1;
@@ -264,10 +279,38 @@ namespace SuperPuTTY.Scripting
             return vk > 0 ? vk | modifiers : -1;
         }
 
+        /// <summary>
+        /// The key for a single character in SENDKEY. A letter or digit is its own key code; any other character is
+        /// looked up on the keyboard layout (<see cref="TerminalKeys.FromCharacter"/>), with the Shift it needs: taking
+        /// its character code as a key code made "." Delete, "[" the Windows key and "]" the Menu key.
+        /// </summary>
+        /// <param name="ch">The character</param>
+        /// <returns>The key with any modifiers it needs</returns>
+        /// <exception cref="ArgumentException">No key on this keyboard layout types the character</exception>
+        internal static int CharacterKey(char ch)
+        {
+            if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9'))
+                return (int)Char.ToUpperInvariant(ch);
+            int key = TerminalKeys.FromCharacter(ch);
+            if (key < 0)
+                throw new ArgumentException("SENDKEY: no key on this keyboard types \"" + ch + "\"; use SENDCHAR to type it");
+            return key;
+        }
+
         /// <summary>The key names SENDKEY understands, e.g. "ENTER", "F5", for the SPSL reference and checker</summary>
         internal static string[] SendKeyNames
         {
             get { return Array.ConvertAll(keywords, k => k.keyword); }
+        }
+
+        /// <summary>Each key name with its key code, in the table's order, so the reference can list aliases together</summary>
+        /// <returns>The names and key codes</returns>
+        internal static System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, int>> SendKeyCodes()
+        {
+            foreach (KeywordVk k in keywords)
+            {
+                yield return new System.Collections.Generic.KeyValuePair<string, int>(k.keyword, k.vk);
+            }
         }
 
         /// <summary>Whether SENDKEY understands a key name</summary>

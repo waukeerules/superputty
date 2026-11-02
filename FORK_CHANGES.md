@@ -483,7 +483,7 @@ Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom netw
 - **Indented lines:** `SPSL.TryParseScriptLine` didn't trim leading whitespace, so the command word was read as empty or unknown.
 
 **Fix:**
-- **SENDKEY** also accepts bare key names, with optional modifiers: `ENTER`, `^HOME`, `%F4` (`Commands.ParseKeyName`). Braces, single characters and `{KEY n}` work as before.
+- **SENDKEY** also accepts bare key names, with optional modifiers: `ENTER`, `^HOME`, `%F4` (`Commands.ParseKeyName`). Braces and single characters work as before. (The `{KEY n}` repeat count was still dropped: see "Fix: SENDKEY's Ctrl, Alt, Shift, symbols and repeat counts".)
 - **Leading whitespace** is trimmed before a line is parsed.
 
 **Checked against the compiled assembly:**
@@ -1771,6 +1771,51 @@ The built-in terminal and jump hosts run plink, which they only looked for as pl
 **Not checked:** a whole session in the built-in terminal through klink against a real device, a jump host through klink, the light theme, and saving the Options dialog.
 
 **Fix: a portable KiTTY's profile wasn't applied in the built-in terminal.** A session whose KiTTY profile sets an auto-login username still asked "login as:". A portable KiTTY's klink reads `kitty.ini` and the `Sessions` folder from the *current directory*, not from beside itself, and the terminal started it in SuperPuTTY's own folder, so `-load "root"` found no profile and klink used its defaults. `TerminalControl.Connect` now starts plink or klink in its own folder (cmd, PowerShell and WSL still start in the user's folder). Checked by running klink through `ConPty` with a test profile: started elsewhere it found no profile and printed its usage; in its folder it loaded the profile and connected to the profile's host. Not checked against the user's server, or for a jump host through an embedded KiTTY window (the proxy klink then runs in KiTTY's current directory).
+
+## Fix: SENDKEY's Ctrl, Alt, Shift, symbols and repeat counts
+
+Found while comparing SPSL with another tabbed PuTTY tool's script keys (Ctrl+A-Z, Ctrl+[, Ctrl+]). The bytes each key sends were recorded with a small Telnet listener on 127.0.0.1, from a test PuTTY window and from plink in the pseudo console.
+
+**Symptoms:**
+- **PuTTY tabs lost Ctrl, Alt and Shift.** `SENDKEY ^C` typed `c`, `^Z` typed `z`, `%x` typed `x` and `+TAB` a plain Tab; `^]` and `^[` sent nothing.
+- **Symbols pressed other keys.** `SENDKEY .` pressed Delete, `[` the Windows key, `]` the Menu key, `\` the right Windows key, everywhere (PuTTY, the built-in terminal, RDP).
+- **`{KEY n}` pressed the key once.** `{TAB 3}` sent one Tab, though the reference said 3.
+- **The built-in terminal sent nothing** for a single character (`SENDKEY y`), Alt with a key, or Ctrl with a symbol. After `^Z`, nothing more reached the device.
+
+**Causes:**
+- `CommandData.SendToTerminal` posts a Ctrl or Shift key press before the key, but a posted press doesn't change the keyboard state PuTTY reads, so PuTTY saw the key alone.
+- `Commands.ParseKeys` took a character's code as its key code. That's right for letters and digits only: "." is 0x2E, which is VK_DELETE.
+- `ParseKeys` read the repeat count and dropped it; `CommandData` had nowhere to keep it.
+- `TerminalControl.KeySequence` only knew named keys and Ctrl+letter. `TerminalControl.Type` only switched plink's console to virtual terminal input for ESC and Ctrl+C. Without it, the console took Ctrl+Z (0x1A) as the end of plink's input.
+
+**Fix:**
+- **`Utils/TerminalKeys.cs`** (new): `Sequence` gives what a terminal sends for a key, as xterm and PuTTY's defaults do:
+  - Ctrl with a letter or `[ \ ] @ ^ _` gives its control character (Ctrl+] is 0x1D, Telnet's escape);
+  - a character key gives its character, on the current keyboard layout;
+  - Alt puts ESC in front;
+  - Shift, Alt or Ctrl with an arrow, Home, End, an editing or a function key gives xterm's modified sequence (Ctrl+Up is `ESC [1;5A`);
+  - F13-F16 are Shift+F1-F4.
+  - `FromCharacter` finds the key (and Shift) that types a character.
+- **SENDKEY:** a single character other than a letter or digit uses its real key (`Commands.CharacterKey`); a character no key types is an error. `{] 2}` (a character in braces) works, and the repeat count is kept in `CommandData.KeyRepeat`.
+- **`CommandData.KeyRepeat`** is honoured by PuTTY windows, the built-in terminal and RDP tabs.
+- **PuTTY windows:** a key with Ctrl, Alt or Shift is typed as `TerminalKeys.Sequence`'s characters (WM_CHAR). Plain keys are still posted as key presses, so PuTTY's own keyboard settings (Backspace, function keys) apply to them.
+- **Built-in terminal:** `KeySequence` uses `TerminalKeys.Sequence`. Every control character but Enter, Tab and Backspace now switches on virtual terminal input first (`TerminalControl.NeedsVirtualTerminalInput`).
+
+| File | Change |
+|---|---|
+| `Utils/TerminalKeys.cs` (new) | Key to characters, and character to key |
+| `Scripting/SendKeyCommand.cs` | Symbols by their real key, repeat counts, characters in braces |
+| `Utils/CommandData.cs` | `KeyRepeat`; keys with modifiers typed as characters in PuTTY windows |
+| `Gui/TerminalControl.cs` | `KeySequence` via `TerminalKeys`, repeats, virtual terminal input for every control character |
+| `Gui/RdpControl.cs` | Repeats |
+
+**Checked** with the Telnet listener; every key gave the bytes below in both a PuTTY window and plink in the pseudo console (the test run had no console of its own, as SuperPuTTY doesn't, so attaching to plink's console worked):
+- `^C` 03, `^]` 1D, `^[` 1B, `^\` 1C, `^@` 00, `^_` 1F, `^Z` 1A (and later text still arrived);
+- `.` 2E, `!` 21, `x` 78, `%x` 1B 78;
+- `UP` `ESC [A`, `+TAB` `ESC [Z`, `^UP` `ESC [1;5A`;
+- `{TAB 3}` three 09s, `{] 2}` 5D 5D, `{DOWN 2}` twice `ESC [B`.
+
+**Not checked:** RDP tabs, and a real device. Ctrl+] at a Telnet device only matters to Telnet clients that treat it as their escape; plink and PuTTY pass it on.
 
 ## Open questions
 

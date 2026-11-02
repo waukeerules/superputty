@@ -37,6 +37,9 @@ namespace SuperPutty.Utils
         /// <summary>Get the keystrokes to send</summary>
         public KeyEventArgs KeyData { get; private set; }
 
+        /// <summary>How many times to press <see cref="KeyData"/>: SENDKEY's {KEY n}; 1 by default</summary>
+        public int KeyRepeat { get; set; } = 1;
+
         public TimeSpan Delay { get; private set; }
 
         /// <summary>
@@ -98,17 +101,31 @@ namespace SuperPutty.Utils
                 }
             }
 
-            if (this.KeyData != null)
+            // a posted Ctrl, Alt or Shift press doesn't change the keyboard state PuTTY reads, so ^C typed "c" and Shift+Tab
+            // a Tab: type such keys as the characters a terminal sends for them (Ctrl+C is 0x03, Ctrl+] 0x1D)
+            string modified = this.KeyData != null && (this.KeyData.Control || this.KeyData.Alt || this.KeyData.Shift)
+                ? TerminalKeys.Sequence(this.KeyData) : string.Empty;
+            for (int press = 0; this.KeyData != null && press < this.KeyRepeat; press++)
             {
-                // special keys
-                if (this.KeyData.Control) { NativeMethods.PostMessage(handle, NativeMethods.WM_KEYDOWN, NativeMethods.VK_CONTROL, 0); }
-                if (this.KeyData.Shift) { NativeMethods.PostMessage(handle, NativeMethods.WM_KEYDOWN, NativeMethods.VK_SHIFT, 0); }
+                if (modified.Length > 0)
+                {
+                    foreach (char c in modified)
+                    {
+                        NativeMethods.SendMessage(handle, NativeMethods.WM_CHAR, (int)c, 0);
+                    }
+                }
+                else
+                {
+                    // special keys
+                    if (this.KeyData.Control) { NativeMethods.PostMessage(handle, NativeMethods.WM_KEYDOWN, NativeMethods.VK_CONTROL, 0); }
+                    if (this.KeyData.Shift) { NativeMethods.PostMessage(handle, NativeMethods.WM_KEYDOWN, NativeMethods.VK_SHIFT, 0); }
 
-                char charStr = Convert.ToChar(this.KeyData.KeyCode);
-                NativeMethods.PostMessage(handle, NativeMethods.WM_KEYDOWN, (int)charStr, 0);
+                    char charStr = Convert.ToChar(this.KeyData.KeyCode);
+                    NativeMethods.PostMessage(handle, NativeMethods.WM_KEYDOWN, (int)charStr, 0);
 
-                if (this.KeyData.Shift) { NativeMethods.PostMessage(handle, NativeMethods.WM_KEYUP, NativeMethods.VK_SHIFT, 0); }
-                if (this.KeyData.Control) { NativeMethods.PostMessage(handle, NativeMethods.WM_KEYUP, NativeMethods.VK_CONTROL, 0); }
+                    if (this.KeyData.Shift) { NativeMethods.PostMessage(handle, NativeMethods.WM_KEYUP, NativeMethods.VK_SHIFT, 0); }
+                    if (this.KeyData.Control) { NativeMethods.PostMessage(handle, NativeMethods.WM_KEYUP, NativeMethods.VK_CONTROL, 0); }
+                }
             }
 
             if (this.Delay > TimeSpan.Zero)

@@ -1016,7 +1016,7 @@ namespace SuperPutty.Gui
         private void Type(ConPty target, string data)
         {
             // only plink: local shells read keys themselves, and need Ctrl+C as the console signal (to stop ping -t)
-            if (!IsLocalShell(this.session.Proto) && (data.IndexOf('\x1b') >= 0 || data.IndexOf('\x03') >= 0))
+            if (!IsLocalShell(this.session.Proto) && NeedsVirtualTerminalInput(data))
             {
                 target.EnsureVirtualTerminalInput();
             }
@@ -1027,6 +1027,24 @@ namespace SuperPutty.Gui
             {
                 target.SendCtrlC();
             }
+        }
+
+        /// <summary>
+        /// Whether text typed into plink needs the console's virtual terminal input (<see cref="ConPty.EnsureVirtualTerminalInput"/>):
+        /// it does for ESC sequences, Ctrl+C and every other control character but Enter, Tab and Backspace. Only ESC
+        /// and Ctrl+C used to count, and Ctrl+Z (0x1A) then reached plink as the end of its input, so nothing typed
+        /// after it was sent.
+        /// </summary>
+        /// <param name="data">The text about to be typed</param>
+        /// <returns>true if it has such a character</returns>
+        public static bool NeedsVirtualTerminalInput(string data)
+        {
+            foreach (char c in data)
+            {
+                if (c < ' ' && c != '\r' && c != '\t' && c != '\b')
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>Lines the page has finished showing: append them to the session log and the WAITFOR text</summary>
@@ -1177,7 +1195,11 @@ namespace SuperPutty.Gui
                 StringBuilder text = new StringBuilder(LineFeedsAsEnter(command.Command));
                 if (command.KeyData != null)
                 {
-                    text.Append(KeySequence(command.KeyData));
+                    string key = KeySequence(command.KeyData);
+                    for (int press = 0; press < command.KeyRepeat; press++)
+                    {
+                        text.Append(key);
+                    }
                 }
                 this.Type(target, text.ToString());
             }
@@ -1204,47 +1226,14 @@ namespace SuperPutty.Gui
 
         /// <summary>
         /// What a terminal sends for a key (xterm's sequences, which plink passes on): Enter is CR, arrows are ESC [ A..D,
-        /// Ctrl+letter is its control character
+        /// Ctrl+letter or Ctrl+] is its control character, a character key is its character, Alt puts ESC in front.
+        /// The mapping is <see cref="TerminalKeys.Sequence"/>, shared with PuTTY windows.
         /// </summary>
         /// <param name="key">The key and modifiers</param>
         /// <returns>The characters to send; empty for keys with none</returns>
         public static string KeySequence(KeyEventArgs key)
         {
-            if (key.Control && key.KeyCode >= Keys.A && key.KeyCode <= Keys.Z)
-            {
-                return ((char)(key.KeyCode - Keys.A + 1)).ToString();
-            }
-            switch (key.KeyCode)
-            {
-                case Keys.Enter: return "\r";
-                case Keys.Tab: return key.Shift ? "\x1b[Z" : "\t";
-                case Keys.Escape: return "\x1b";
-                case Keys.Back: return "\x7f";
-                case Keys.Space: return " ";
-                case Keys.Up: return "\x1b[A";
-                case Keys.Down: return "\x1b[B";
-                case Keys.Right: return "\x1b[C";
-                case Keys.Left: return "\x1b[D";
-                case Keys.Home: return "\x1b[H";
-                case Keys.End: return "\x1b[F";
-                case Keys.Insert: return "\x1b[2~";
-                case Keys.Delete: return "\x1b[3~";
-                case Keys.PageUp: return "\x1b[5~";
-                case Keys.PageDown: return "\x1b[6~";
-                case Keys.F1: return "\x1bOP";
-                case Keys.F2: return "\x1bOQ";
-                case Keys.F3: return "\x1bOR";
-                case Keys.F4: return "\x1bOS";
-                case Keys.F5: return "\x1b[15~";
-                case Keys.F6: return "\x1b[17~";
-                case Keys.F7: return "\x1b[18~";
-                case Keys.F8: return "\x1b[19~";
-                case Keys.F9: return "\x1b[20~";
-                case Keys.F10: return "\x1b[21~";
-                case Keys.F11: return "\x1b[23~";
-                case Keys.F12: return "\x1b[24~";
-                default: return string.Empty;
-            }
+            return TerminalKeys.Sequence(key);
         }
 
         /// <summary>Run on the UI thread later, unless the control is gone</summary>

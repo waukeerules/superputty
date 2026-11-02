@@ -255,7 +255,7 @@ namespace SuperPutty.Gui
                 int shiftState = (vkAndShift >> 8) & 0xFF;
                 AddKeyPress((Keys)(vkAndShift & 0xFF), (shiftState & 1) != 0, (shiftState & 2) != 0, (shiftState & 4) != 0, scanCodes, keyUps);
             }
-            if (command.KeyData != null)
+            for (int press = 0; command.KeyData != null && press < command.KeyRepeat; press++)
             {
                 AddKeyPress(command.KeyData.KeyCode, command.KeyData.Shift, command.KeyData.Control, command.KeyData.Alt, scanCodes, keyUps);
             }
