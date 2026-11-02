@@ -1915,6 +1915,38 @@ Two submenus in the tab's right-click menu, after Watch for Silence. Send Key is
 
 **Not checked:** the replacement with the real COM port in a running SuperXPuTTY: that the PuTTY tab opens the port and lands where the old tab was.
 
+## Fix: an RDP tab closed without a word when the server refused the login
+
+**Symptom:** connecting the built-in RDP client with an account that isn't allowed to log in remotely, the tab simply closed. mstsc shows "The connection was denied because the user account is not authorized for remote login".
+
+**Cause:** the server ends such a connection with disconnect reason 3, "disconnected by the server". `RdpControl.OnDisconnected` took reasons 1-3 as a normal end (like logging off) and closed the tab quietly, without looking at the extended reason.
+
+**Fix:** `RdpControl.ShouldReport` decides. Windows' description of the disconnect is shown in a themed message box, and the tab closes once it's acknowledged, when:
+- the reason is an error (anything but 1-3), as before;
+- the session never reached the desktop (no login completed), except a disconnect from this side;
+- the extended reason is the server's: idle or logon timeout, replaced by another connection, out of memory, denied, insufficient privileges, fresh credentials required (3-10), or a licensing or protocol error (256 and up).
+
+Logging off, disconnecting from the remote's Start menu, an administrator's disconnect and closing the tab stay quiet. The log now records the extended reason too. Closing the tab after the server ended the session no longer logs a warning: the control was already released (`InvalidComObjectException`), so there's nothing to disconnect.
+
+| File | Change |
+|---|---|
+| `Gui/RdpControl.cs` | `ShouldReport`; the extended reason read once and logged; the quiet close |
+
+**Checked:** `ShouldReport` gives "report" for:
+- a refusal before the desktop (reason 3, extended 0 or 9);
+- an idle timeout;
+- a session replaced by another connection;
+- host not found;
+- a licensing error.
+
+It gives "quiet" for:
+- logging off;
+- Start > Disconnect;
+- an administrator's disconnect;
+- a disconnect from this side.
+
+**Not checked:** the refusal against the real server, and so which text Windows gives for it (with extended reason 0, it may be a general "disconnected by the server" rather than mstsc's wording).
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

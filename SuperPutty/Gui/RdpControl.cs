@@ -362,24 +362,33 @@ namespace SuperPutty.Gui
 
         /// <summary>
         /// Called when the session ends. Disconnecting or logging off ends it quietly; anything else (wrong host,
-        /// failed login, network error) is reported with Windows' description of the error. Either way the tab closes.
+        /// failed login, network error, a session that never reached the desktop, or a reason given by the server) is
+        /// reported with Windows' description of the error, and the tab closes once it's acknowledged.
         /// </summary>
         /// <param name="reason">The disconnect reason code</param>
         private void OnDisconnected(int reason)
         {
+            bool wasLoggedIn = this.loggedIn;
             this.loggedIn = false;
             if (this.closing)
                 return;
 
-            // 1: disconnected locally, 2: logged off or disconnected from the remote, 3: disconnected by the server
-            bool normal = reason >= 0 && reason <= 3;
-            Log.InfoFormat("Disconnected from {0}, reason {1}", this.session.Host, reason);
-            if (!normal)
+            int extended = 0;
+            try
+            {
+                extended = (int)this.client.ExtendedDisconnectReason;
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("Could not read the extended disconnect reason", ex);
+            }
+            Log.InfoFormat("Disconnected from {0}, reason {1}, extended reason {2}", this.session.Host, reason, extended);
+            if (ShouldReport(reason, extended, wasLoggedIn))
             {
                 string description = "error " + reason;
                 try
                 {
-                    description = this.client.GetErrorDescription((uint)reason, (uint)this.client.ExtendedDisconnectReason);
+                    description = this.client.GetErrorDescription((uint)reason, (uint)extended);
                 }
                 catch (Exception ex)
                 {
@@ -389,6 +398,29 @@ namespace SuperPutty.Gui
                     "Remote Desktop", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             this.Ended?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Whether a disconnect should be explained before the tab closes. Reasons 1-3 (disconnected here, logged off,
+        /// disconnected by the server) were all taken as normal, so a server refusing the login ("the user account is
+        /// not authorized for remote login") closed the tab without a word: that comes as reason 3 before the desktop
+        /// is reached. Now a session that never logged in, or whose extended reason is the server's (idle or logon
+        /// timeout, replaced by another connection, out of memory, denied, insufficient privileges, fresh credentials
+        /// required, licensing or protocol errors), is explained too.
+        /// </summary>
+        /// <param name="reason">The disconnect reason (discReason)</param>
+        /// <param name="extended">The ExtendedDisconnectReason: 0 none, 1-2 by this program, 11-12 by the user</param>
+        /// <param name="wasLoggedIn">Whether the session had reached the desktop</param>
+        /// <returns>true to show Windows' description of the disconnect</returns>
+        public static bool ShouldReport(int reason, int extended, bool wasLoggedIn)
+        {
+            bool normal = reason >= 0 && reason <= 3;
+            if (!normal)
+                return true;
+            // reason 1 is a disconnect from this side (e.g. the tab's own Disconnect), never a failure
+            if (reason == 1)
+                return false;
+            return !wasLoggedIn || (extended >= 3 && extended <= 10) || extended >= 256;
         }
 
         /// <summary>Disconnect quietly when the tab closes</summary>
@@ -405,6 +437,10 @@ namespace SuperPutty.Gui
                     {
                         this.client.Disconnect();
                     }
+                }
+                catch (System.Runtime.InteropServices.InvalidComObjectException)
+                {
+                    // the control was already released, as after the server ended the session: nothing to disconnect
                 }
                 catch (Exception ex)
                 {
