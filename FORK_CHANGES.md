@@ -2007,6 +2007,24 @@ The first-run dialog (also Tools → Options → Paths) labelled the PuTTY and p
 
 **Not checked:** the menu item in the running app on a fresh install; the PrivateSessions.xml path.
 
+## Fix: folders whose names differ only in case showed twice in the Sessions tree
+
+**Symptom:** sessions in "test" and in "Test" were shown as two folders side by side, instead of one.
+
+**Cause:** the index the tree fills folders from (`SessionTreeview.FolderIndex`, built by `BuildIndex`) keyed folder paths case-sensitively, while the tree's own node lookups (`Nodes[name]`) and `FolderSettings` already ignored case.
+
+**Fix:** the index ignores case, so both go in one folder, shown with the name it met first. Each session keeps its own stored path until it's moved or its folder renamed, which writes the folder's one name into all of them. For Database sessions, renaming or removing a folder now matches the table's `folder` column ignoring case, so it takes both spellings, as the tree shows them; `docs/DatabaseSessions.md` says so.
+
+| File | Change |
+|---|---|
+| `SessionTreeview.cs` | `FolderIndex` and its subfolder sets ignore case; a Database folder's sessions are gathered ignoring case |
+| `Data/DatabaseSessions.cs` | `InFolder` (rename and remove folder) compares with `lower()` |
+| `docs/DatabaseSessions.md` | The `folder` column: case doesn't matter |
+
+**Test:** put one session in folder "test" and another in "Test": the tree shows one folder with both. Rename it: both sessions move to the new name. The same in Database sessions.
+
+**Not checked:** in the running app; the Database rename and remove against a real table.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

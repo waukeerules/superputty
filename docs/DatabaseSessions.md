@@ -21,7 +21,7 @@ Default name: `superputty.sessions` (database `superputty`). All three names can
 | Column | Type | Default | Meaning |
 |---|---|---|---|
 | `id` | uuid | `gen_random_uuid()` | Row key. Leave it to the default |
-| `folder` | text | `''` | Path in the tree, `/`-separated, e.g. `HQ/Core`; `''` puts the session at the top. No leading or trailing `/` |
+| `folder` | text | `''` | Path in the tree, `/`-separated, e.g. `HQ/Core`; `''` puts the session at the top. No leading or trailing `/`. Case doesn't matter: `HQ/Core` and `hq/core` are shown as one folder, and renaming or removing it in SuperPuTTY takes both |
 | `name` | text | (required) | Session name, shown in the tree. Not empty, no `/`. Unique within its folder |
 | `protocol` | text | `SSH` | One of `SSH`, `Telnet`, `Rlogin`, `Raw`, `Serial`, `VNC`, `RDP`, `Mintty`, `Cygterm`, `WSL`, `WINCMD` (cmd), `PS` (PowerShell). Case doesn't matter; anything else is read as SSH |
 | `host` | text | `''` | Host name or address. Placeholders like `{site}` work |

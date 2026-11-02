@@ -93,20 +93,23 @@ namespace SuperPutty
         /// <summary>A database session to select once the table has been read again after adding or changing it</summary>
         string pendingSelectId;
 
-        /// <summary>The sessions under one root (Saved, Private or Database sessions), by folder path ("" at the top)</summary>
+        /// <summary>
+        /// The sessions under one root (Saved, Private or Database sessions), by folder path ("" at the top). Paths
+        /// are matched ignoring case, as the tree's nodes and FolderSettings are, so "test" and "Test" are one folder.
+        /// </summary>
         class FolderIndex
         {
             /// <summary>Every session, for whole-folder actions on database folders not opened yet</summary>
-            public readonly Dictionary<string, List<SessionData>> All = new Dictionary<string, List<SessionData>>();
+            public readonly Dictionary<string, List<SessionData>> All = new Dictionary<string, List<SessionData>>(StringComparer.OrdinalIgnoreCase);
 
             /// <summary>The sessions the search shows; folders are filled from it when opened</summary>
-            public readonly Dictionary<string, List<SessionData>> Shown = new Dictionary<string, List<SessionData>>();
+            public readonly Dictionary<string, List<SessionData>> Shown = new Dictionary<string, List<SessionData>>(StringComparer.OrdinalIgnoreCase);
 
             /// <summary>The subfolders of each folder that hold something the search shows</summary>
-            public readonly Dictionary<string, SortedSet<string>> Subfolders = new Dictionary<string, SortedSet<string>>();
+            public readonly Dictionary<string, SortedSet<string>> Subfolders = new Dictionary<string, SortedSet<string>>(StringComparer.OrdinalIgnoreCase);
 
             /// <summary>How many sessions the search shows in each folder and the folders below it ("" for the root)</summary>
-            public readonly Dictionary<string, int> Counts = new Dictionary<string, int>();
+            public readonly Dictionary<string, int> Counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>The index for each root; rebuilt from the session list when <see cref="indexDirty"/></summary>
@@ -2046,7 +2049,7 @@ namespace SuperPutty
                         string parent = SessionData.GetSessionParentId(child) ?? string.Empty;
                         SortedSet<string> subfolders;
                         if (!index.Subfolders.TryGetValue(parent, out subfolders))
-                            index.Subfolders[parent] = subfolders = new SortedSet<string>(StringComparer.Ordinal);
+                            index.Subfolders[parent] = subfolders = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
                         if (!subfolders.Add(SessionData.GetSessionNameFromId(child)))
                             break;
                         child = parent;
@@ -3579,7 +3582,7 @@ namespace SuperPutty
                 string path = DatabaseFolder(nodeFolder);
                 foreach (KeyValuePair<string, List<SessionData>> folder in this.IndexFor(RootKind.Database).All)
                 {
-                    if (path.Length == 0 || folder.Key == path || folder.Key.StartsWith(path + SessionIdDelim, StringComparison.Ordinal))
+                    if (path.Length == 0 || string.Equals(folder.Key, path, StringComparison.OrdinalIgnoreCase) || folder.Key.StartsWith(path + SessionIdDelim, StringComparison.OrdinalIgnoreCase))
                         sessions.AddRange(folder.Value);
                 }
                 return;

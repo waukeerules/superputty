@@ -1205,8 +1205,11 @@ namespace SuperPutty.Data
             });
         }
 
-        /// <summary>The SQL condition for a folder and everything under it</summary>
-        private const string InFolder = "(folder = @from OR left(folder, length(@from) + 1) = @from || '/')";
+        /// <summary>
+        /// The SQL condition for a folder and everything under it, ignoring case: the Sessions tree shows "test" and
+        /// "Test" as one folder, so renaming or removing it takes both
+        /// </summary>
+        private const string InFolder = "(lower(folder) = lower(@from) OR lower(left(folder, length(@from) + 1)) = lower(@from) || '/')";
 
         /// <summary>Rename a folder: every session in it, and in folders under it, moves to the new path</summary>
         /// <param name="c">The connection</param>
