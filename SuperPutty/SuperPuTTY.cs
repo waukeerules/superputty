@@ -409,6 +409,30 @@ namespace SuperPutty
         }
 
         /// <summary>
+        /// The sessions file for File → Edit sessions externally: Sessions.xml, or PrivateSessions.xml when
+        /// Sessions.xml is turned off in Options. A fresh install has neither yet, so the file is written first
+        /// (with the sessions there are, perhaps none), and the editor has something to open.
+        /// </summary>
+        /// <returns>The full path of the file, which exists</returns>
+        public static string SessionsFileToEdit()
+        {
+            string fileName = Settings.UseSessionsXml ? SessionsFileName : PrivateSessionsFileName;
+            if (!File.Exists(fileName))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(fileName));
+                if (Settings.UseSessionsXml)
+                {
+                    SaveSessions();
+                }
+                else
+                {
+                    SessionData.SaveSessionsToFile(GetAllSessions().Where(s => s.IsPrivate && !s.IsDatabase).ToList(), fileName);
+                }
+            }
+            return fileName;
+        }
+
+        /// <summary>
         /// Save the sessions: shared ones to Sessions.xml in the settings folder, private ones to the user's
         /// PrivateSessions.xml. The private file is written only once there is, or was, a private session.
         /// </summary>

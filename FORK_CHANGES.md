@@ -1990,6 +1990,23 @@ The first-run dialog (also Tools → Options → Paths) labelled the PuTTY and p
 
 **Test:** open Tools → Options → Paths (or start with no settings): the two labels are plain text and clicking them does nothing.
 
+## Fix: Edit sessions externally crashed on a fresh install
+
+**Symptom:** on a fresh install with no sessions yet, File → Edit sessions externally... showed an Application_ThreadException: "Win32Exception: The system cannot find the file specified".
+
+**Cause:** the menu item passed `<SettingsFolder>\Sessions.xml` straight to `Process.Start`, and that file is only written once a session is saved. It also always opened Sessions.xml, even with Options → Use Sessions.xml turned off.
+
+**Fix:** `SuperPuTTY.SessionsFileToEdit` returns Sessions.xml, or PrivateSessions.xml when Sessions.xml is turned off, writing it first (with the sessions there are, perhaps none) if it doesn't exist. Sessions.xml is written through `SaveSessions`, so the file watcher doesn't take it for an outside change. If no program is set to open .xml files, Notepad opens it.
+
+| File | Change |
+|---|---|
+| `SuperPuTTY.cs` | `SessionsFileToEdit` |
+| `frmSuperPutty.cs` | `editSessionsInNotepadToolStripMenuItem_Click` uses it, with a Notepad fallback and a message if the file can't be written |
+
+**Checked:** a test program pointed the settings folder at a new, missing folder and called `SessionsFileToEdit`: the folder and an empty, valid Sessions.xml were created.
+
+**Not checked:** the menu item in the running app on a fresh install; the PrivateSessions.xml path.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

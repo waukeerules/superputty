@@ -741,9 +741,35 @@ namespace SuperPutty
             }
         }
 
+        /// <summary>
+        /// File → Edit sessions externally: open the sessions file in the program Windows uses for .xml files, or in
+        /// Notepad when there's none. The file is created first if it doesn't exist yet, as on a fresh install.
+        /// </summary>
+        /// <param name="sender">The menu item</param>
+        /// <param name="e">Not used</param>
         private void editSessionsInNotepadToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Process.Start(Path.Combine(SuperPuTTY.Settings.SettingsFolder, "Sessions.xml"));
+            string fileName;
+            try
+            {
+                fileName = SuperPuTTY.SessionsFileToEdit();
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                Log.Error("Could not create the sessions file", ex);
+                Messenger.MessageBox("Could not create the sessions file: " + ex.Message, "Edit sessions externally",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            try
+            {
+                Process.Start(fileName);
+            }
+            catch (Win32Exception)
+            {
+                // no program is set to open .xml files
+                Process.Start("notepad.exe", "\"" + fileName + "\"");
+            }
         }
 
         private void reloadSessionsToolStripMenuItem_Click(object sender, EventArgs e)
