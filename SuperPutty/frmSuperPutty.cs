@@ -2394,6 +2394,13 @@ namespace SuperPutty
                     // replaced, and progress and Stop show in the status bar
                     string script = SessionVariables.Substitute(e.Script, SessionVariables.Load());
                     List<ctlPuttyPanel> targets = this.GetSelectedPuttyPanels();
+                    // {prompt:Name} and {secret:Name} are asked for once, as for a button; cancelling runs nothing
+                    if (targets.Count > 0)
+                    {
+                        script = SnippetPrompts.Resolve(script, this, "Script Editor");
+                        if (script == null)
+                            return;
+                    }
                     foreach (ctlPuttyPanel panel in targets)
                     {
                         panel.RunScript(script, name: "Script Editor");

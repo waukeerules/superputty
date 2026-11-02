@@ -1817,6 +1817,40 @@ Found while comparing SPSL with another tabbed PuTTY tool's script keys (Ctrl+A-
 
 **Not checked:** RDP tabs, and a real device. Ctrl+] at a Telnet device only matters to Telnet clients that treat it as their escape; plink and PuTTY pass it on.
 
+## SPSL reference, check and hints brought up to date
+
+The Commands list (Script Editor and Edit Button) now covers everything SPSL can do (`Scripting/SpslReference.cs`):
+- **SENDKEY:** modifiers in any combination, single characters, repeats and the control characters.
+- **Keys for SENDKEY** (new entry): every key name with its aliases (built from SENDKEY's own table, so it can't drift), modifiers, control characters, repeats, the brace keys `{^}` `{%}` `{+}` `{{}` `{}}`, and the keys with no characters.
+- **WAITFOR:** matched exactly, including case, anywhere in a line. It starts from the cursor's line, or from the start of the session for a session's own script. It works in PuTTY tabs and the built-in terminal; it used to say PuTTY only.
+- **SLEEP, PROMPT, OPENSESSION:** Stop ends a SLEEP at once; PROMPT's Cancel types an empty line; OPENSESSION's new tab doesn't get the rest of the script.
+- **{prompt:Name}** (new entry): `{prompt:Name=default}` and `{secret:Name}`, asked once before the script starts.
+- **How scripts run** (new entry): one command per line, in any case, indented or not; where scripts run from and into; why they stop; what Check script finds.
+- **{placeholders}:** they're replaced in button bar scripts and the Script Editor; a session's own script file is typed as it is.
+
+Also:
+- **The Script Editor asks for `{prompt:...}` and `{secret:...}`** before running an SPSL script, as a button does (`frmSuperPutty.Editor_ScriptReady`); Cancel runs nothing. Before, they were typed literally.
+- **Check script** (`Scripting/SpslChecker.cs`):
+  - accepts any character a key types (`]`, `?`) and characters in braces (`{] 2}`);
+  - reports a modifier with no key (`SENDKEY ^`) and a bare brace (pointing to `{{}`);
+  - reports a character no key on the keyboard types;
+  - points unknown key names to "Keys for SENDKEY".
+- **Edit Button's hint** under the script fits its two lines again (its end was cut off) and points to the reference.
+
+| File | Change |
+|---|---|
+| `Scripting/SpslReference.cs` | The entries; `CanTypeKey`; the key list |
+| `Scripting/SendKeyCommand.cs` | `SendKeyCodes`, for the key list |
+| `Scripting/SpslChecker.cs` | The SENDKEY checks |
+| `Gui/dlgEditCommandButton.cs` | The shorter hint |
+| `frmSuperPutty.cs` | `{prompt:...}` in Script Editor scripts |
+
+**Checked:**
+- The Edit Button dialog on the dark theme: the new entries are listed, and the hint fits.
+- Check script on `^`, `{`, `ENTRR` (errors) and `^]`, `{] 2}`, `^%DEL`, `{TAB 3}`, `{prompt:...}` (no problems). The checker and SENDKEY's parser agree on the brace keys, symbols, Alt and repeats.
+
+**Not checked:** the light theme, and the Script Editor's prompt box (the code path is a button's).
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

@@ -128,18 +128,27 @@ namespace SuperPuTTY.Scripting
         private static string CheckKey(string args)
         {
             string key = args.TrimStart('^', '%', '+');
-            if (args.Length == 0 || (key.Length == 0 && args.Length > 1))
+            if (args.Length == 0)
                 return "SENDKEY needs a key, e.g. SENDKEY ENTER or SENDKEY ^C";
-            if (key.Length <= 1)
+            // a brace in braces, as in SendKeys, presses the brace key
+            if (key == "{{}" || key == "{}}")
                 return null;
+            if (key == "{" || key == "}")
+                return "SENDKEY " + args + ": braces are SENDKEY's own syntax; to press one, write {{} or {}}";
             Match braced = BracedKey.Match(key);
             string name = braced.Success ? braced.Groups["name"].Value : key;
-            if (!braced.Success && key.StartsWith("{"))
+            if (!braced.Success && key.Length > 1 && key.StartsWith("{"))
                 return "SENDKEY " + args + ": a key in braces is written {NAME} or {NAME count}, e.g. {TAB 3}";
+            if (name.Length == 0)
+                return "SENDKEY " + args + ": ^, % and + are Ctrl, Alt and Shift, so a key must follow; to type the "
+                    + "character itself, use SENDCHAR " + args;
+            if (name.Length == 1)
+                return SpslReference.CanTypeKey(name[0]) ? null
+                    : "SENDKEY " + args + ": no key on this keyboard types \"" + name + "\"; use SENDCHAR to type it.";
             if (SpslReference.IsKeyName(name))
                 return null;
             return "SENDKEY presses one key; \"" + name + "\" isn't a key name. Use ENTER, TAB, ESC, UP, DOWN, F1-F16 and "
-                + "so on, or a single character. To type text, use SENDCHAR or SENDLINE.";
+                + "so on (see \"Keys for SENDKEY\"), or a single character. To type text, use SENDCHAR or SENDLINE.";
         }
 
         /// <summary>The command closest to a misspelt one, if it's close enough to suggest</summary>

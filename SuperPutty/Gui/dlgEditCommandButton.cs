@@ -16,7 +16,7 @@ namespace SuperPutty.Gui
     public partial class dlgEditCommandButton : Form
     {
         /// <summary>Help shown under the text box for SPSL scripts</summary>
-        private const string SpslHelpText = "SENDLINE text · SENDKEY ENTER · SLEEP ms · WAITFOR text (30 s, or /t:10 text) · # comment.";
+        private const string SpslHelpText = "SENDLINE text · SENDKEY ^C · WAITFOR /t:10 text · SLEEP ms · # comment.";
 
         /// <summary>Preset circle colors offered in the Icon list, as name and HTML color</summary>
         private static readonly string[][] PresetColors =
@@ -90,8 +90,11 @@ namespace SuperPutty.Gui
             this.labelText.Text = isScript ? "&Script:" : "&Send:";
             // scripts get the same commands, saved scripts and check as the Script Editor, beside the script box
             this.ShowScriptHelp(isScript);
-            this.labelHelp.Text = (isScript ? SpslHelpText : SendStringParser.HelpText) + "  {key} placeholders are replaced too."
-                + "  {prompt:Name} asks for a value when clicked ({prompt:Name=default}; {secret:Name} masked).";
+            // the label has room for two lines: a script's full reference is in the Commands list beside it
+            this.labelHelp.Text = isScript
+                ? SpslHelpText + "  {key} and {prompt:Name} are filled in first. All commands and keys: on the right."
+                : SendStringParser.HelpText + "  {key} placeholders are replaced too."
+                    + "  {prompt:Name} asks for a value when clicked ({prompt:Name=default}; {secret:Name} masked).";
         }
 
         /// <summary>
