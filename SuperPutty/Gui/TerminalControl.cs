@@ -165,7 +165,7 @@ namespace SuperPutty.Gui
                 return false;
             if (!IsLocalShell(session.Proto) && JumpHosts.PlinkPath() == null)
             {
-                Log.Warn("The built-in terminal needs plink.exe beside PuTTY; using PuTTY for " + session.SessionId);
+                Log.Warn("The built-in terminal needs plink.exe or klink.exe (Options > Paths, or beside PuTTY); using PuTTY for " + session.SessionId);
                 return false;
             }
             if (OutputHighlighting.RuntimeVersion() == null)
@@ -708,7 +708,7 @@ namespace SuperPutty.Gui
             string plink = JumpHosts.PlinkPath();
             if (plink == null)
             {
-                this.Notice("plink.exe wasn't found beside PuTTY (Tools > Options > Paths). Press Enter to try again.", true);
+                this.Notice("Neither plink.exe nor klink.exe was found: choose one in Tools > Options > Paths, or put it beside PuTTY. Press Enter to try again.", true);
                 this.SetDisconnected();
                 return;
             }

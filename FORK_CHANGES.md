@@ -1101,10 +1101,10 @@ Sessions can now cross between Saved or Private sessions and Database sessions, 
 
 A session can connect through a bastion without its own PuTTY profile: Edit Session → **Jump host** (between Extra arguments and SPSL script), or a folder's **Folder settings... → Jump host** for every session below it (`Utils/JumpHosts.cs`).
 - **What to enter:** a saved session's path, e.g. `Bastions/bastion1` (Saved, Private or Database), whose host, port, username and PuTTY profile are used, with its own folder defaults and placeholders resolved; or `user@host:port` (`host` alone means port 22 and PuTTY's own user). Placeholders such as `{user}@jump.example.net` work.
-- **How:** PuTTY's command line has no jump-host option, so SSH, Telnet, Rlogin and Raw sessions get `-proxycmd` running **plink.exe** (beside the PuTTY set in Options) as `plink -batch -ssh -P <port> [-load <profile>] [-l <user>] <bastion> -nc %host:%port`; PuTTY fills in `%host:%port`. Other protocols ignore it.
+- **How:** PuTTY's command line has no jump-host option, so SSH, Telnet, Rlogin and Raw sessions get `-proxycmd` running **plink.exe** (the one chosen in Options > Paths, else plink.exe or KiTTY's klink.exe beside PuTTY) as `plink -batch -ssh -P <port> [-load <profile>] [-l <user>] <bastion> -nc %host:%port`; PuTTY fills in `%host:%port`. Other protocols ignore it.
 - **The bastion must accept a key:** plink runs as a hidden proxy with `-batch`, so it can't ask for a password. Use Pageant, or a key set in the bastion session's PuTTY profile. A bastion that needs a password needs a PuTTY profile with PuTTY's own SSH proxy settings instead.
 - **Quoting:** PuTTY reads backslashes in a proxy command as escapes, so they're doubled, and the whole command is one argument with its quotes escaped. plink's path (`C:\Program Files\...`) and profile names with spaces come through intact.
-- **When it can't be used,** the session connects directly, and the status bar and log say why: the jump host names no session and isn't `user@host:port`, plink.exe isn't beside PuTTY, or it names the session itself. Chains (a bastion with its own jump host) aren't followed.
+- **When it can't be used,** the session connects directly, and the status bar and log say why: the jump host names no session and isn't `user@host:port`, no plink.exe or klink.exe was found, or it names the session itself. Chains (a bastion with its own jump host) aren't followed.
 - **Stored:** a `JumpHost` attribute in Sessions.xml (only when set); `jump_host` columns on the database's sessions and folders tables (lockable with `locked_fields`; a table not yet upgraded is still written, without it); a `Jump host` CSV column; and a field in Edit sessions....
 - **Edit Session** shows a folder's jump host as the empty box's hint, e.g. "Bastions/bastion1 (from DC)".
 - **Database writes:** the optional session columns (`color`, `jump_host`) are now one list (`DatabaseSessions.OptionalWriteColumns`), written only when the table has them, and remembered in the cache.
@@ -1413,7 +1413,7 @@ Manual tests:
 
 Phase 2 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:** Tools → Options → Terminal → **Use the built-in terminal for SSH, Telnet, Rlogin, Raw and Serial sessions**. Tabs opened after that show a terminal drawn by SuperPuTTY instead of a PuTTY window, coloured live by the same rules as Highlighted Output (up interfaces green, down ones red, and so on).
 
-- **The connection is still PuTTY's.** plink.exe, beside PuTTY, connects with the session's PuTTY profile (`-load`), keys and Pageant, jump host (`-proxycmd`), default parameters and extra arguments: the same arguments PuTTY gets (`PuttyStartInfo.PlinkCommandLine`). It runs in a Windows pseudo console (ConPTY), so password, passphrase and host-key prompts appear in the terminal and are answered there, and the window size reaches the server. Without plink.exe or the WebView2 runtime the session opens in PuTTY as before.
+- **The connection is still PuTTY's.** plink.exe (or KiTTY's klink.exe; chosen in Options > Paths, or beside PuTTY) connects with the session's PuTTY profile (`-load`), keys and Pageant, jump host (`-proxycmd`), default parameters and extra arguments: the same arguments PuTTY gets (`PuttyStartInfo.PlinkCommandLine`). It runs in a Windows pseudo console (ConPTY), so password, passphrase and host-key prompts appear in the terminal and are answered there, and the window size reaches the server. Without plink.exe or the WebView2 runtime the session opens in PuTTY as before.
 - **It feels like PuTTY:** the PuTTY theme (grey on black, green cursor, PuTTY's colours) by default; the cursor's shape and blinking come from the PuTTY profile (it only blinks while the tab has the keyboard); selecting copies (**Copy on Select** in the menu turns that off); **Shift+Insert** and middle-click paste; Ctrl+Insert copies. Ctrl+C, Ctrl+V and the like go to the device as usual.
 - **Matches of the selection are marked**, as in Notepad++: select `Gi0/1` or `unassigned` and every other place it appears gets a background (case-insensitive, whole words when a whole word is selected, one-line selections of 2 to 200 characters). **Mark Matches of Selection** in the menu turns it off. Both options apply to every terminal tab and are remembered. (The Highlighted Output panel does this already: it's Monaco's own selection highlight.)
 - **Colours that disappeared after a selection** (fixed after the first test): xterm.js 6.0.0 keeps decorations in a list sorted by their marker's line, and disposing a marker sets its line to -1 before its decorations are removed, so they aren't found, stay in the list under the wrong line, and lookups for other lines fail. The selection and find marks disposed markers that way. Every mark now disposes its decoration first. The selected text itself isn't marked (the mark hid the selection), and find's current match gets a brighter mark.
@@ -1750,6 +1750,25 @@ The box `PWDPROMPT` asks for a password with was always light, and `PROMPT` used
 **Checked:** both prompts opened on their own on the dark theme: dark background, buttons and box, the password masked and PROMPT's text shown.
 **Not checked:** the light theme (no theme is applied there, as before), and running PROMPT from a script.
 **Cancel on `PWDPROMPT` stops the script.** It used to type the word "Cancelled" and press Enter, so a device took it as the password. The prompt now throws `OperationCanceledException`, which `ctlPuttyPanel.RunScriptLines` reports in the status bar ("Script ... stopped at line 3: you cancelled the password prompt") and logs as information, not an error; nothing more is typed. The SPSL reference says so. Checked by running the command with its box answered automatically: Cancel stopped it with that message, OK gave the typed text.
+
+## plink or KiTTY's klink, and choosing it in Options
+
+The built-in terminal and jump hosts run plink, which they only looked for as plink.exe beside the PuTTY set in Options. With KiTTY there is no plink.exe; KiTTY ships klink.exe, its plink.
+
+- **klink works the same way.** It takes the options SuperPuTTY passes (`-no-antispoof`, `-ssh`, `-P`, `-load`, `-l`, `-batch`, `-proxycmd`, `-nc`) and reads KiTTY's saved sessions, in the registry or, for a portable KiTTY (`savemode=dir` in kitty.ini), the `Sessions` folder beside it. `-load` with such a profile connected to the profile's host.
+- **Found on its own.** `JumpHosts.PlinkPath` looks beside PuTTY for klink.exe first when PuTTY is KiTTY (`SuperPuTTY.IsKiTTY`), plink.exe first otherwise.
+- **Or chosen.** Tools > Options > Paths has a **plink / klink** row under PuTTY (setting `PlinkExe`, empty by default). When it's set and the file exists it's used; when it's missing the log says so and the search beside PuTTY is used. Saving Options with a path that doesn't exist shows an error. Browse starts in PuTTY's folder. The dialog is one row taller for it.
+- The "not found" messages in the terminal tab, status bar and log now name klink and the Options row.
+
+| File | Change |
+|---|---|
+| `Utils/JumpHosts.cs` | `PlinkPath`: the chosen path, then klink or plink beside PuTTY |
+| `Gui/TerminalControl.cs` | Messages |
+| `dlgFindPutty.cs` / `.Designer.cs` | The row (label, box with a hint, Browse), its load and save; rows below moved down |
+| `Properties/Settings.*`, `App.config` | `PlinkExe` |
+
+**Checked:** built; the Paths page drawn on the dark theme with the new row and hint; `PlinkPath` with KiTTY and with PuTTY, each with nothing chosen (klink beside KiTTY, plink beside PuTTY), a chosen klink (used), and a chosen path that doesn't exist (back to the one beside PuTTY). klink run by hand with SuperPuTTY's command line and a portable KiTTY profile.
+**Not checked:** a whole session in the built-in terminal through klink against a real device, a jump host through klink, the light theme, and saving the Options dialog.
 
 ## Open questions
 

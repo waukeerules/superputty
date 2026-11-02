@@ -69,6 +69,8 @@ namespace SuperPutty
             textBoxVNCLocation.Text = getPathExe(@"\TightVNC\tvnviewer.exe", SuperPuTTY.Settings.VNCExe, firstExecution);
             textBoxRDPLocation.Text = getPathExe(Environment.ExpandEnvironmentVariables("%systemroot%\\system32\\mstsc.exe"), SuperPuTTY.Settings.RDPExe, firstExecution);
             textBoxXorgLocation.Text = getPathExe(@"\VcXsrv\vcxsrv.exe", SuperPuTTY.Settings.XorgExe, firstExecution);
+            textBoxPlinkLocation.Text = SuperPuTTY.Settings.PlinkExe;
+            HintText.Set(textBoxPlinkLocation, "empty: plink.exe or klink.exe beside PuTTY");
 
             // check for location of putty/pscp
             if (!String.IsNullOrEmpty(puttyExe) && File.Exists(puttyExe))
@@ -377,6 +379,15 @@ namespace SuperPutty
             if (String.IsNullOrEmpty(textBoxPscpLocation.Text) || File.Exists(textBoxPscpLocation.Text))
             {
                 SuperPuTTY.Settings.PscpExe = textBoxPscpLocation.Text;
+            }
+
+            if (String.IsNullOrEmpty(textBoxPlinkLocation.Text) || File.Exists(textBoxPlinkLocation.Text))
+            {
+                SuperPuTTY.Settings.PlinkExe = textBoxPlinkLocation.Text;
+            }
+            else
+            {
+                errors.Add("plink / klink: " + textBoxPlinkLocation.Text + " doesn't exist");
             }
 
             if (String.IsNullOrEmpty(textBoxVNCLocation.Text) || File.Exists(textBoxVNCLocation.Text))
@@ -747,6 +758,19 @@ namespace SuperPutty
         private void buttonBrowsePscp_Click(object sender, EventArgs e)
         {
             dialogBrowseExe("PScp|pscp.exe;kscp.exe", "pscp.exe", textBoxPscpLocation);
+        }
+
+        /// <summary>Choose the plink.exe (or KiTTY's klink.exe) that the built-in terminal and jump hosts run</summary>
+        /// <param name="sender">The Browse button</param>
+        /// <param name="e">Unused</param>
+        private void buttonBrowsePlink_Click(object sender, EventArgs e)
+        {
+            // with nothing chosen yet, start where PuTTY is, as plink usually comes with it
+            if (!File.Exists(textBoxPlinkLocation.Text) && File.Exists(textBoxPuttyLocation.Text))
+            {
+                openFileDialog1.InitialDirectory = Path.GetDirectoryName(textBoxPuttyLocation.Text);
+            }
+            dialogBrowseExe("plink / klink|plink*.exe;klink*.exe", SuperPuTTY.IsKiTTY ? "klink.exe" : "plink.exe", textBoxPlinkLocation);
         }
 
         private void btnBrowseMintty_Click(object sender, EventArgs e)

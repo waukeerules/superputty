@@ -33,6 +33,9 @@
             this.buttonOk = new System.Windows.Forms.Button();
             this.buttonBrowsePutty = new System.Windows.Forms.Button();
             this.buttonBrowsePscp = new System.Windows.Forms.Button();
+            this.buttonBrowsePlink = new System.Windows.Forms.Button();
+            this.textBoxPlinkLocation = new System.Windows.Forms.TextBox();
+            this.labelPlink = new System.Windows.Forms.Label();
             this.textBoxPuttyLocation = new System.Windows.Forms.TextBox();
             this.textBoxPscpLocation = new System.Windows.Forms.TextBox();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
@@ -262,7 +265,7 @@
             // buttonBrowsePscp
             // 
             this.buttonBrowsePscp.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonBrowsePscp.Location = new System.Drawing.Point(669, 169);
+            this.buttonBrowsePscp.Location = new System.Drawing.Point(669, 203);
             this.buttonBrowsePscp.Margin = new System.Windows.Forms.Padding(4);
             this.buttonBrowsePscp.Name = "buttonBrowsePscp";
             this.buttonBrowsePscp.Size = new System.Drawing.Size(94, 29);
@@ -281,11 +284,33 @@
             this.textBoxPuttyLocation.Size = new System.Drawing.Size(445, 27);
             this.textBoxPuttyLocation.TabIndex = 0;
             // 
+            // buttonBrowsePlink
+            // 
+            this.buttonBrowsePlink.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.buttonBrowsePlink.Location = new System.Drawing.Point(669, 169);
+            this.buttonBrowsePlink.Margin = new System.Windows.Forms.Padding(4);
+            this.buttonBrowsePlink.Name = "buttonBrowsePlink";
+            this.buttonBrowsePlink.Size = new System.Drawing.Size(94, 29);
+            this.buttonBrowsePlink.TabIndex = 1;
+            this.buttonBrowsePlink.Text = "Browse...";
+            this.buttonBrowsePlink.UseVisualStyleBackColor = true;
+            this.buttonBrowsePlink.Click += new System.EventHandler(this.buttonBrowsePlink_Click);
+            // 
+            // textBoxPlinkLocation
+            // 
+            this.textBoxPlinkLocation.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.textBoxPlinkLocation.Location = new System.Drawing.Point(215, 169);
+            this.textBoxPlinkLocation.Margin = new System.Windows.Forms.Padding(4);
+            this.textBoxPlinkLocation.Name = "textBoxPlinkLocation";
+            this.textBoxPlinkLocation.Size = new System.Drawing.Size(445, 27);
+            this.textBoxPlinkLocation.TabIndex = 1;
+            // 
             // textBoxPscpLocation
             // 
             this.textBoxPscpLocation.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxPscpLocation.Location = new System.Drawing.Point(215, 169);
+            this.textBoxPscpLocation.Location = new System.Drawing.Point(215, 203);
             this.textBoxPscpLocation.Margin = new System.Windows.Forms.Padding(4);
             this.textBoxPscpLocation.Name = "textBoxPscpLocation";
             this.textBoxPscpLocation.Size = new System.Drawing.Size(445, 27);
@@ -315,7 +340,7 @@
             // 
             this.textBoxSettingsFolder.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxSettingsFolder.Location = new System.Drawing.Point(215, 406);
+            this.textBoxSettingsFolder.Location = new System.Drawing.Point(215, 440);
             this.textBoxSettingsFolder.Margin = new System.Windows.Forms.Padding(4);
             this.textBoxSettingsFolder.Name = "textBoxSettingsFolder";
             this.textBoxSettingsFolder.Size = new System.Drawing.Size(445, 27);
@@ -324,7 +349,7 @@
             // buttonBrowseLayoutsFolder
             // 
             this.buttonBrowseLayoutsFolder.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonBrowseLayoutsFolder.Location = new System.Drawing.Point(668, 404);
+            this.buttonBrowseLayoutsFolder.Location = new System.Drawing.Point(668, 438);
             this.buttonBrowseLayoutsFolder.Margin = new System.Windows.Forms.Padding(4);
             this.buttonBrowseLayoutsFolder.Name = "buttonBrowseLayoutsFolder";
             this.buttonBrowseLayoutsFolder.Size = new System.Drawing.Size(94, 29);
@@ -339,7 +364,7 @@
             | System.Windows.Forms.AnchorStyles.Right)));
             this.comboBoxLayouts.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBoxLayouts.FormattingEnabled = true;
-            this.comboBoxLayouts.Location = new System.Drawing.Point(215, 438);
+            this.comboBoxLayouts.Location = new System.Drawing.Point(215, 472);
             this.comboBoxLayouts.Margin = new System.Windows.Forms.Padding(4);
             this.comboBoxLayouts.Name = "comboBoxLayouts";
             this.comboBoxLayouts.Size = new System.Drawing.Size(445, 28);
@@ -444,7 +469,7 @@
             // 
             this.textBoxMinttyLocation.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxMinttyLocation.Location = new System.Drawing.Point(215, 202);
+            this.textBoxMinttyLocation.Location = new System.Drawing.Point(215, 236);
             this.textBoxMinttyLocation.Margin = new System.Windows.Forms.Padding(4);
             this.textBoxMinttyLocation.Name = "textBoxMinttyLocation";
             this.textBoxMinttyLocation.Size = new System.Drawing.Size(445, 27);
@@ -453,7 +478,7 @@
             // btnBrowseMintty
             // 
             this.btnBrowseMintty.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnBrowseMintty.Location = new System.Drawing.Point(669, 202);
+            this.btnBrowseMintty.Location = new System.Drawing.Point(669, 236);
             this.btnBrowseMintty.Margin = new System.Windows.Forms.Padding(4);
             this.btnBrowseMintty.Name = "btnBrowseMintty";
             this.btnBrowseMintty.Size = new System.Drawing.Size(94, 29);
@@ -737,7 +762,7 @@
             // 
             this.label4.AutoSize = true;
             this.label4.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label4.Location = new System.Drawing.Point(95, 306);
+            this.label4.Location = new System.Drawing.Point(95, 340);
             this.label4.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(103, 20);
@@ -749,7 +774,7 @@
             // 
             this.label7.AutoSize = true;
             this.label7.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label7.Location = new System.Drawing.Point(0, 70);
+            this.label7.Location = new System.Drawing.Point(0, 104);
             this.label7.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label7.Name = "label7";
             this.label7.Size = new System.Drawing.Size(77, 20);
@@ -761,7 +786,7 @@
             // 
             this.label3.AutoSize = true;
             this.label3.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label3.Location = new System.Drawing.Point(22, 272);
+            this.label3.Location = new System.Drawing.Point(22, 306);
             this.label3.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(176, 20);
@@ -805,7 +830,7 @@
             this.tabControl.Margin = new System.Windows.Forms.Padding(4);
             this.tabControl.Name = "tabControl";
             this.tabControl.SelectedIndex = 0;
-            this.tabControl.Size = new System.Drawing.Size(780, 547);
+            this.tabControl.Size = new System.Drawing.Size(780, 581);
             this.tabControl.TabIndex = 38;
             // 
             // tabPageGeneral
@@ -824,6 +849,8 @@
             this.tabPageGeneral.Controls.Add(this.textBoxWinSCPLocation);
             this.tabPageGeneral.Controls.Add(this.buttonBrowsePutty);
             this.tabPageGeneral.Controls.Add(this.buttonBrowsePscp);
+            this.tabPageGeneral.Controls.Add(this.buttonBrowsePlink);
+            this.tabPageGeneral.Controls.Add(this.textBoxPlinkLocation);
             this.tabPageGeneral.Controls.Add(this.textBoxMinttyLocation);
             this.tabPageGeneral.Controls.Add(this.textBoxPuttyLocation);
             this.tabPageGeneral.Controls.Add(this.textBoxPscpLocation);
@@ -837,7 +864,7 @@
             this.tabPageGeneral.Margin = new System.Windows.Forms.Padding(4);
             this.tabPageGeneral.Name = "tabPageGeneral";
             this.tabPageGeneral.Padding = new System.Windows.Forms.Padding(4);
-            this.tabPageGeneral.Size = new System.Drawing.Size(772, 514);
+            this.tabPageGeneral.Size = new System.Drawing.Size(772, 548);
             this.tabPageGeneral.TabIndex = 0;
             this.tabPageGeneral.Text = "Paths";
             this.tabPageGeneral.UseVisualStyleBackColor = true;
@@ -845,7 +872,7 @@
             // btnBrowseXorg
             // 
             this.btnBrowseXorg.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnBrowseXorg.Location = new System.Drawing.Point(669, 337);
+            this.btnBrowseXorg.Location = new System.Drawing.Point(669, 371);
             this.btnBrowseXorg.Margin = new System.Windows.Forms.Padding(4);
             this.btnBrowseXorg.Name = "btnBrowseXorg";
             this.btnBrowseXorg.Size = new System.Drawing.Size(94, 29);
@@ -858,7 +885,7 @@
             // 
             this.textBoxXorgLocation.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxXorgLocation.Location = new System.Drawing.Point(215, 339);
+            this.textBoxXorgLocation.Location = new System.Drawing.Point(215, 373);
             this.textBoxXorgLocation.Margin = new System.Windows.Forms.Padding(4);
             this.textBoxXorgLocation.Name = "textBoxXorgLocation";
             this.textBoxXorgLocation.Size = new System.Drawing.Size(445, 27);
@@ -869,7 +896,7 @@
             // 
             this.textBoxPuttyDefaultParameters.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxPuttyDefaultParameters.Location = new System.Drawing.Point(215, 472);
+            this.textBoxPuttyDefaultParameters.Location = new System.Drawing.Point(215, 506);
             this.textBoxPuttyDefaultParameters.Margin = new System.Windows.Forms.Padding(4);
             this.textBoxPuttyDefaultParameters.Name = "textBoxPuttyDefaultParameters";
             this.textBoxPuttyDefaultParameters.Size = new System.Drawing.Size(445, 27);
@@ -878,7 +905,7 @@
             // buttonBrowseFilezilla
             // 
             this.buttonBrowseFilezilla.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonBrowseFilezilla.Location = new System.Drawing.Point(669, 270);
+            this.buttonBrowseFilezilla.Location = new System.Drawing.Point(669, 304);
             this.buttonBrowseFilezilla.Margin = new System.Windows.Forms.Padding(4);
             this.buttonBrowseFilezilla.Name = "buttonBrowseFilezilla";
             this.buttonBrowseFilezilla.Size = new System.Drawing.Size(94, 29);
@@ -891,7 +918,7 @@
             // 
             this.textBoxFilezillaLocation.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxFilezillaLocation.Location = new System.Drawing.Point(215, 270);
+            this.textBoxFilezillaLocation.Location = new System.Drawing.Point(215, 304);
             this.textBoxFilezillaLocation.Margin = new System.Windows.Forms.Padding(4);
             this.textBoxFilezillaLocation.Name = "textBoxFilezillaLocation";
             this.textBoxFilezillaLocation.Size = new System.Drawing.Size(445, 27);
@@ -901,7 +928,7 @@
             // btnBrowseVNC
             // 
             this.btnBrowseVNC.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnBrowseVNC.Location = new System.Drawing.Point(669, 304);
+            this.btnBrowseVNC.Location = new System.Drawing.Point(669, 338);
             this.btnBrowseVNC.Margin = new System.Windows.Forms.Padding(4);
             this.btnBrowseVNC.Name = "btnBrowseVNC";
             this.btnBrowseVNC.Size = new System.Drawing.Size(94, 29);
@@ -914,7 +941,7 @@
             // 
             this.textBoxVNCLocation.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxVNCLocation.Location = new System.Drawing.Point(215, 306);
+            this.textBoxVNCLocation.Location = new System.Drawing.Point(215, 340);
             this.textBoxVNCLocation.Margin = new System.Windows.Forms.Padding(4);
             this.textBoxVNCLocation.Name = "textBoxVNCLocation";
             this.textBoxVNCLocation.Size = new System.Drawing.Size(445, 27);
@@ -924,7 +951,7 @@
             // btnBrowseRDP
             // 
             this.btnBrowseRDP.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnBrowseRDP.Location = new System.Drawing.Point(668, 369);
+            this.btnBrowseRDP.Location = new System.Drawing.Point(668, 403);
             this.btnBrowseRDP.Margin = new System.Windows.Forms.Padding(4);
             this.btnBrowseRDP.Name = "btnBrowseRDP";
             this.btnBrowseRDP.Size = new System.Drawing.Size(94, 29);
@@ -937,7 +964,7 @@
             // 
             this.textBoxRDPLocation.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxRDPLocation.Location = new System.Drawing.Point(215, 371);
+            this.textBoxRDPLocation.Location = new System.Drawing.Point(215, 405);
             this.textBoxRDPLocation.Margin = new System.Windows.Forms.Padding(4);
             this.textBoxRDPLocation.Name = "textBoxRDPLocation";
             this.textBoxRDPLocation.Size = new System.Drawing.Size(300, 27);
@@ -948,7 +975,7 @@
             //
             this.checkRdpEmbeddedClient.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.checkRdpEmbeddedClient.AutoSize = true;
-            this.checkRdpEmbeddedClient.Location = new System.Drawing.Point(523, 373);
+            this.checkRdpEmbeddedClient.Location = new System.Drawing.Point(523, 407);
             this.checkRdpEmbeddedClient.Margin = new System.Windows.Forms.Padding(4);
             this.checkRdpEmbeddedClient.Name = "checkRdpEmbeddedClient";
             this.checkRdpEmbeddedClient.Size = new System.Drawing.Size(129, 24);
@@ -960,7 +987,7 @@
             // buttonBrowseWinSCP
             // 
             this.buttonBrowseWinSCP.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonBrowseWinSCP.Location = new System.Drawing.Point(669, 236);
+            this.buttonBrowseWinSCP.Location = new System.Drawing.Point(669, 270);
             this.buttonBrowseWinSCP.Margin = new System.Windows.Forms.Padding(4);
             this.buttonBrowseWinSCP.Name = "buttonBrowseWinSCP";
             this.buttonBrowseWinSCP.Size = new System.Drawing.Size(94, 29);
@@ -973,7 +1000,7 @@
             // 
             this.textBoxWinSCPLocation.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxWinSCPLocation.Location = new System.Drawing.Point(215, 236);
+            this.textBoxWinSCPLocation.Location = new System.Drawing.Point(215, 270);
             this.textBoxWinSCPLocation.Margin = new System.Windows.Forms.Padding(4);
             this.textBoxWinSCPLocation.Name = "textBoxWinSCPLocation";
             this.textBoxWinSCPLocation.Size = new System.Drawing.Size(445, 27);
@@ -993,6 +1020,7 @@
             this.panel1.Controls.Add(this.linkMsys);
             this.panel1.Controls.Add(this.label2);
             this.panel1.Controls.Add(this.linkPscp);
+            this.panel1.Controls.Add(this.labelPlink);
             this.panel1.Controls.Add(this.puttyLink);
             this.panel1.Controls.Add(this.PuttyDefParamLbl);
             this.panel1.Controls.Add(this.labelRDP);
@@ -1001,13 +1029,13 @@
             this.panel1.Controls.Add(this.label3);
             this.panel1.Location = new System.Drawing.Point(9, 135);
             this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(199, 370);
+            this.panel1.Size = new System.Drawing.Size(199, 404);
             this.panel1.TabIndex = 51;
             // 
             // label23
             // 
             this.label23.AutoSize = true;
-            this.label23.Location = new System.Drawing.Point(28, 173);
+            this.label23.Location = new System.Drawing.Point(28, 207);
             this.label23.Name = "label23";
             this.label23.Size = new System.Drawing.Size(72, 20);
             this.label23.TabIndex = 69;
@@ -1016,7 +1044,7 @@
             // label22
             // 
             this.label22.AutoSize = true;
-            this.label22.Location = new System.Drawing.Point(34, 207);
+            this.label22.Location = new System.Drawing.Point(34, 241);
             this.label22.Name = "label22";
             this.label22.Size = new System.Drawing.Size(87, 20);
             this.label22.TabIndex = 68;
@@ -1025,7 +1053,7 @@
             // linkXorg
             // 
             this.linkXorg.AutoSize = true;
-            this.linkXorg.Location = new System.Drawing.Point(123, 206);
+            this.linkXorg.Location = new System.Drawing.Point(123, 240);
             this.linkXorg.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.linkXorg.Name = "linkXorg";
             this.linkXorg.Size = new System.Drawing.Size(74, 20);
@@ -1046,7 +1074,7 @@
             // linkTightVnc
             // 
             this.linkTightVnc.AutoSize = true;
-            this.linkTightVnc.Location = new System.Drawing.Point(100, 172);
+            this.linkTightVnc.Location = new System.Drawing.Point(100, 206);
             this.linkTightVnc.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.linkTightVnc.Name = "linkTightVnc";
             this.linkTightVnc.Size = new System.Drawing.Size(98, 20);
@@ -1058,7 +1086,7 @@
             // linkFilezilla
             // 
             this.linkFilezilla.AutoSize = true;
-            this.linkFilezilla.Location = new System.Drawing.Point(114, 138);
+            this.linkFilezilla.Location = new System.Drawing.Point(114, 172);
             this.linkFilezilla.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.linkFilezilla.Name = "linkFilezilla";
             this.linkFilezilla.Size = new System.Drawing.Size(83, 20);
@@ -1070,7 +1098,7 @@
             // linkWinScp
             // 
             this.linkWinScp.AutoSize = true;
-            this.linkWinScp.Location = new System.Drawing.Point(112, 104);
+            this.linkWinScp.Location = new System.Drawing.Point(112, 138);
             this.linkWinScp.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.linkWinScp.Name = "linkWinScp";
             this.linkWinScp.Size = new System.Drawing.Size(86, 20);
@@ -1082,7 +1110,7 @@
             // linkCygwin
             // 
             this.linkCygwin.AutoSize = true;
-            this.linkCygwin.Location = new System.Drawing.Point(72, 70);
+            this.linkCygwin.Location = new System.Drawing.Point(72, 104);
             this.linkCygwin.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.linkCygwin.Name = "linkCygwin";
             this.linkCygwin.Size = new System.Drawing.Size(57, 20);
@@ -1094,7 +1122,7 @@
             // linkMsys
             // 
             this.linkMsys.AutoSize = true;
-            this.linkMsys.Location = new System.Drawing.Point(144, 70);
+            this.linkMsys.Location = new System.Drawing.Point(144, 104);
             this.linkMsys.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.linkMsys.Name = "linkMsys";
             this.linkMsys.Size = new System.Drawing.Size(54, 20);
@@ -1107,7 +1135,7 @@
             // 
             this.label2.AutoSize = true;
             this.label2.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label2.Location = new System.Drawing.Point(126, 70);
+            this.label2.Location = new System.Drawing.Point(126, 104);
             this.label2.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(23, 20);
@@ -1117,7 +1145,7 @@
             // linkPscp
             // 
             this.linkPscp.AutoSize = true;
-            this.linkPscp.Location = new System.Drawing.Point(132, 38);
+            this.linkPscp.Location = new System.Drawing.Point(132, 72);
             this.linkPscp.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.linkPscp.Name = "linkPscp";
             this.linkPscp.Size = new System.Drawing.Size(66, 20);
@@ -1125,6 +1153,18 @@
             this.linkPscp.TabStop = true;
             this.linkPscp.Text = "pscp.exe";
             this.linkPscp.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.puttyLink_LinkClicked);
+            // 
+            // labelPlink
+            // 
+            this.labelPlink.AutoSize = true;
+            this.labelPlink.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.labelPlink.Location = new System.Drawing.Point(112, 38);
+            this.labelPlink.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.labelPlink.Name = "labelPlink";
+            this.labelPlink.Size = new System.Drawing.Size(92, 20);
+            this.labelPlink.TabIndex = 66;
+            this.labelPlink.Text = "plink / klink";
+            this.toolTip.SetToolTip(this.labelPlink, "plink.exe, or KiTTY's klink.exe, which the built-in terminal and jump hosts use. Empty: the one beside PuTTY");
             // 
             // puttyLink
             // 
@@ -1142,7 +1182,7 @@
             // 
             this.PuttyDefParamLbl.AutoSize = true;
             this.PuttyDefParamLbl.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.PuttyDefParamLbl.Location = new System.Drawing.Point(19, 340);
+            this.PuttyDefParamLbl.Location = new System.Drawing.Point(19, 374);
             this.PuttyDefParamLbl.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.PuttyDefParamLbl.Name = "PuttyDefParamLbl";
             this.PuttyDefParamLbl.Size = new System.Drawing.Size(179, 20);
@@ -1153,7 +1193,7 @@
             // 
             this.labelRDP.AutoSize = true;
             this.labelRDP.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.labelRDP.Location = new System.Drawing.Point(121, 240);
+            this.labelRDP.Location = new System.Drawing.Point(121, 274);
             this.labelRDP.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.labelRDP.Name = "labelRDP";
             this.labelRDP.Size = new System.Drawing.Size(77, 20);
@@ -1173,7 +1213,7 @@
             this.tabPageGUI.Margin = new System.Windows.Forms.Padding(4);
             this.tabPageGUI.Name = "tabPageGUI";
             this.tabPageGUI.Padding = new System.Windows.Forms.Padding(4);
-            this.tabPageGUI.Size = new System.Drawing.Size(772, 514);
+            this.tabPageGUI.Size = new System.Drawing.Size(772, 548);
             this.tabPageGUI.TabIndex = 1;
             this.tabPageGUI.Text = "GUI";
             this.tabPageGUI.UseVisualStyleBackColor = true;
@@ -1537,7 +1577,7 @@
             this.tabPageShortcuts.Location = new System.Drawing.Point(4, 29);
             this.tabPageShortcuts.Margin = new System.Windows.Forms.Padding(4);
             this.tabPageShortcuts.Name = "tabPageShortcuts";
-            this.tabPageShortcuts.Size = new System.Drawing.Size(772, 514);
+            this.tabPageShortcuts.Size = new System.Drawing.Size(772, 548);
             this.tabPageShortcuts.TabIndex = 3;
             this.tabPageShortcuts.Text = "Shortcuts";
             this.tabPageShortcuts.UseVisualStyleBackColor = true;
@@ -1562,7 +1602,7 @@
             this.dataGridViewShortcuts.Name = "dataGridViewShortcuts";
             this.dataGridViewShortcuts.ReadOnly = true;
             this.dataGridViewShortcuts.RowHeadersWidth = 51;
-            this.dataGridViewShortcuts.Size = new System.Drawing.Size(772, 514);
+            this.dataGridViewShortcuts.Size = new System.Drawing.Size(772, 548);
             this.dataGridViewShortcuts.TabIndex = 0;
             this.dataGridViewShortcuts.CellClick += new System.Windows.Forms.DataGridViewCellEventHandler(this.dataGridViewShortcuts_CellClick);
             // 
@@ -1638,7 +1678,7 @@
             this.tabPageAdvanced.Location = new System.Drawing.Point(4, 29);
             this.tabPageAdvanced.Margin = new System.Windows.Forms.Padding(4);
             this.tabPageAdvanced.Name = "tabPageAdvanced";
-            this.tabPageAdvanced.Size = new System.Drawing.Size(772, 514);
+            this.tabPageAdvanced.Size = new System.Drawing.Size(772, 548);
             this.tabPageAdvanced.TabIndex = 2;
             this.tabPageAdvanced.Text = "Advanced";
             this.tabPageAdvanced.UseVisualStyleBackColor = true;
@@ -1707,7 +1747,7 @@
             this.panelBottom.Controls.Add(this.buttonCancel);
             this.panelBottom.Controls.Add(this.buttonOk);
             this.panelBottom.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.panelBottom.Location = new System.Drawing.Point(6, 553);
+            this.panelBottom.Location = new System.Drawing.Point(6, 587);
             this.panelBottom.Margin = new System.Windows.Forms.Padding(4);
             this.panelBottom.Name = "panelBottom";
             this.panelBottom.Size = new System.Drawing.Size(780, 34);
@@ -1719,7 +1759,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(120F, 120F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
             this.CancelButton = this.buttonCancel;
-            this.ClientSize = new System.Drawing.Size(792, 593);
+            this.ClientSize = new System.Drawing.Size(792, 627);
             this.Controls.Add(this.tabControl);
             this.Controls.Add(this.panelBottom);
             this.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
@@ -1746,7 +1786,7 @@
             this.tabPageRdp.Margin = new System.Windows.Forms.Padding(4);
             this.tabPageRdp.Name = "tabPageRdp";
             this.tabPageRdp.Padding = new System.Windows.Forms.Padding(4);
-            this.tabPageRdp.Size = new System.Drawing.Size(772, 514);
+            this.tabPageRdp.Size = new System.Drawing.Size(772, 548);
             this.tabPageRdp.TabIndex = 4;
             this.tabPageRdp.Text = "RDP";
             this.tabPageRdp.UseVisualStyleBackColor = true;
@@ -2095,7 +2135,7 @@
             this.tabPageHighlighting.Margin = new System.Windows.Forms.Padding(4);
             this.tabPageHighlighting.Name = "tabPageHighlighting";
             this.tabPageHighlighting.Padding = new System.Windows.Forms.Padding(4);
-            this.tabPageHighlighting.Size = new System.Drawing.Size(772, 514);
+            this.tabPageHighlighting.Size = new System.Drawing.Size(772, 548);
             this.tabPageHighlighting.TabIndex = 5;
             this.tabPageHighlighting.Text = "Terminal";
             this.tabPageHighlighting.UseVisualStyleBackColor = true;
@@ -2368,6 +2408,9 @@
         private System.Windows.Forms.Button buttonOk;
         private System.Windows.Forms.Button buttonBrowsePutty;
         private System.Windows.Forms.Button buttonBrowsePscp;
+        private System.Windows.Forms.Button buttonBrowsePlink;
+        private System.Windows.Forms.TextBox textBoxPlinkLocation;
+        private System.Windows.Forms.Label labelPlink;
         private System.Windows.Forms.TextBox textBoxPuttyLocation;
         private System.Windows.Forms.TextBox textBoxPscpLocation;
         private System.Windows.Forms.OpenFileDialog openFileDialog1;

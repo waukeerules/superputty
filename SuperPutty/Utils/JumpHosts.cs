@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using log4net;
 using SuperPutty.Data;
@@ -86,17 +87,31 @@ namespace SuperPutty.Utils
             };
         }
 
-        /// <summary>plink.exe beside the PuTTY that's set in Options</summary>
-        /// <returns>Its path, or null if it isn't there</returns>
+        /// <summary>
+        /// The plink to run: the one chosen in Options (Paths, "plink / klink") if it exists, else plink.exe beside
+        /// the PuTTY that's set there, or KiTTY's klink.exe beside KiTTY. klink takes the same options and reads
+        /// KiTTY's saved sessions (in the registry, or the Sessions folder of a portable KiTTY), so with KiTTY it's
+        /// preferred; with PuTTY, plink is.
+        /// </summary>
+        /// <returns>Its path, or null if none is there</returns>
         public static string PlinkPath()
         {
             try
             {
+                string chosen = SuperPuTTY.Settings.PlinkExe;
+                if (!string.IsNullOrEmpty(chosen))
+                {
+                    chosen = Environment.ExpandEnvironmentVariables(chosen);
+                    if (File.Exists(chosen))
+                        return chosen;
+                    Log.WarnFormat("plink set in Options isn't there ({0}); looking beside PuTTY", chosen);
+                }
                 string putty = SuperPuTTY.Settings.PuttyExe;
                 if (string.IsNullOrEmpty(putty))
                     return null;
-                string plink = Path.Combine(Path.GetDirectoryName(Environment.ExpandEnvironmentVariables(putty)) ?? string.Empty, "plink.exe");
-                return File.Exists(plink) ? plink : null;
+                string folder = Path.GetDirectoryName(Environment.ExpandEnvironmentVariables(putty)) ?? string.Empty;
+                string[] names = SuperPuTTY.IsKiTTY ? new[] { "klink.exe", "plink.exe" } : new[] { "plink.exe", "klink.exe" };
+                return names.Select(name => Path.Combine(folder, name)).FirstOrDefault(File.Exists);
             }
             catch (ArgumentException)
             {
@@ -150,8 +165,8 @@ namespace SuperPutty.Utils
             string plink = PlinkPath();
             if (plink == null)
             {
-                Log.WarnFormat("No plink.exe beside PuTTY, so {0} can't use its jump host; connecting directly", session.SessionId);
-                SuperPuTTY.ReportStatus("plink.exe isn't beside PuTTY, so {0} connects directly, not through {1}", session.SessionName, session.JumpHost);
+                Log.WarnFormat("No plink.exe or klink.exe (Options, or beside PuTTY), so {0} can't use its jump host; connecting directly", session.SessionId);
+                SuperPuTTY.ReportStatus("plink.exe or klink.exe wasn't found (Options > Paths, or beside PuTTY), so {0} connects directly, not through {1}", session.SessionName, session.JumpHost);
                 return string.Empty;
             }
             return ProxyCommandArgs(target, plink) + " ";
