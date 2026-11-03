@@ -2059,6 +2059,28 @@ The first-run dialog (also Tools → Options → Paths) labelled the PuTTY and p
 
 **Not checked:** in the running app.
 
+## Fix: imported sessions lost a long name such as "sw1 - C9300 - 10.10.10.10"
+
+**Symptom:** importing a Sessions.xml whose session has `SessionId="test"` and `SessionName="test - model example - 10.10.10.10"` gave a session named just "test". Reported from SuperXTerminal, which shares Sessions.xml and copied this import.
+
+**Cause:** nothing splits names on dashes. `ImportSessions` built the new ID from the old **ID** ("Imported/test"), then set the name from the ID's last part, so the file's `SessionName` was thrown away. When a name matches its ID's last part, which is what SuperXPuTTY itself always writes, nobody noticed. Copy As, Copy to / Move to / dragging into another root (`Transfer`) and a Private session whose ID clashes with a shared one did the same.
+
+**Fix:** those places now build the new ID from the session's whole `SessionName` (`SessionData.NameForNewId`), keeping the ID's folders, and take the name back from it. On a clash it becomes "name-1". They still fall back to the ID's last part when there's no name, or the name has a `/`. The Sessions.xml format is unchanged.
+
+Already right: the tree, tab text and Edit Session's title show `SessionName`. Renaming in Edit Session sets `SessionId` to "<folder>/<name>" with the full name. CSV import keeps the name. CSV export still writes the ID's last part as the name, on purpose, so a re-import finds the same session.
+
+| File | Change |
+|---|---|
+| `Data/SessionData.cs` | `NameForNewId` |
+| `SuperPuTTY.cs` | `ImportSessions` and the Private-session ID clash in `LoadSessions` use it |
+| `SessionTreeview.cs` | Copy As and `Transfer` use it |
+
+**Checked against the compiled assembly:** the name is kept whole, the import ID is "Imported/test - model example - 10.10.10.10", folders in the ID are kept, and a `/` in the name or an empty name falls back to the ID's last part, dashes and all.
+
+**Test:** File → Import sessions from the sample above. The tree and the tab should show "test - model example - 10.10.10.10". Copy As on it should offer "test - model example - 10.10.10.10-1".
+
+**Not checked:** in the running app.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

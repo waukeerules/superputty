@@ -388,7 +388,7 @@ namespace SuperPutty
                     session.IsPrivate = true;
                     if (GetSessionById(session.SessionId) != null)
                     {
-                        string newId = MakeUniqueSessionId(session.SessionId);
+                        string newId = MakeUniqueSessionId(SessionData.CombineSessionIds(SessionData.GetSessionParentId(session.SessionId), SessionData.NameForNewId(session)));
                         Log.WarnFormat($"Private session {session.SessionId} has the same ID as a shared one; renamed to {newId}");
                         session.SessionId = newId;
                         session.SessionName = SessionData.GetSessionNameFromId(newId);
@@ -864,8 +864,10 @@ namespace SuperPutty
         {
             foreach (SessionData session in sessions)
             {
-                // pre-pend session id with the provided folder to put them
-                session.SessionId = MakeUniqueSessionId(SessionData.CombineSessionIds(folder, session.SessionId));
+                // pre-pend session id with the provided folder to put them; the ID ends in the file's SessionName, so a
+                // name like "sw1 - C9300 - 10.10.10.10" whose ID is "sw1" keeps the whole name
+                string name = SessionData.NameForNewId(session);
+                session.SessionId = MakeUniqueSessionId(SessionData.CombineSessionIds(folder, SessionData.CombineSessionIds(SessionData.GetSessionParentId(session.SessionId), name)));
                 session.SessionName = SessionData.GetSessionNameFromId(session.SessionId);
                 // with Saved sessions turned off they'd be lost; Private sessions keep them
                 session.IsPrivate = session.IsPrivate || !Settings.UseSessionsXml;

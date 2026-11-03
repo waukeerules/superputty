@@ -865,6 +865,20 @@ namespace SuperPutty.Data
             return parts.Length > 0 ? parts[parts.Length - 1] : sessionId;
         }
 
+        /// <summary>
+        /// The name to build a session's new ID from when it's imported, copied or moved: its own SessionName, whole
+        /// (e.g. "sw1 - C9300 - 10.10.10.10"), so a name that differs from its ID's last part isn't lost. Falls back to
+        /// the ID's last part when there's no name or the name has a '/', which would make it a folder.
+        /// </summary>
+        /// <param name="session">The session</param>
+        /// <param name="sessionId">The ID to fall back on, e.g. a database session's tree path; null for the session's own ID</param>
+        /// <returns>The name</returns>
+        public static string NameForNewId(SessionData session, string sessionId = null)
+        {
+            string name = session.SessionName;
+            return string.IsNullOrWhiteSpace(name) || name.Contains("/") ? GetSessionNameFromId(sessionId ?? session.SessionId) : name;
+        }
+
         /// <summary>Split the SessionID into its parent/child parts</summary>
         /// <param name="sessionId">The SessionID</param>
         /// <returns>A string array containing the individual path components</returns>

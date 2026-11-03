@@ -733,7 +733,7 @@ namespace SuperPutty
                     Log.DebugFormat("session null");
                     return;
                 }
-                session.SessionId = SuperPuTTY.MakeUniqueSessionId(session.SessionId);
+                session.SessionId = SuperPuTTY.MakeUniqueSessionId(SessionData.CombineSessionIds(SessionData.GetSessionParentId(session.SessionId), SessionData.NameForNewId(session)));
                 session.SessionName = SessionData.GetSessionNameFromId(session.SessionId);
                 nodeRef = isFolderNode ? treeView1.SelectedNode : treeView1.SelectedNode.Parent;
                 title = "Create new session based on " + session.OldName;
@@ -1698,7 +1698,7 @@ namespace SuperPutty
                 string relative = basePath.Length == 0 ? folder : folder.Length <= basePath.Length ? string.Empty : folder.Substring(basePath.Length + 1);
                 return SessionData.CombineSessionIds(NullIfEmpty(targetFolder), NullIfEmpty(relative)) ?? string.Empty;
             };
-            Func<SessionData, string> nameOf = s => SessionData.GetSessionNameFromId(fromDatabase ? DatabaseSessions.TreePath(s.SessionId) : s.SessionId);
+            Func<SessionData, string> nameOf = s => SessionData.NameForNewId(s, fromDatabase ? DatabaseSessions.TreePath(s.SessionId) : s.SessionId);
             Func<SessionData, string> targetId = s => kind == RootKind.Database
                 ? DatabaseSessions.MakeSessionId(newFolder(s), nameOf(s))
                 : SessionData.CombineSessionIds(NullIfEmpty(newFolder(s)), nameOf(s));
