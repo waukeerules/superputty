@@ -2081,6 +2081,23 @@ Already right: the tree, tab text and Edit Session's title show `SessionName`. R
 
 **Not checked:** in the running app.
 
+## Fix: the Send Commands history kept nothing when set to 0 days
+
+**Symptom:** with Options → GUI → Command bar's history days at 0, nothing sent from the Send Commands toolbar showed in its drop-down, even in the same session.
+
+**Cause:** each new entry triggers a purge of entries older than "now minus the days". With 0 days that cut-off is the moment just after the entry was stamped, so the entry was removed as soon as it was added. The purge also went forwards while removing, which skipped the entry after each one it removed.
+
+**Fix:** 0 days now keeps the history in memory until SuperXPuTTY closes, with no purge by age. It's neither loaded at start nor saved at close, whatever "Save history" says. The purge goes backwards. The days box's tooltip says what 0 does.
+
+| File | Change |
+|---|---|
+| `frmSuperPutty.cs` | `TsCommandHistory_ListChanged` skips the age purge at 0 days; loading and saving the history skip 0 days |
+| `dlgFindPutty.Designer.cs` | The days box's tooltip |
+
+**Test:** set the days to 0 and send two commands from the toolbar: both should be in its drop-down. Restart: the drop-down should be empty. Set the days back to 7 with Save history ticked: commands should survive a restart again.
+
+**Not checked:** in the running app.
+
 ## Open questions
 
 - **Naming.** "Environment Variables" could be confused with Windows environment variables, which SuperPuTTY already expands as `%VAR%`. "Session Variables" or "User Placeholders" might be clearer.

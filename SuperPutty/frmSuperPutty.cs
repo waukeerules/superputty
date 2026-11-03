@@ -204,8 +204,8 @@ namespace SuperPutty
             tsSendCommandCombo.ComboBox.ValueMember = "Command";            
             tsSendCommandCombo.ComboBox.DataSource = tsCommandHistory;
 
-            // load saved history
-            if(SuperPuTTY.Settings.PersistCommandBarHistory)
+            // load saved history; 0 days means this session's history only
+            if(SuperPuTTY.Settings.PersistCommandBarHistory && SuperPuTTY.Settings.SaveCommandHistoryDays > 0)
                 tsCommandHistory.DeserializeXML(SuperPuTTY.Settings.CommandBarHistory);
 
             tsSendCommandCombo.SelectedIndex = -1;
@@ -390,14 +390,16 @@ namespace SuperPutty
                     }                    
                 }
                 
-                for(int i = 0; i < tsCommandHistory.Count; i++)
+                // 0 days keeps the history until SuperPuTTY closes; purging by age then removed every entry as it was added.
+                // Backwards, so a removal doesn't skip the entry after it.
+                for(int i = tsCommandHistory.Count - 1; i >= 0 && SuperPuTTY.Settings.SaveCommandHistoryDays > 0; i--)
                 {
                     // purge old entries from history
                     if (tsCommandHistory[i].TimeStamp < daysAgo)
                     {
                         tsCommandHistory.RemoveAt(i);
                     }
-                }           
+                }
             }
         }       
 
@@ -462,7 +464,7 @@ namespace SuperPutty
                 SaveLayout(SuperPuTTY.AutoRestoreLayoutPath, "Saving auto-restore layout");
             }
 
-            if(SuperPuTTY.Settings.PersistCommandBarHistory)
+            if(SuperPuTTY.Settings.PersistCommandBarHistory && SuperPuTTY.Settings.SaveCommandHistoryDays > 0)
             {
                 SuperPuTTY.Settings.CommandBarHistory = tsCommandHistory.SerializeXML();
                 SuperPuTTY.Settings.Save();
