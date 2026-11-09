@@ -57,6 +57,21 @@ namespace SuperPutty
         private WindowActivator m_windowActivator = null;
         private SuperPutty.Data.ConnectionProtocol proto;
 
+        // Embedded PuTTY (putty-embed.dll): the terminal is our own child window
+        private bool m_Embedded;
+        private bool m_Closing;
+        private bool m_SessionClosed;         // terminal window destroyed, ignore later callbacks
+        private PuttyEmbed.TitleCallback m_OnTitle;   // also parked in m_EmbeddedCallbacks
+        private PuttyEmbed.ClosedCallback m_OnClosed;
+
+        // The DLL stores raw pointers to these callbacks and calls them from its own windows.
+        // The marshaler only keeps a delegate alive for the duration of the call that passes it,
+        // so a session whose panel has been collected would call back into a freed delegate and
+        // take the process down. Park them here until the panel is disposed, which is after the
+        // terminal window is gone and on_closed has run (WM_DESTROY in the DLL, its last call).
+        // Only ever touched from the UI thread, like the callbacks themselves.
+        private static readonly List<object> m_EmbeddedCallbacks = new List<object>();
+
         internal PuttyClosedCallback m_CloseCallback;
 
         /// <summary>Set the name of the application executable to launch</summary>
@@ -92,7 +107,10 @@ namespace SuperPutty
 DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         public string ApplicationWorkingDirectory { get; set; }
 
-        public IntPtr AppWindowHandle { get { return this.m_AppWin; } } 
+        public IntPtr AppWindowHandle { get { return this.m_AppWin; } }
+
+        /// <summary>true if the terminal runs in-process as a child window (no external process)</summary>
+        public bool IsEmbedded { get { return this.m_Embedded; } }
         
         // Some windows need closed with WM_DESTROY others need closed with WM_CLOSE or they leave zombies
         public bool ApplicationCloseWithDestroy { get; set; }
@@ -123,7 +141,12 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
             this.m_windowActivator = (WindowActivator)Activator.CreateInstance(Type.GetType(typeName));
             //this.m_windowActivator = new SetFGCombinedWindowActivator();
             SuperPuTTY.Settings.SettingsSaving += Settings_SettingsSaving;
-            SuperPuTTY.WindowEvents.SystemSwitch += new EventHandler<GlobalWindowEventArgs>(OnSystemSwitch);
+            // same test as OnVisibleChanged, so a panel that embeds PuTTY never subscribes:
+            // its terminal is our own child window, there is no Alt+Tab switch to follow
+            if (!PuttyEmbed.Supports(this.proto))
+            {
+                SuperPuTTY.WindowEvents.SystemSwitch += new EventHandler<GlobalWindowEventArgs>(OnSystemSwitch);
+            }
         }
 
         void Settings_SettingsSaving(object sender, CancelEventArgs e)
@@ -142,6 +165,16 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
             });
             this.m_hWinEventHooks.Clear();
             this.lpfnWinEventProcs.Clear();
+
+            if (this.m_Embedded)
+            {
+                // OnHandleDestroyed has already destroyed the terminal window, so the DLL has
+                // made its last callback (on_closed) and will not use these pointers again.
+                m_EmbeddedCallbacks.Remove(this.m_OnTitle);
+                m_EmbeddedCallbacks.Remove(this.m_OnClosed);
+                this.m_OnTitle = null;
+                this.m_OnClosed = null;
+            }
         }
 
         void SuperPuTTY_LayoutChanged(object sender, Data.LayoutChangedEventArgs e)
@@ -191,6 +224,18 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
             {
                 this.embeddedApplication.FocusApplication();
                 return true;
+            }
+
+            if (m_Embedded)
+            {
+                // Same window, same thread: plain keyboard focus, nothing to bring to front.
+                // Focus goes through this panel so WinForms tracks it as the active control
+                // (and restores it on Alt+Tab back); OnGotFocus hands it to the terminal.
+                if (this.ExternalProcessCaptured && NativeMethods.GetFocus() != this.m_AppWin)
+                {
+                    this.Focus();
+                }
+                return this.ExternalProcessCaptured;
             }
 
             bool result = false;
@@ -286,14 +331,20 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
                 if (this.proto == SuperPutty.Data.ConnectionProtocol.VNC)
                     lStyle |= NativeMethods.WS_HSCROLL | NativeMethods.WS_VSCROLL;
                 NativeMethods.SetWindowLong(m_AppWin, NativeMethods.GWL_STYLE, lStyle);
-                NativeMethods.WinEventDelegate lpfnWinEventProc = new NativeMethods.WinEventDelegate(WinEventProc);
-                this.lpfnWinEventProcs.Add(lpfnWinEventProc);
-                uint eventType = (uint)NativeMethods.WinEvents.EVENT_OBJECT_NAMECHANGE;
-                this.m_hWinEventHooks.Add(NativeMethods.SetWinEventHook(eventType, eventType, IntPtr.Zero, lpfnWinEventProc, (uint)m_Process.Id, 0, NativeMethods.WINEVENT_OUTOFCONTEXT));
-                if ((lStyle & NativeMethods.WS_DLGFRAME) == 0)
+
+                // no focus hooks for an embedded terminal: it has no process to watch and its
+                // window is already in ours, so the window events below would only misfire
+                if (!this.m_Embedded)
                 {
-                    eventType = (uint)NativeMethods.WinEvents.EVENT_SYSTEM_FOREGROUND;
+                    NativeMethods.WinEventDelegate lpfnWinEventProc = new NativeMethods.WinEventDelegate(WinEventProc);
+                    this.lpfnWinEventProcs.Add(lpfnWinEventProc);
+                    uint eventType = (uint)NativeMethods.WinEvents.EVENT_OBJECT_NAMECHANGE;
                     this.m_hWinEventHooks.Add(NativeMethods.SetWinEventHook(eventType, eventType, IntPtr.Zero, lpfnWinEventProc, (uint)m_Process.Id, 0, NativeMethods.WINEVENT_OUTOFCONTEXT));
+                    if ((lStyle & NativeMethods.WS_DLGFRAME) == 0)
+                    {
+                        eventType = (uint)NativeMethods.WinEvents.EVENT_SYSTEM_FOREGROUND;
+                        this.m_hWinEventHooks.Add(NativeMethods.SetWinEventHook(eventType, eventType, IntPtr.Zero, lpfnWinEventProc, (uint)m_Process.Id, 0, NativeMethods.WINEVENT_OUTOFCONTEXT));
+                    }
                 }
             }
             else
@@ -467,24 +518,61 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
 
         private void UpdateTitle()
         {
+            if (this.m_AppWin == IntPtr.Zero)
+            {
+                // no window to ask: the session has not started yet, or it is already closed
+                return;
+            }
             int length = NativeMethods.SendMessage(m_AppWin, NativeMethods.WM_GETTEXTLENGTH, 0, 0) + 1;
             StringBuilder sb = new StringBuilder(length + 1);
             NativeMethods.SendMessage(m_AppWin, NativeMethods.WM_GETTEXT, sb.Capacity, sb);
-            string controlText = sb.ToString();
-            string parentText = ((ctlPuttyPanel)this.Parent).TextOverride;
+            this.SetTabText(sb.ToString());
+        }
+
+        /// <summary>
+        /// Put a terminal title on the tab, following the TabTextBehavior setting.
+        /// </summary>
+        /// <param name="controlText">Title of the terminal window</param>
+        private void SetTabText(string controlText)
+        {
+            ctlPuttyPanel parent = this.Parent as ctlPuttyPanel;
+            if (parent == null || this.IsDisposed)
+            {
+                // tab is gone, nothing to rename
+                return;
+            }
+            string parentText = parent.TextOverride;
 
             switch ((SuperPutty.frmSuperPutty.TabTextBehavior)Enum.Parse(typeof(frmSuperPutty.TabTextBehavior), SuperPuTTY.Settings.TabTextBehavior))
             {
                 case frmSuperPutty.TabTextBehavior.Static:
-                    this.Parent.Text = parentText;
+                    parent.Text = parentText;
                     break;
                 case frmSuperPutty.TabTextBehavior.Dynamic:
-                    this.Parent.Text = controlText;
+                    parent.Text = controlText;
                     break;
                 case frmSuperPutty.TabTextBehavior.Mixed:
-                    this.Parent.Text = parentText + ": " + controlText;
+                    parent.Text = parentText + ": " + controlText;
                     break;
             }
+        }
+
+        /// <summary>
+        /// Title callback from the embedded PuTTY (wintw_set_title in the DLL). It runs on this
+        /// thread, but the first one comes while putty_session_create() is still running, so
+        /// m_AppWin is not set yet, and one can also arrive after the terminal window was
+        /// destroyed. Read the title from the argument, never from the window, and drop the
+        /// callbacks that come after the session closed.
+        /// </summary>
+        /// <param name="ctx">Not used</param>
+        /// <param name="title">New terminal title</param>
+        void OnEmbeddedTitle(IntPtr ctx, string title)
+        {
+            if (this.m_SessionClosed)
+            {
+                return;
+            }
+            this.SetTabText(title ?? "");
         }
 
         public event EventHandler InnerApplicationFocused;
@@ -499,6 +587,101 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
 
         /*************************** End Hack to watch for windows focus change events ***************************************/
         #endregion
+
+        /// <summary>
+        /// Start the session in the embedded PuTTY as a child window of this panel.
+        /// No process, no window capture, no focus hooks: it is one window with SuperXPuTTY.
+        /// </summary>
+        private void CreateEmbeddedSession()
+        {
+            this.m_Embedded = true;
+            // focusable, so WinForms can make it the active control (see OnGotFocus)
+            this.SetStyle(ControlStyles.Selectable, true);
+            this.m_OnTitle = this.OnEmbeddedTitle;
+            this.m_OnClosed = (ctx, exitCode) =>
+            {
+                // The terminal window is gone (session ended, or we destroyed it)
+                this.m_AppWin = IntPtr.Zero;
+                this.m_SessionClosed = true;
+                if (!this.m_Closing && this.IsHandleCreated && !this.IsDisposed)
+                {
+                    // PuTTY is mid-teardown here: close the tab afterwards
+                    try
+                    {
+                        this.BeginInvoke(new MethodInvoker(() =>
+                        {
+                            // check again, the tab may have been closed while this was queued
+                            if (!this.m_Closing && !this.IsDisposed)
+                            {
+                                this.m_CloseCallback?.Invoke(exitCode != 0);
+                            }
+                        }));
+                    }
+                    // BeginInvoke itself can fail if the handle goes away between the check and the call
+                    catch (InvalidOperationException) { }
+                }
+            };
+
+            // keep them alive for the DLL from here on, whatever happens to this panel
+            m_EmbeddedCallbacks.Add(this.m_OnTitle);
+            m_EmbeddedCallbacks.Add(this.m_OnClosed);
+
+            try
+            {
+                this.m_AppWin = PuttyEmbed.CreateSession(this.Handle, this.ApplicationParameters, this.m_OnTitle, this.m_OnClosed);
+                Log.InfoFormat("Embedded PuTTY session started, hwnd={0}", this.m_AppWin);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException || ex is DllNotFoundException || ex is EntryPointNotFoundException)
+            {
+                // the second pair is what the runtime throws when the dll is on disk but cannot
+                // actually be used; PuttyEmbed.IsAvailable filters most of that out, this is the
+                // rest of it
+                Log.WarnFormat("Could not start embedded PuTTY session: {0}", ex.Message);
+                Messenger.MessageBox("Could not start PuTTY session: " + ex.Message, "PuTTY command line error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                // Nothing to show: close the tab, like the old code did when the PuTTY process
+                // it started exited right away. Queued, because we are still inside the code
+                // opening this tab - closing it here would re-enter Show().
+                this.m_SessionClosed = true;
+                if (this.IsHandleCreated && !this.IsDisposed)
+                {
+                    this.BeginInvoke(new MethodInvoker(() =>
+                    {
+                        if (!this.m_Closing && !this.IsDisposed)
+                        {
+                            this.m_CloseCallback?.Invoke(true);
+                        }
+                    }));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Keys typed into an embedded terminal go to PuTTY untouched, as they did when it was a
+        /// separate window: no WinForms shortcuts, menu mnemonics or Tab/arrow navigation.
+        /// SuperXPuTTY's own shortcuts come from the low-level keyboard hook in frmSuperPutty.
+        /// The message is delivered here and reported as handled, because PuTTY translates
+        /// keys itself: the TranslateMessage of the WinForms loop would type every key twice.
+        /// </summary>
+        /// <summary>Focus given to this panel (tab switch, Alt+Tab back, click) belongs to the terminal</summary>
+        protected override void OnGotFocus(EventArgs e)
+        {
+            base.OnGotFocus(e);
+            if (this.m_Embedded && this.m_AppWin != IntPtr.Zero)
+            {
+                NativeMethods.SetFocus(this.m_AppWin);
+            }
+        }
+
+        public override bool PreProcessMessage(ref Message msg)
+        {
+            if (this.m_Embedded && msg.HWnd == this.m_AppWin && this.m_AppWin != IntPtr.Zero)
+            {
+                NativeMethods.SendMessage(msg.HWnd, (uint)msg.Msg, msg.WParam, msg.LParam);
+                return true;
+            }
+            return base.PreProcessMessage(ref msg);
+        }
 
         #region Base Overrides
        
@@ -549,6 +732,18 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
             }
 
             m_AppWin = IntPtr.Zero;
+            // putty-embed.dll beside the exe: PuTTY runs in-process as our child window, no process to capture.
+            // The built-in terminal (EmbeddedApplicationFactory, above) still takes precedence when it's on.
+            if (PuttyEmbed.Supports(this.proto))
+            {
+                this.CreateEmbeddedSession();
+                if (this.Visible && this.ExternalProcessCaptured)
+                {
+                    this.ShowApplicationWindow(caller);
+                }
+                return;
+            }
+
             try
             {
                 if (!File.Exists(ApplicationName))
@@ -608,6 +803,14 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
                                     break;
                                 }
                             }
+                        }
+                        else
+                        {
+                            b_AppWinFinal = false;
+                            this.CreateVirtWindow();
+                            bgWinTracker.DoWork += new DoWorkEventHandler(bgWinTracker_DoWork);
+                            bgWinTracker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(bgWinTracker_Done);
+                            bgWinTracker.RunWorkerAsync();
                         }
                     }
                 }
@@ -705,15 +908,29 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         /// <param name="e"></param>
         protected override void OnHandleDestroyed(EventArgs e)
         {
+            if (this.m_Embedded)
+            {
+                // Our own child: destroying it ends the session. Don't report that back as
+                // PuTTY closing the tab, the tab is already closing.
+                this.m_Closing = true;
+                if (this.m_AppWin != IntPtr.Zero)
+                {
+                    NativeMethods.DestroyWindow(this.m_AppWin);
+                    this.m_AppWin = IntPtr.Zero;
+                }
+                base.OnHandleDestroyed(e);
+                return;
+            }
+
             if (this.ExternalProcessCaptured)
             {
                 // Send WM_DESTROY instead of WM_CLOSE, so that the Client doesn't
                 // ask in the Background whether the session shall be closed.
                 // Otherwise an annoying beep is generated everytime a terminal session is closed.
                 if (this.ApplicationCloseWithDestroy) {
-                    NativeMethods.PostMessage(m_AppWin, NativeMethods.WM_DESTROY, 0, 0);
+                    NativeMethods.PostMessage(m_AppWin, NativeMethods.WM_DESTROY, IntPtr.Zero, IntPtr.Zero);
                 } else {
-                    NativeMethods.PostMessage(m_AppWin, NativeMethods.WM_CLOSE, 0, 0);
+                    NativeMethods.PostMessage(m_AppWin, NativeMethods.WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
                 }
 
                 System.Threading.Thread.Sleep(ClosePuttyWaitTimeMs);

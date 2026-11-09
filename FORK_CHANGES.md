@@ -2,7 +2,7 @@
 
 Fork: <https://github.com/waukeerules/superputty>
 Upstream: <https://github.com/SilverGreen93/superputty>
-Base: upstream `master` @ `639ef12` (v2.1.1.0). The fork is up to date with upstream, with the feature commits on top.
+Base: upstream `master` @ `6f6e230` (embedded PuTTY, after v2.1.1.0). The fork is up to date with upstream, with the feature commits on top.
 
 ## Summary
 
@@ -2278,6 +2278,16 @@ Session search:
 The escape-code parser and the `ButtonBars.xml` format were checked directly against the compiled assembly: Enter, pauses, Tab/Escape/Backspace/line feed, clipboard (read only when `\v` is used), literal and unknown backslashes, typed line breaks, empty input, and an XML round-trip including an SPSL script.
 
 The substitution logic (`SessionVariables.Substitute` and `FindMissing`) was checked directly against the compiled assembly: the CyberArk string, case-insensitive keys, one pass with no re-expansion, undefined keys left in place and reported, and braces in a password not flagged. `SuperPuttyUnitTests` uses an NUnit 2.5 GUI runner, and most of its tests need a live SCP server, so these checks aren't in that project yet.
+
+## Merged from upstream: embedded PuTTY (putty-embed.dll)
+
+Upstream's 11 commits up to `6f6e230` run SSH, Telnet, Rlogin, Raw and Serial sessions inside SuperXPuTTY's own process, as child windows created by `putty-embed.dll` (built from PuTTY Plus, added as the `putty` git submodule), instead of starting putty.exe and capturing its window.
+
+- **New files:** `Utils/PuttyEmbed.cs` (the dll's P/Invoke calls and the `IsAvailable` check), `.gitmodules` and the `putty` submodule.
+- **Only when the dll is there.** `PuttyEmbed.IsAvailable` is true only when `putty-embed.dll` sits beside the exe and loads (right bitness, the expected exports). This build doesn't produce it and the installer doesn't ship it, so the fork behaves as before: external PuTTY for every protocol.
+- **Merge in `ctlApplicationPanel.cs`:** upstream starts the session in `OnVisibleChanged`; the fork starts it in `StartApplication`, after `panel.Show()`. The embedded branch went into `StartApplication`, after the fork's hosted controls (`EmbeddedApplicationFactory`: the built-in terminal and the RDP control), so the built-in terminal still wins for SSH when it's turned on. `ReFocusPuTTY` checks the hosted control first, then the embedded PuTTY.
+- **Known issue:** fork features that work on a PuTTY window of another process (reconnect through the Fatal Error box, Special Command, `-sessionlog` for WAITFOR and Highlighted Output, jump hosts via plink beside PuTTY) haven't been tried with the embedded dll.
+- **Manual test (when a `putty-embed.dll` is available):** put it beside `SuperXPuTTY.exe`, open an SSH session, check typing, focus after switching tabs and Alt+Tab, the tab title, and that closing the tab or typing `exit` closes it; then remove the dll and check the same session opens in external PuTTY.
 
 ---
 *I used Grok/ChatGPT to learn C# and to generate some of this code, so it may not follow best practices. Feedback on the approach is very welcome.*
