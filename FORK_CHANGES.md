@@ -2608,6 +2608,55 @@ As SuperXTerminal (its e91a4c4): a change of columns wraps every line the termin
 
 **Checked:** a page test drags the window narrower over six frames with 400 lines in the terminal: the session is told the new size once (six times before the change); a terminal with one line still resizes at once. **Not checked:** dragging in the running app.
 
+## Built-in terminal: word delimiters
+
+As SuperXTerminal (its 24c7cab): a double-click in the built-in terminal selected a word up to xterm.js's own delimiters, with no way to change them, and # isn't one, so a double-click on "sw1#show" took the prompt with the command. Tools → Options → Terminal has **Word delimiters**, as Notepad++'s Preferences > Delimiter: the characters a word ends at besides a space (always one). It comes with xterm.js's own (`` ()[]{}',"` ``), so nothing changes until it's edited. With # added, "show" is selected alone; with the brackets taken out, "sw1(config)" is one word. Spaces and repeats typed are dropped, **Default** puts xterm.js's own back, and open tabs take a change at once.
+
+- **Code:** the `wordSeparators` preference (`TerminalPreferences.Defaults`, `DefaultWordSeparators`, `NormalizeWordSeparators`), its row in `Gui/TerminalOptionsPanel.cs`, and `applyWordSeparators` in `web/terminal/terminal.js`.
+
+**Checked:** unit tests (`SuperPuttyUnitTests/TerminalPreferencesTests.cs`: the default; spaces and repeats dropped). Page tests: by default a double-click on "show" in "sw1#show" selects "sw1#show"; with "#" as the delimiters it selects "show", and "sw1(config)" whole (that test fails without the change). **Not checked:** the Options row in the running app.
+
+## Built-in terminal: Wrap Lines can be turned off
+
+As SuperXTerminal (its e1352fb): **Wrap Lines**, in the terminal's right-click menu and Tools → Options → Terminal, on by default. Off, the terminal is 300 columns wide, so long lines (`show run`, wide listings) stay whole, and a scroll bar along the bottom, a sideways swipe or Shift+wheel pans the view. xterm.js has no such mode: its screen slides under a clip inside its own box, which stays the tab's size so its scroll bar stays at the edge, and mouse positions still land on the right cells. WebGL's widest canvas (16384 device pixels) gives very large fonts fewer columns.
+
+- Typing brings the view back to the cursor: to the start of the line at a prompt, and along a long command it follows the cursor. Other output follows it only while it shows, so a line panned along to read stays put. Find pans to the match.
+- Full-screen programs (the alternate screen: vim, less, top) get the tab's width, and the wide lines come back after them.
+- plink is told the terminal's 300 columns, so the device formats its output for them.
+- One preference for every tab (`wrap` in `TerminalPreferences`), as Copy on Select.
+- **Code:** `web/terminal/terminal.js` (`wide`, `applyPan`, `panTo`, `followCursor`, `applyWrap`, and `fit` sizing to 300 columns), `terminal.css` (`body.nowrap`, `#hscroll`), `index.html` (`#hscroll`), `Gui/TerminalOptionsPanel.cs`.
+
+**Checked:** page tests: off, a 200-character line stays on one row and the terminal is 300 columns with the scroll bar showing; Shift+wheel pans and typing at a prompt brings the view back; the alternate screen gets the tab's width and 300 comes back after it; turning it on again fits the tab; the item is in the menu. **Not checked:** WebGL drawing while panned, a touchpad's sideways swipe, and the Options checkbox in the running app.
+
+## Highlighting: the built-in rules can be turned off
+
+As SuperXTerminal (its a701db1): the rule sets that come with SuperXPuTTY (Cisco, Junos, Generic) load before the team's and the user's own, and Auto picks the first whose detect matches the output, so someone with their own rules for the same devices had the built-in set chosen over theirs. Tools → Options → Terminal has **Built-in highlighting rules**, ticked unless turned off (the `builtInRules` terminal preference). Unticked:
+
+- only the rule sets in the shared and the user's highlighting folders are offered and picked: in Options, Edit Session, folder settings, bulk edit and the terminal's own menu;
+- a set of the user's with a built-in's id still replaces it, and counts as theirs;
+- a set of theirs that includes a built-in one still gets its rules: the built-in sets go to the page marked `hidden`, which `web/shared/rules.js` compiles for includes but neither lists nor picks (`OutputHighlighting.MergeRuleSets`, `Offered`);
+- the themes stay;
+- open built-in terminal tabs are told at once (a new `ruleSets` message from `TerminalControl`): a tab on Auto picks again from the output already on screen and colours it again;
+- Highlighting rules in Options goes back to Auto if it named a set no longer offered.
+
+A session, folder or tab that names a built-in set colours nothing while they're off; saved sessions aren't rewritten. The Highlighted Output panel takes the setting when it next opens or reloads.
+
+**Checked:** unit tests (`SuperPuttyUnitTests/OutputHighlightingTests.cs`): all offered when on; hidden and not offered when off; a user's set with a built-in id offered as theirs. Page tests: an open tab on Auto coloured by Cisco loses its pick and colours when they're turned off and gets both back when turned on; a user's set including Generic still colours an address with them off (both fail without the change). **Not checked:** the Options box and the other drop-downs in the running app.
+
+## Built-in terminal: colours of your own
+
+As SuperXTerminal (its e2422fe, 0792983): Tools → Options → Terminal → **Colours**: Background, Text, Selection and Cursor over the theme's, in every built-in terminal tab, each a button showing its colour that opens the colour picker, and a **Theme's** link to go back. A light background of your own gets the light menu and find bar. A session's or folder's environment colour still wins for the cursor.
+
+- **Code:** the `colorBackground`, `colorForeground`, `colorSelection` and `colorCursor` preferences ("#rrggbb", "" for the theme's; `TerminalPreferences.IsColour`, `ColourText`), the Colours row in `Gui/TerminalOptionsPanel.cs`, and `ownColours` / `isDarkColour` in `web/terminal/terminal.js`.
+
+**Checked:** unit test of the colour format and the defaults. Page tests: own colours replace the PuTTY theme's for the background, text, selection and cursor, and a light background turns the menu light; an environment colour beats the own cursor colour, and an empty one goes back to the theme's. The Options panel rendered in a test program: the row fits on one line. **Not checked:** the colour picker and the dark theme's look of the row in the running app.
+
+## Built-in terminal: a theme that follows SuperXPuTTY's look
+
+As SuperXTerminal (its 6fc09e7): a terminal theme choice that follows the app, the Light theme while SuperXPuTTY is light (Light or Classic) and Dark while it's dark (Dark or Dark Blue). It's in Tools → Options → Terminal → Theme ("Follow SuperXPuTTY's look") and the terminal's own menu (Theme → Follow SuperXPuTTY's Look), stored as `@look`, which no theme file can be named. SuperXPuTTY's own theme changes after a restart, so the page learns it when the tab opens (`config`'s `dark`); SuperXTerminal's live "look" message isn't needed.
+
+**Checked:** page tests: with `@look`, a dark app draws the Dark theme and a light one the Light theme with the light menu; the theme menu offers it, ticked. **Not checked:** in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

@@ -19,13 +19,19 @@ namespace SuperPutty.Utils
 
         /// <summary>
         /// The preferences and their defaults: ruleSet ("auto", "none" or a rule set's id), theme (a theme's name;
-        /// empty for PuTTY's), fontFamily (empty for the theme's, "profile" for the PuTTY profile's, or a font's name),
+        /// empty for PuTTY's; "@look" for Light or Dark as SuperXPuTTY's own theme is), fontFamily (empty for the theme's, "profile" for the PuTTY profile's, or a font's name),
         /// fontSize (in pixels; "0" for the theme's or profile's), cursorShape and cursorBlink and bell ("profile" for the
         /// PuTTY profile's, or block/underline/bar, on/off, visual/sound/none), copyOnSelect and markMatches ("true" or
         /// "false"), pasteLines (show a paste of this many lines or more to check before it's typed; "0" never does),
         /// scrollback (lines kept; "0" for as many as <see cref="UnlimitedScrollback"/>), keys ("profile" for the
         /// PuTTY profile's Backspace, Home/End and function keys, "xterm" for xterm's), logTimestamps (seconds between
-        /// time stamps in the session log; "0" for none) and renderer ("webgl", or "dom" for xterm.js's slower one)
+        /// time stamps in the session log; "0" for none), renderer ("webgl", or "dom" for xterm.js's slower one) and
+        /// wordSeparators (the characters a double-clicked word ends at besides a space, which always is one; xterm.js's
+        /// own by default, "" for none but the space) and wrap ("false": lines aren't wrapped at the tab's width; the
+        /// terminal is 300 columns wide and the view pans along them) and builtInRules ("false": the highlighting rule
+        /// sets that come with SuperXPuTTY aren't offered or picked; OutputHighlighting.MergeRuleSets), and
+        /// colorBackground, colorForeground, colorSelection and colorCursor (the terminal's own colours over the theme's,
+        /// as "#rrggbb"; "" for the theme's; a session's environment colour still wins for the cursor)
         /// </summary>
         public static readonly IReadOnlyDictionary<string, string> Defaults = new Dictionary<string, string>
         {
@@ -43,7 +49,47 @@ namespace SuperPutty.Utils
             { "keys", "profile" },
             { "logTimestamps", "30" },
             { "renderer", "webgl" },
+            { "wordSeparators", DefaultWordSeparators },
+            { "wrap", "true" },
+            { "builtInRules", "true" },
+            { "colorBackground", "" },
+            { "colorForeground", "" },
+            { "colorSelection", "" },
+            { "colorCursor", "" },
         };
+
+        /// <summary>
+        /// xterm.js's own word delimiters less the space, as SuperXTerminal's: with # added, a double-click on a switch's
+        /// "sw1#show" selects "show"; with ( and ) taken out, "sw1(config)" is one word
+        /// </summary>
+        public const string DefaultWordSeparators = "()[]{}',\"`";
+
+        /// <summary>Whether a value is a colour as the colour preferences keep it: "#rrggbb"</summary>
+        /// <param name="value">The value</param>
+        /// <returns>true for "#" and six hex digits</returns>
+        public static bool IsColour(string value)
+        {
+            return value != null && System.Text.RegularExpressions.Regex.IsMatch(value, "^#[0-9a-fA-F]{6}$");
+        }
+
+        /// <summary>A colour as the colour preferences keep it</summary>
+        /// <param name="colour">The colour</param>
+        /// <returns>"#rrggbb", lower case</returns>
+        public static string ColourText(System.Drawing.Color colour)
+        {
+            return string.Format("#{0:x2}{1:x2}{2:x2}", colour.R, colour.G, colour.B);
+        }
+
+        /// <summary>
+        /// Word delimiters as typed in Options, as kept: spaces and repeats dropped (a space always ends a word), the
+        /// rest in the order typed
+        /// </summary>
+        /// <param name="typed">The characters typed; null for none</param>
+        /// <returns>Each character once, without spaces</returns>
+        public static string NormalizeWordSeparators(string typed)
+        {
+            return new string((typed ?? string.Empty).Where(c => !char.IsWhiteSpace(c)).Distinct().ToArray());
+        }
 
         /// <summary>
         /// The scrollback kept when the preference is 0 (or negative), "unlimited". xterm.js needs a number; a line

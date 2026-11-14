@@ -461,6 +461,7 @@ namespace SuperPutty.Gui
             {
                 Log.Warn("Highlighting files skipped: " + string.Join("; ", problems));
             }
+            this.builtInRulesSent = OutputHighlighting.BuiltInRulesOn;
             bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
             this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursor = CursorFromProfile(this.session.PuttySession), local = IsLocalShell(this.session.Proto), serial = this.session.Proto == ConnectionProtocol.Serial,
                 profileFont = FontFromProfile(this.session.PuttySession), fonts = MonospaceFonts(), prefs = TerminalPreferences.All(), cursorColor = this.cursorColor, frame = this.FrameWidth,
@@ -585,7 +586,25 @@ namespace SuperPutty.Gui
             if (this.pageLoaded)
             {
                 this.Post(new { type = "prefs", prefs = TerminalPreferences.All() });
+                bool builtIn = OutputHighlighting.BuiltInRulesOn;
+                if (builtIn != this.builtInRulesSent)
+                {
+                    // the built-in rule sets were turned off or on: the page colours what it shows again
+                    this.builtInRulesSent = builtIn;
+                    this.SendRuleSets();
+                }
             }
+        }
+
+        /// <summary>Whether the rule sets last sent to the page had the built-in ones on</summary>
+        private bool builtInRulesSent = true;
+
+        /// <summary>Send the page the rule sets as they are now ("ruleSets"), for it to colour what it shows again</summary>
+        private void SendRuleSets()
+        {
+            JArray ruleSets, themes;
+            OutputHighlighting.Load(out ruleSets, out themes);
+            this.Post(new { type = "ruleSets", ruleSets });
         }
 
         /// <summary>The session's environment colour as #rrggbb, for the cursor; null for none</summary>

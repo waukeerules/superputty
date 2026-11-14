@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using log4net;
 using Microsoft.Web.WebView2.Core;
@@ -94,15 +95,26 @@ namespace SuperPutty.Utils
         }
 
         /// <summary>
-        /// Read the rule sets and themes: the defaults beside the exe, then the shared folder, then the user's folder
+        /// Read the rule sets and themes: the defaults beside the exe, then the shared folder, then the user's folder.
+        /// With Options -> Terminal -> Built-in highlighting rules off, the defaults' rule sets come marked hidden
+        /// (<see cref="MergeRuleSets"/>).
         /// </summary>
         /// <param name="ruleSets">The rule sets, in order, one per id</param>
         /// <param name="themes">The themes, in order, one per name</param>
         /// <returns>Problems to show the user (files that couldn't be read); empty when all were fine</returns>
         public static List<string> Load(out JArray ruleSets, out JArray themes)
         {
+            return Load(out ruleSets, out themes, BuiltInRulesOn);
+        }
+
+        /// <summary>Read the rule sets and themes as <see cref="Load(out JArray, out JArray)"/>, the built-in rule sets on or off as given</summary>
+        /// <param name="ruleSets">The rule sets, in order, one per id</param>
+        /// <param name="themes">The themes, in order, one per name</param>
+        /// <param name="builtInOn">Whether the built-in rule sets are used (Options shows the box's state before it's saved)</param>
+        /// <returns>Problems to show the user (files that couldn't be read); empty when all were fine</returns>
+        public static List<string> Load(out JArray ruleSets, out JArray themes, bool builtInOn)
+        {
             List<string> problems = new List<string>();
-            ruleSets = new JArray();
             themes = new JArray();
             string output = Path.Combine(WebFolder, "output");
             string[][] folders =
@@ -111,18 +123,62 @@ namespace SuperPutty.Utils
                 new[] { SharedFolder, SharedFolder },
                 new[] { UserFolder, UserFolder },
             };
+            List<List<JObject>> ruleFiles = new List<List<JObject>>();
             foreach (string[] pair in folders)
             {
-                foreach (JObject item in ReadAll(pair[0], "*.rules.json", problems))
-                {
-                    Merge(ruleSets, item, "id");
-                }
+                ruleFiles.Add(ReadAll(pair[0], "*.rules.json", problems));
                 foreach (JObject item in ReadAll(pair[1], "*.theme.json", problems))
                 {
                     Merge(themes, item, "name");
                 }
             }
+            ruleSets = MergeRuleSets(ruleFiles[0], ruleFiles.Skip(1), builtInOn);
             return problems;
+        }
+
+        /// <summary>Whether the rule sets that come with SuperXPuTTY are used (Options -> Terminal; on unless turned off)</summary>
+        public static bool BuiltInRulesOn
+        {
+            get { return TerminalPreferences.Get("builtInRules") != "false"; }
+        }
+
+        /// <summary>
+        /// The rule sets in order: the built-in ones, then each folder's, a later one replacing an earlier one with the
+        /// same id. With the built-in ones off, as SuperXTerminal's (its a701db1), they come marked "hidden": rules.js
+        /// still compiles them for a set that includes one, but neither lists nor picks them. A set of the user's with
+        /// a built-in's id still replaces it, and counts as theirs.
+        /// </summary>
+        /// <param name="builtIn">The rule sets beside the exe</param>
+        /// <param name="folders">The shared folder's, then the user's</param>
+        /// <param name="builtInOn">Whether the built-in sets are used</param>
+        /// <returns>The rule sets</returns>
+        public static JArray MergeRuleSets(IEnumerable<JObject> builtIn, IEnumerable<IEnumerable<JObject>> folders, bool builtInOn)
+        {
+            JArray ruleSets = new JArray();
+            foreach (JObject item in builtIn)
+            {
+                if (!builtInOn)
+                {
+                    item["hidden"] = true;
+                }
+                Merge(ruleSets, item, "id");
+            }
+            foreach (IEnumerable<JObject> folder in folders)
+            {
+                foreach (JObject item in folder)
+                {
+                    Merge(ruleSets, item, "id");
+                }
+            }
+            return ruleSets;
+        }
+
+        /// <summary>The rule sets offered for choosing: all but the hidden built-in ones (<see cref="MergeRuleSets"/>)</summary>
+        /// <param name="ruleSets">The rule sets from <see cref="Load"/></param>
+        /// <returns>The ones to list</returns>
+        public static IEnumerable<JToken> Offered(JArray ruleSets)
+        {
+            return ruleSets.Where(set => set["hidden"] == null || !(bool)set["hidden"]);
         }
 
         /// <summary>A highlighting choice in a drop-down: the text shown, and the value stored (SessionData.HighlightRules)</summary>
@@ -156,7 +212,7 @@ namespace SuperPutty.Utils
             combo.Items.Clear();
             combo.Items.Add(new RuleChoice { Text = inheritText, Value = string.Empty });
             combo.Items.Add(new RuleChoice { Text = "Auto (picked from the output)", Value = "auto" });
-            foreach (JToken set in ruleSets)
+            foreach (JToken set in Offered(ruleSets))
             {
                 combo.Items.Add(new RuleChoice { Text = (string)set["name"] ?? (string)set["id"], Value = (string)set["id"] });
             }

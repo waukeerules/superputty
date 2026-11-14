@@ -32,6 +32,51 @@ html, body {
   inset: 0 0 0 4px;
 }
 
+/* Wrap Lines off (terminal.js applyPan), as SuperXTerminal's: the terminal is wider than the tab, its screen slides
+   under a clip, and a scroll bar along the bottom pans it; xterm.js's own scroll bar stays at the right */
+body.nowrap #terminal {
+  bottom: 12px;
+  overflow: hidden;
+}
+
+#hscroll {
+  display: none;
+  position: absolute;
+  left: 4px;
+  right: 14px;
+  bottom: 0;
+  height: 12px;
+  overflow-x: scroll;
+  overflow-y: hidden;
+}
+
+body.nowrap #hscroll {
+  display: block;
+}
+
+#hscroll > div {
+  height: 1px;
+}
+
+#hscroll::-webkit-scrollbar {
+  height: 12px;
+}
+
+#hscroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#hscroll::-webkit-scrollbar-thumb {
+  background: rgba(121, 121, 121, 0.4);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+#hscroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 100, 100, 0.7);
+}
+
 /* the visual bell: a short flash, like PuTTY's (terminal.js ring) */
 #terminal.bell {
   animation: bell-flash 150ms ease-out;

@@ -11,7 +11,8 @@ namespace SuperPutty.Gui
     /// <summary>
     /// The built-in terminal's defaults on Tools -> Options -> Terminal (dlgFindPutty): highlighting rules, theme, font,
     /// font size, cursor, blinking, bell, copy on select, marking the selection's matches, showing a paste of several
-    /// lines first, scrollback, keys, session log time stamps and the renderer. These are the same
+    /// lines first, scrollback, keys, session log time stamps, the renderer, word delimiters, wrapping lines, whether
+    /// the built-in highlighting rules are used, and the terminal's own colours over the theme's. These are the same
     /// preferences each terminal's right-click menu changes (Utils.TerminalPreferences), so a change in either shows in
     /// the other and in every open terminal tab. Built in code: a label and a control per row.
     /// </summary>
@@ -35,6 +36,7 @@ namespace SuperPutty.Gui
         }
 
         private readonly ComboBox ruleSet = NewCombo();
+        private readonly CheckBox builtInRules = new CheckBox { Text = "Built-in highlighting rules (Cisco, Junos, Generic)", AutoSize = true };
         private readonly ComboBox theme = NewCombo();
         private readonly ComboBox fontFamily = NewCombo();
         private readonly NumericUpDown fontSize = new NumericUpDown { Minimum = 0, Maximum = 48, Width = 80 };
@@ -48,6 +50,23 @@ namespace SuperPutty.Gui
         private readonly ComboBox keys = NewCombo();
         private readonly NumericUpDown logTimestamps = new NumericUpDown { Minimum = 0, Maximum = 3600, Increment = 10, Width = 80 };
         private readonly ComboBox renderer = NewCombo();
+        private readonly TextBox wordSeparators = new TextBox { Width = 160 };
+        /// <summary>The colour preferences shown in the Colours row, by name, with their label</summary>
+        private static readonly string[][] ColourPrefs =
+        {
+            new[] { "colorBackground", "Background" },
+            new[] { "colorForeground", "Text" },
+            new[] { "colorSelection", "Selection" },
+            new[] { "colorCursor", "Cursor" },
+        };
+
+        /// <summary>The colours chosen in the Colours row, by preference name; "" for the theme's</summary>
+        private readonly Dictionary<string, string> colours = new Dictionary<string, string>();
+
+        /// <summary>The Colours row's buttons, by preference name</summary>
+        private readonly Dictionary<string, Button> colourButtons = new Dictionary<string, Button>();
+
+        private readonly CheckBox wrap = new CheckBox { Text = "Wrap lines at the tab's width (off: 300 columns, panned with the scroll bar or Shift+wheel)", AutoSize = true };
 
         /// <summary>Lay out the rows; <see cref="LoadPreferences"/> fills them</summary>
         public TerminalOptionsPanel()
@@ -64,6 +83,9 @@ namespace SuperPutty.Gui
             table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             AddRow(table, "Highlighting rules:", this.ruleSet);
+            table.Controls.Add(this.builtInRules, 1, table.RowCount++);
+            // the drop-down offers the sets there would be with the box as it is now
+            this.builtInRules.CheckedChanged += (s, e) => this.FillRuleSets((this.ruleSet.SelectedItem as Choice)?.Value);
             AddRow(table, "Theme:", this.theme);
             AddRow(table, "Font:", this.fontFamily);
             FlowLayoutPanel size = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0), WrapContents = false };
@@ -78,9 +100,97 @@ namespace SuperPutty.Gui
             AddRow(table, "Keys:", this.keys);
             AddRow(table, "Log time stamps:", WithNote(this.logTimestamps, "seconds apart, with output (0: none)"));
             AddRow(table, "Drawing:", this.renderer);
+            AddRow(table, "Word delimiters:", this.WordSeparatorsRow());
+            AddRow(table, "Colours:", this.ColoursRow());
             table.Controls.Add(this.copyOnSelect, 1, table.RowCount++);
             table.Controls.Add(this.markMatches, 1, table.RowCount++);
+            table.Controls.Add(this.wrap, 1, table.RowCount++);
             this.Controls.Add(table);
+        }
+
+        /// <summary>
+        /// The word delimiters box (as Notepad++'s Preferences > Delimiter), a Default button that puts xterm.js's own
+        /// back, and a note that a space always ends a word
+        /// </summary>
+        /// <returns>The row's control</returns>
+        private Control WordSeparatorsRow()
+        {
+            FlowLayoutPanel row = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0), WrapContents = false };
+            this.wordSeparators.Margin = new Padding(0, 3, 0, 0);
+            row.Controls.Add(this.wordSeparators);
+            Button reset = new Button { Text = "Default", AutoSize = true, Margin = new Padding(6, 0, 0, 0) };
+            reset.Click += (s, e) => this.wordSeparators.Text = TerminalPreferences.DefaultWordSeparators;
+            row.Controls.Add(reset);
+            row.Controls.Add(new Label { Text = "where a double-clicked word ends (and a space)", AutoSize = true, Margin = new Padding(6, 6, 0, 0) });
+            return row;
+        }
+
+        /// <summary>
+        /// The Colours row, as SuperXTerminal's Settings > Terminal > Colours: Background, Text, Selection and Cursor,
+        /// each a button showing its colour that opens the colour picker, and a "Theme's" link that goes back to the
+        /// theme's colour. A session's environment colour still wins for the cursor.
+        /// </summary>
+        /// <returns>The row's control</returns>
+        private Control ColoursRow()
+        {
+            FlowLayoutPanel row = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0), WrapContents = false };
+            foreach (string[] pref in ColourPrefs)
+            {
+                string name = pref[0];
+                Button button = new Button { Text = pref[1], AutoSize = true, TextImageRelation = TextImageRelation.ImageBeforeText, Margin = new Padding(0, 0, 2, 0) };
+                button.Click += (s, e) => this.PickColour(name);
+                LinkLabel reset = new LinkLabel { Text = "Theme's", AutoSize = true, Margin = new Padding(0, 7, 12, 0) };
+                reset.LinkClicked += (s, e) => this.SetColour(name, string.Empty);
+                this.colourButtons[name] = button;
+                row.Controls.Add(button);
+                row.Controls.Add(reset);
+            }
+            return row;
+        }
+
+        /// <summary>Open the colour picker for a colour preference, starting at its colour</summary>
+        /// <param name="name">The preference's name</param>
+        private void PickColour(string name)
+        {
+            using (ColorDialog dialog = new ColorDialog { FullOpen = true })
+            {
+                string current;
+                if (this.colours.TryGetValue(name, out current) && TerminalPreferences.IsColour(current))
+                {
+                    dialog.Color = ColorTranslator.FromHtml(current);
+                }
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    this.SetColour(name, TerminalPreferences.ColourText(dialog.Color));
+                }
+            }
+        }
+
+        /// <summary>Keep a colour choice and show it on its button: a swatch, or none for the theme's</summary>
+        /// <param name="name">The preference's name</param>
+        /// <param name="value">"#rrggbb", or "" for the theme's</param>
+        private void SetColour(string name, string value)
+        {
+            this.colours[name] = TerminalPreferences.IsColour(value) ? value : string.Empty;
+            Button button = this.colourButtons[name];
+            Image old = button.Image;
+            button.Image = this.colours[name].Length > 0 ? Swatch(ColorTranslator.FromHtml(this.colours[name])) : null;
+            old?.Dispose();
+        }
+
+        /// <summary>A small square of a colour with a grey edge, for a colour button</summary>
+        /// <param name="colour">The colour</param>
+        /// <returns>A new bitmap; the button's owner disposes of it</returns>
+        private static Image Swatch(Color colour)
+        {
+            Bitmap bitmap = new Bitmap(14, 14);
+            using (Graphics g = Graphics.FromImage(bitmap))
+            using (Brush fill = new SolidBrush(colour))
+            {
+                g.FillRectangle(fill, 0, 0, 14, 14);
+                g.DrawRectangle(Pens.Gray, 0, 0, 13, 13);
+            }
+            return bitmap;
         }
 
         /// <summary>A number box followed by a note, as one row's control</summary>
@@ -143,6 +253,24 @@ namespace SuperPutty.Gui
             return new KeyValuePair<string, string>(text, value);
         }
 
+        /// <summary>
+        /// Fill the highlighting drop-down with Auto, None and the rule sets offered with the Built-in box as it is; a
+        /// choice no longer offered goes back to Auto, as SuperXTerminal's
+        /// </summary>
+        /// <param name="selected">The value to select</param>
+        private void FillRuleSets(string selected)
+        {
+            JArray ruleSets, themes;
+            // the box as it is now, saved or not
+            OutputHighlighting.Load(out ruleSets, out themes, this.builtInRules.Checked);
+            Fill(this.ruleSet, new[] { C("Auto (picked from the prompt)", "auto"), C("None", "none") }
+                .Concat(OutputHighlighting.Offered(ruleSets).Select(r => C((string)r["name"] ?? (string)r["id"], (string)r["id"]))), selected);
+            if ((this.ruleSet.SelectedItem as Choice)?.Value != selected)
+            {
+                this.ruleSet.SelectedItem = this.ruleSet.Items.OfType<Choice>().First(c => c.Value == "auto");
+            }
+        }
+
         /// <summary>Show the saved preferences, with the rule sets, themes and fonts there are to choose from</summary>
         public void LoadPreferences()
         {
@@ -150,9 +278,9 @@ namespace SuperPutty.Gui
             JArray ruleSets, themes;
             OutputHighlighting.Load(out ruleSets, out themes);
 
-            Fill(this.ruleSet, new[] { C("Auto (picked from the prompt)", "auto"), C("None", "none") }
-                .Concat(ruleSets.Select(r => C((string)r["name"] ?? (string)r["id"], (string)r["id"]))), prefs["ruleSet"]);
-            Fill(this.theme, new[] { C("PuTTY (default)", "") }
+            this.builtInRules.Checked = prefs["builtInRules"] != "false";
+            this.FillRuleSets(prefs["ruleSet"]);
+            Fill(this.theme, new[] { C("PuTTY (default)", ""), C("Follow SuperXPuTTY's look (Light or Dark)", "@look") }
                 .Concat(themes.Select(t => (string)t["name"]).Where(n => n != "PuTTY").Select(n => C(n, n))), prefs["theme"]);
             Fill(this.fontFamily, new[] { C("From the theme", ""), C("From the PuTTY profile", "profile") }
                 .Concat(TerminalControl.MonospaceFonts().Select(f => C(f, f))), prefs["fontFamily"]);
@@ -171,6 +299,12 @@ namespace SuperPutty.Gui
             int seconds;
             this.logTimestamps.Value = int.TryParse(prefs["logTimestamps"], out seconds) ? Math.Max(0, Math.Min(3600, seconds)) : 0;
             Fill(this.renderer, new[] { C("Fast (WebGL, uses the graphics card)", "webgl"), C("Compatible (slower with a lot of output)", "dom") }, prefs["renderer"]);
+            this.wordSeparators.Text = prefs["wordSeparators"];
+            this.wrap.Checked = prefs["wrap"] != "false";
+            foreach (string[] pref in ColourPrefs)
+            {
+                this.SetColour(pref[0], prefs[pref[0]]);
+            }
         }
 
         /// <summary>Save the choices; open terminal tabs apply them at once (TerminalPreferences.Changed)</summary>
@@ -180,6 +314,7 @@ namespace SuperPutty.Gui
             TerminalPreferences.SetMany(new Dictionary<string, string>
             {
                 { "ruleSet", value(this.ruleSet) },
+                { "builtInRules", this.builtInRules.Checked ? "true" : "false" },
                 { "theme", value(this.theme) },
                 { "fontFamily", value(this.fontFamily) },
                 { "fontSize", ((int)this.fontSize.Value).ToString() },
@@ -193,6 +328,12 @@ namespace SuperPutty.Gui
                 { "keys", value(this.keys) },
                 { "logTimestamps", ((int)this.logTimestamps.Value).ToString() },
                 { "renderer", value(this.renderer) },
+                { "wordSeparators", TerminalPreferences.NormalizeWordSeparators(this.wordSeparators.Text) },
+                { "wrap", this.wrap.Checked ? "true" : "false" },
+                { "colorBackground", this.colours["colorBackground"] },
+                { "colorForeground", this.colours["colorForeground"] },
+                { "colorSelection", this.colours["colorSelection"] },
+                { "colorCursor", this.colours["colorCursor"] },
             });
         }
     }
