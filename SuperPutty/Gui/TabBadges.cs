@@ -5,8 +5,8 @@ namespace SuperPutty.Gui
 {
     /// <summary>
     /// 16x16 tab icons for output alerts (ctlPuttyPanel.CheckOutputAlerts): an orange dot when a watched tab prints
-    /// something, and grey pause bars when it goes quiet; and a red cross when a tab's session has dropped
-    /// (ctlPuttyPanel.CheckConnection). Drawn on a white disc, like the tab spinner, so they stand out
+    /// something, and grey pause bars when it goes quiet; a red cross when a tab's session has dropped
+    /// (ctlPuttyPanel.CheckConnection), and a yellow dot while it's connecting. Drawn on a white disc, like the tab spinner, so they stand out
     /// on the blue selected tab and on dark or light tabs. Created once and kept for the life of the program.
     /// </summary>
     public static class TabBadges
@@ -14,6 +14,26 @@ namespace SuperPutty.Gui
         private static Icon activity;
         private static Icon silence;
         private static Icon disconnected;
+        private static Icon connecting;
+
+        /// <summary>The "connecting" badge: a yellow dot, until the far end answers (as SuperXTerminal's tab)</summary>
+        public static Icon Connecting
+        {
+            get
+            {
+                if (connecting == null)
+                {
+                    connecting = Make(g =>
+                    {
+                        using (Brush dot = new SolidBrush(Color.FromArgb(0xE3, 0xB3, 0x41)))
+                        {
+                            g.FillEllipse(dot, 4, 4, 8, 8);
+                        }
+                    });
+                }
+                return connecting;
+            }
+        }
 
         /// <summary>The "new output" badge: an orange dot</summary>
         public static Icon Activity

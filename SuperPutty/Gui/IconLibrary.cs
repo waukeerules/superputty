@@ -410,8 +410,36 @@ namespace SuperPutty.Gui
             None,
             /// <summary>A tab is open and connected: a green dot</summary>
             Connected,
-            /// <summary>Its tabs have all dropped, or are reconnecting: the icon dimmed under a red cross, as SuperXTerminal shows it</summary>
-            Disconnected
+            /// <summary>Its tabs have all dropped: the icon dimmed under a red cross, as SuperXTerminal shows it</summary>
+            Disconnected,
+            /// <summary>A tab is connecting or reconnecting and the far end hasn't answered yet: a yellow dot</summary>
+            Connecting
+        }
+
+        /// <summary>
+        /// The state a session shows when it's open in several tabs: the best of them, connected over connecting over
+        /// dropped (SessionTreeview.RefreshOpenStates), as SuperXTerminal's tree
+        /// </summary>
+        /// <param name="a">One tab's state</param>
+        /// <param name="b">Another's</param>
+        /// <returns>The better of the two</returns>
+        public static OpenState Better(OpenState a, OpenState b)
+        {
+            return Rank(a) >= Rank(b) ? a : b;
+        }
+
+        /// <summary>How good a state is, for <see cref="Better"/></summary>
+        /// <param name="state">The state</param>
+        /// <returns>Higher is better</returns>
+        private static int Rank(OpenState state)
+        {
+            switch (state)
+            {
+                case OpenState.Connected: return 3;
+                case OpenState.Connecting: return 2;
+                case OpenState.Disconnected: return 1;
+                default: return 0;
+            }
         }
 
         /// <summary>
@@ -426,15 +454,16 @@ namespace SuperPutty.Gui
         {
             if (state == OpenState.None || !Ensure(list, baseKey))
                 return baseKey;
-            string key = baseKey + (state == OpenState.Connected ? "|connected" : "|disconnected");
+            string key = baseKey + (state == OpenState.Connected ? "|connected" : state == OpenState.Connecting ? "|connecting" : "|disconnected");
             if (!list.Images.ContainsKey(key))
             {
                 using (Image icon = list.Images[baseKey])
                 {
-                    if (state == OpenState.Connected)
+                    if (state != OpenState.Disconnected)
                     {
                         Bitmap bitmap = new Bitmap(icon);
-                        DrawStateDot(bitmap, Color.FromArgb(0x2E, 0xB8, 0x4E), IconPixels(list));
+                        // green, or SuperXTerminal's yellow while the far end hasn't answered
+                        DrawStateDot(bitmap, state == OpenState.Connected ? Color.FromArgb(0x2E, 0xB8, 0x4E) : Color.FromArgb(0xE3, 0xB3, 0x41), IconPixels(list));
                         list.Images.Add(key, bitmap);
                     }
                     else

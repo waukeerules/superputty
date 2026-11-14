@@ -213,6 +213,10 @@ namespace SuperPutty.Gui
             this.reconnectTimer.Tick += (s, e) => { this.reconnectTimer.Stop(); this.Reconnect(); };
             this.lineBreakTimer = new Timer();
             this.lineBreakTimer.Tick += (s, e) => { this.lineBreakTimer.Stop(); this.SendPending(); };
+            this.answeredTimer = new Timer { Interval = (int)ConnectionProgress.AnsweredAfter.TotalMilliseconds };
+            this.answeredTimer.Tick += (s, e) => this.OnAnswered();
+            // connecting from the start, not only once the page has loaded and plink runs
+            this.connecting = ConnectionProgress.IsTracked(session.Proto);
             TerminalPreferences.Changed += this.OnPreferencesChanged;
         }
 
@@ -221,6 +225,24 @@ namespace SuperPutty.Gui
         {
             get { return !this.disconnected; }
         }
+
+        /// <summary>
+        /// Whether plink is running but the far end hasn't answered yet: no text from it, or not still running a second
+        /// after (ConnectionProgress). Local shells and serial lines are never connecting.
+        /// </summary>
+        public bool IsConnecting
+        {
+            get { return !this.disconnected && this.connecting; }
+        }
+
+        /// <summary>Set when plink starts, until the far end answers (<see cref="answeredTimer"/>) or the session ends</summary>
+        private volatile bool connecting;
+
+        /// <summary>Set by the output thread when text first arrives while connecting</summary>
+        private volatile bool textSeen;
+
+        /// <summary>Fires a second after the first text: if plink is still running, the session is connected</summary>
+        private Timer answeredTimer;
 
         /// <summary>Whether an automatic reconnect is scheduled</summary>
         public bool ReconnectScheduled
@@ -749,6 +771,9 @@ namespace SuperPutty.Gui
                 Log.InfoFormat("Terminal: {0}", PuttyStartInfo.PlinkCommandLine(this.session, plink, false));
                 // in its own folder: a portable KiTTY's klink reads kitty.ini and the Sessions folder from the current
                 // directory, not from beside itself, so started anywhere else -load finds no profile (no username, ...)
+                this.connecting = ConnectionProgress.IsTracked(this.session.Proto);
+                this.textSeen = false;
+                this.answeredTimer.Stop();
                 started.Start(PuttyStartInfo.PlinkCommandLine(this.session, plink, true), this.columns, this.rows, Path.GetDirectoryName(plink));
                 this.pty = started;
                 this.startedAt = DateTime.Now;
@@ -781,6 +806,7 @@ namespace SuperPutty.Gui
                 started.Start("\"" + shell + "\"", this.columns, this.rows, Directory.Exists(folder) ? folder : null);
                 this.pty = started;
                 this.startedAt = DateTime.Now;
+                this.connecting = false;
                 this.disconnected = false;
                 this.StateChanged?.Invoke(this, EventArgs.Empty);
             }
@@ -795,6 +821,11 @@ namespace SuperPutty.Gui
         /// <param name="bytes">The output</param>
         private void OnOutput(byte[] bytes)
         {
+            if (this.connecting && !this.textSeen && ConnectionProgress.HasText(bytes, bytes.Length))
+            {
+                this.textSeen = true;
+                this.BeginInvokeSafe(() => this.answeredTimer.Start());
+            }
             lock (this.pending)
             {
                 if (this.pending.Length == 0)
@@ -980,9 +1011,24 @@ namespace SuperPutty.Gui
             this.StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// A second after the far end's first text: still running, so it's connected (the tab's and tree's dot go
+        /// green); a connection that failed has ended by now and is shown as dropped instead
+        /// </summary>
+        private void OnAnswered()
+        {
+            this.answeredTimer.Stop();
+            if (!this.connecting || this.pty == null || this.disconnected)
+                return;
+            this.connecting = false;
+            this.StateChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         /// <summary>Mark the session as down</summary>
         private void SetDisconnected()
         {
+            this.connecting = false;
+            this.answeredTimer.Stop();
             this.disconnected = true;
             this.StateChanged?.Invoke(this, EventArgs.Empty);
         }

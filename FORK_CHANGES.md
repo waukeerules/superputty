@@ -313,7 +313,7 @@ When a PuTTY session drops (network error, the device reloads, the server times 
 - **Reconnecting automatically** (Tools → Options → Advanced → **Dropped sessions**; on by default, every 10 s, up to 6 times):
   - SuperPuTTY closes PuTTY's error box and, after the delay, sends PuTTY's own **Restart Session**. That reconnects in the same window and appends to the same session log, so Search Output and alerts carry on.
   - A failed attempt shows a new error box, which counts as an attempt; after the last one it gives up and says so.
-  - The session counts as back once it prints something again (e.g. `login as:`), or after 15 s active with no output. The badge then clears and the status bar says "reconnected".
+  - The session counts as back once it prints some text again (e.g. `login as:`) and is still running at the next check, or after 30 s active with no output. The badge then clears and the status bar says "reconnected". (Until "Connecting state on tabs and in the tree" this was any output, or 15 s.)
 - **Reconnecting by hand:** right-click the tab → **Reconnect** (bold, at the top, shown only while the session is down). It closes PuTTY's error box if it's up, then restarts. **Stop Reconnecting** cancels a scheduled automatic attempt.
 - **Auto-reconnect off:** PuTTY's error box stays up as before, and the tab still gets the badge.
 - **Sessions that end without an error,** e.g. a non-zero exit status, leave PuTTY open as "(inactive)". They get the badge, but aren't reconnected automatically.
@@ -2576,6 +2576,18 @@ New `Data/RdpFile.cs`, as SuperXTerminal's `external.rs` and `importing/rdp.rs`:
 - **Copy Screenshot** in an RDP tab's menu puts a picture of the remote desktop on the clipboard (`RdpControl.Screenshot`, `PrintWindow` with full-content rendering, so DirectX-drawn content is taken too).
 
 **Checked:** unit tests of which keys are passed on (`RdpKeysTests.WindowsKeysPassedOnInFullScreen`). On the real control in a test program: the screenshot is the control's size; the hook is installed going full screen and removed coming back. **Not checked:** keys reaching a real remote in full screen, and the screenshot's content of a real desktop.
+
+## Connecting state on tabs and in the tree
+
+As SuperXTerminal (its adb6fe1, c343e83, 721d6ce): a session shows **yellow while connecting**, from when its tab opens and again at each reconnect, until the far end answers; then green (in the tree; the tab's badge clears) or, if it fails, the red cross.
+
+- **When it counts as connected** (new `Utils/ConnectionProgress.cs`): the session has printed some text and is still running a second later. plink or PuTTY running isn't enough, as they run while reaching the host. Text is what's left once escape sequences (window titles included), control characters, spaces and PuTTY's session-log header line are taken out: the pseudo console's start-up codes don't count, a password prompt or coloured prompt does. A connection that fails at once prints its error and ends within the second, so it goes from yellow straight to red.
+- **Built-in terminal tabs** watch plink's output (`TerminalControl.IsConnecting`); **PuTTY tabs** read the session log in the one-second check (`ctlPuttyPanel.FarEndAnswered`), with a 30 s fallback for a session that prints nothing until spoken to (longer than Windows takes to give up on a host that doesn't answer); **RDP tabs** are connecting until the control's `OnConnected` (`RdpControl.IsConnecting`).
+- Only remote sessions are tracked (SSH, Telnet, Rlogin, Raw, RDP); serial lines, local shells, VNC and the rest stay as before.
+- **Tab:** a yellow dot badge (`TabBadges.Connecting`), below the red cross and above the activity badges. A PuTTY tab reconnecting now shows yellow, not the cross.
+- **Sessions tree:** a yellow dot (`IconLibrary.OpenState.Connecting`). A session open in several tabs shows the best of them: connected, then connecting, then dropped (`IconLibrary.Better`).
+
+**Checked:** unit tests (`SuperPuttyUnitTests/ConnectionProgressTests.cs`): the pseudo console's start-up codes, prompts and errors, PuTTY's log header, a PuTTY log as PuTTY wrote it, the one-second rule, which protocols are tracked, the tree's best state. In a test program, built-in terminal tabs against local servers: one answering after 2 s stays connecting until its text, then connected a second later; one sending only codes and then a prompt 3 s later, the same; a closed port goes from connecting to dropped. PuTTY's log for a raw session read as connecting before the prompt and as text after. **Not checked:** PuTTY and RDP tabs' dots in the running app, and an SSH host that times out.
 
 ## Offering changes upstream in small batches
 
