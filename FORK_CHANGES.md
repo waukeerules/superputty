@@ -136,10 +136,12 @@ A row of one-click buttons above the status bar. Show or hide it with **View →
 
 ## Session search across all fields
 
-Upstream's search box above the session tree only looked at the session name and host, and Regex mode only at the name. It now looks at every field by default: session name, folder, host, login username, port, connection type, PuTTY session profile, extra arguments, notes and SPSL script file.
+Upstream's search box above the session tree only looked at the session name and host, and Regex mode only at the name. It can now look at every field: session name, folder, host, login username, port, connection type, PuTTY session profile, extra arguments, notes and SPSL script file (and the icon, since "Search bar: match case, regular expressions and Search in...").
 
-- **Choosing fields:** **Tools → Options → GUI → Session tree → Search in...** opens a checklist. It stays open while you tick fields and has an "All fields" entry; at least one field always stays ticked. The choice is a per-user setting, `SessionsSearchFields`, stored as flag names such as `Name, Host` or `All` (the default).
-- **Search modes:** case-sensitive, case-insensitive and Regex all apply to every chosen field.
+**Changed since:** the fields, match case and regex are also chosen beside the search box (Aa, .*, ⋯), the default fields are now name, folder, host, username and notes rather than all, a regex can ignore case, and an invalid regex matches nothing rather than everything. See "Search bar: match case, regular expressions and Search in..., as in SuperXTerminal".
+
+- **Choosing fields:** **Tools → Options → GUI → Session tree → Search in...** opens a checklist. It stays open while you tick fields and has an "All fields" entry; at least one field always stays ticked. The choice is a per-user setting, `SessionsSearchFields`, stored as flag names such as `Name, Host` or `All` (the default is now `Name, Folder, Host, Username, Notes`).
+- **Search modes:** case-sensitive, case-insensitive, Regex and (since the search bar's toggles) RegexIgnoreCase all apply to every chosen field.
 - **Passwords:** never searched. A `-pw` password in the extra arguments is removed before matching.
 - **Placeholders:** the stored text is searched, so `{user}` finds sessions that use that placeholder.
 - **Bug fixed:** a session with no host no longer crashes the search (`s.Host.ToLower()` threw on null).
@@ -1031,7 +1033,7 @@ Timed with a 10,000-session `Sessions.xml` mirroring the test table (2.5 MB), on
 When `Sessions.xml` is changed by something other than this copy of SuperXPuTTY, the sessions are reloaded on their own. That might be a teammate saving to the same shared settings folder, a script, or a text editor.
 
 **How it decides** (`Utils/SessionsFileWatcher.cs`):
-- **Watching:** a `FileSystemWatcher` flags changes as they happen. Every 30 s the file's time and size are also compared, since watchers miss changes on some network shares.
+- **Watching:** a `FileSystemWatcher` flags changes as they happen. Every 30 s the file's time and size are also compared, since watchers miss changes on some network shares. Since "Saved sessions while the settings folder can't be reached", that check runs in the background (a drive that's gone could freeze the window), and the settings folder going away or coming back counts as a change: Saved sessions switch to the copy kept on this computer and back.
 - **Deciding:** when something changed, the file's SHA-256 is compared with the one SuperXPuTTY recorded when it last read (`SuperPuTTY.LoadSessions`) or wrote (`SaveSessions`) the file. Only a different hash reloads.
   - So SuperXPuTTY's own saves, and tools that rewrite or touch the file without changing it, don't cause reloads.
   - **Not MD5:** where Windows' FIPS policy is enforced, .NET refuses MD5 (and its own SHA-256), so the Windows provider's SHA-256 is used.
