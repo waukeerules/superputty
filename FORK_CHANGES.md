@@ -2524,6 +2524,14 @@ With the find bar open on "1 of 1", output that held the text again left it at "
 
 They had fixed dark colours, so on the Light theme a dark find bar sat on a white terminal. As SuperXTerminal's 4007cff, a light theme (base "vs") gives them light colours (`:root.light-theme` in `terminal.css`, set by `applyTheme`), the find box white; the others keep the dark ones. **Checked:** the bar and its box are light on Light and dark on PuTTY's; light failed on the code before.
 
+### A magnifying glass opens the find bar
+
+The find bar opened only from the right-click menu's Find... or Ctrl+Shift+F, so nothing on screen said it was there. As SuperXTerminal's 62b166b, a small magnifying glass sits at the terminal's top right, where the bar opens, left of the scroll bar (`#findOpen`); it's faint until the pointer is on it, so it doesn't hide the output under it, goes while the bar is open, and its tooltip names the key.
+
+In a session with an environment colour the tab has a 3-pixel frame (`ctlPuttyPanel.EnvironmentFrameWidth`, now one constant), so the page is that much in from the tab's edges. As SuperXTerminal's cd02531, TerminalControl tells the page the frame's width with the colour (`frame` in `config` and `cursorColor`), and the glass and the find bar move out by it (`--frame`), to sit where they do in a tab with no colour.
+
+**Checked:** the glass is faint, names Ctrl+Shift+F, opens the bar, hides while it's open and comes back after Escape; told of a 3-pixel frame, it moves 3 pixels up and right, and back with none. Both fail on the code before. **Not checked in the app:** a coloured session's tab.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

@@ -101,10 +101,13 @@ html, body {
   overflow-y: auto;
 }
 
+/* --frame (terminal.js) is the frame a session's environment colour puts round this page (ctlPuttyPanel's padding):
+   the find bar and its magnifying glass move out by it, to be at the same place in the tab whether the session has a
+   colour or not */
 #find {
   position: absolute;
-  top: 6px;
-  right: 22px;
+  top: calc(6px - var(--frame, 0px));
+  right: calc(22px - var(--frame, 0px));
   z-index: 5;
   display: flex;
   align-items: center;
@@ -116,6 +119,35 @@ html, body {
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   font: 12px "Segoe UI", sans-serif;
+}
+
+/* the magnifying glass that opens the find bar: where the bar opens, left of xterm.js's scroll bar, faint until the
+   pointer's on it so it doesn't hide the output under it */
+#findOpen {
+  position: absolute;
+  top: calc(6px - var(--frame, 0px));
+  right: calc(22px - var(--frame, 0px));
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--menu-fg);
+  background: var(--menu-bg);
+  border: 1px solid var(--menu-border);
+  border-radius: 4px;
+  opacity: 0.4;
+  cursor: pointer;
+}
+
+#findOpen:hover, #findOpen:focus-visible {
+  opacity: 1;
+}
+
+#find:not([hidden]) ~ #findOpen {
+  display: none;
 }
 
 #find[hidden], .menu[hidden] {

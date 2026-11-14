@@ -771,6 +771,8 @@
         document.getElementById('findPrev').addEventListener('click', function () { showMatch(find.index - 1); });
         document.getElementById('findNext').addEventListener('click', function () { showMatch(find.index + 1); });
         document.getElementById('findClose').addEventListener('click', closeFind);
+        // the magnifying glass at the top right, as SuperXTerminal's (its commit 62b166b)
+        document.getElementById('findOpen').addEventListener('click', openFind);
     }
 
     // ---- right-click menu -----------------------------------------------------------------------------------------
@@ -1210,6 +1212,7 @@
         if (config.unlimitedScrollback) { unlimitedScrollback = config.unlimitedScrollback; }
         applyCursor();
         cursorColor = config.cursorColor || null;
+        setFrame(config.frame);
         themes = config.themes || [];
         var compiled = SpRules.compile(config.ruleSets || []);
         ruleSets = compiled.sets;
@@ -1236,6 +1239,15 @@
         return { row: decoration.marker.line, x: decoration.options.x || 0, width: decoration.options.width || 1 };
     }
 
+    /**
+     * The frame in the session's environment colour round this page, in pixels (ctlPuttyPanel.EnvironmentFrameWidth;
+     * 0 for none): terminal.css moves the find bar and its magnifying glass out by it, to where they are in a tab with
+     * no colour (as SuperXTerminal's cd02531)
+     */
+    function setFrame(frame) {
+        document.documentElement.style.setProperty('--frame', (Number(frame) || 0) + 'px');
+    }
+
     /** Handle a message from TerminalControl */
     function onMessage(message) {
         if (!message || !message.type) { return; }
@@ -1246,7 +1258,7 @@
             case 'paste': if (message.text) { term.paste(message.text); } break;
             case 'focus': term.focus(); break;
             case 'action': runAction(message.name); break;
-            case 'cursorColor': cursorColor = message.color || null; applyTheme(); break;
+            case 'cursorColor': cursorColor = message.color || null; setFrame(message.frame); applyTheme(); break;
             case 'prefs': applyPrefs(message.prefs); break;
         }
     }

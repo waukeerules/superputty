@@ -432,7 +432,7 @@ namespace SuperPutty.Gui
             }
             bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
             this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursor = CursorFromProfile(this.session.PuttySession), local = IsLocalShell(this.session.Proto), serial = this.session.Proto == ConnectionProtocol.Serial,
-                profileFont = FontFromProfile(this.session.PuttySession), fonts = MonospaceFonts(), prefs = TerminalPreferences.All(), cursorColor = this.cursorColor,
+                profileFont = FontFromProfile(this.session.PuttySession), fonts = MonospaceFonts(), prefs = TerminalPreferences.All(), cursorColor = this.cursorColor, frame = this.FrameWidth,
                 keys = KeysFromProfile(this.session.PuttySession), sessionRules = this.session.HighlightRules ?? string.Empty,
                 unlimitedScrollback = TerminalPreferences.UnlimitedScrollback,
                 menuKeys = Array.ConvertAll(TerminalKeys.MenuKeys, k => new { key = k[0], label = k[1], hint = k[2] }) });
@@ -564,6 +564,16 @@ namespace SuperPutty.Gui
         private DateTime lastLogStamp = DateTime.MinValue;
 
         /// <summary>
+        /// The frame round the page in the session's environment colour, in CSS pixels: ctlPuttyPanel pads a coloured
+        /// session's tab by <see cref="ctlPuttyPanel.EnvironmentFrameWidth"/>, so there's one exactly when the cursor has
+        /// the colour too. The page moves its find bar out by it.
+        /// </summary>
+        private int FrameWidth
+        {
+            get { return this.cursorColor != null ? ctlPuttyPanel.EnvironmentFrameWidth : 0; }
+        }
+
+        /// <summary>
         /// Draw the cursor in the session's environment colour (red for production), like its tab, or the theme's
         /// cursor colour when it has none. The cursor rather than the prompt: it's the same on every device, where
         /// prompts can't be recognised reliably. ctlPuttyPanel calls this when the tab opens and whenever colours change.
@@ -574,7 +584,8 @@ namespace SuperPutty.Gui
             this.cursorColor = color.HasValue ? string.Format("#{0:x2}{1:x2}{2:x2}", color.Value.R, color.Value.G, color.Value.B) : null;
             if (this.pageLoaded)
             {
-                this.Post(new { type = "cursorColor", color = this.cursorColor });
+                // the frame in that colour round the page goes with it (ctlPuttyPanel.ApplyEnvironmentColor)
+                this.Post(new { type = "cursorColor", color = this.cursorColor, frame = this.FrameWidth });
             }
         }
 

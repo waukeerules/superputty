@@ -120,7 +120,7 @@ namespace SuperPutty
                 this.normalBackColor = this.BackColor;
             }
             // the terminal is docked to fill, so padding shows the background around it as a frame
-            int width = color == null ? 0 : this.LogicalToDeviceUnits(3);
+            int width = color == null ? 0 : this.LogicalToDeviceUnits(EnvironmentFrameWidth);
             if (this.Padding.All != width)
             {
                 this.Padding = new Padding(width);
@@ -128,6 +128,12 @@ namespace SuperPutty
             this.environmentColor = color;
             this.BackColor = color ?? this.normalBackColor.Value;
         }
+
+        /// <summary>
+        /// The width of the frame in a session's environment colour round its terminal, in logical pixels. The built-in
+        /// terminal's page is told it (TerminalControl), to keep its find bar where it is in a tab with no colour.
+        /// </summary>
+        public const int EnvironmentFrameWidth = 3;
 
         /// <summary>The frame's colour while the session has one (<see cref="ApplyEnvironmentColor"/>); null for none</summary>
         private System.Drawing.Color? environmentColor;
