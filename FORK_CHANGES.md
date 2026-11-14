@@ -2759,6 +2759,12 @@ As SuperXTerminal (its 03768a5, f1185e4, 28955cc, bde855e): with a big monitor t
 
 **Checked:** in a test program with SuperXPuTTY's own strip on the dark theme: an SSH tab that's connecting shows the yellow dot on its icon; sampled every 25 ms while the mouse moved over the strip, the pulsing tab's blue went 83, 88, 96 ... 181, 181, 177 ... 71, 72, 75 ... 138, a smooth curve with no frame falling back to the plain tab. Unit tests unchanged and passing. **Not checked:** in the running app, and master's build wasn't measured the same way for comparison.
 
+## Fix: Options' theme names and tree font were cut off at larger zoom
+
+Symptom: on Options → GUI, the Interface theme choices read "Da", "Dark", "Lig", "Clas" with the display zoomed (and in the test program's renders at its DPI), and the Font button's "Segoe UI, 12 pt, Regular" was cut off at the bottom. Cause: the four radio buttons size themselves to their text but stayed at the designer's fixed places, so at a larger scale each one's text ran under the next button; and the Font button drew its label in the chosen tree font, taller than the button. Fix: when the dialog loads, after it's scaled, the theme buttons are placed side by side from their measured widths with an even gap (`dlgFindPutty.LayOutInRow`, the gap shrinking if they'd pass the box); the Font button names the font in the dialog's own font, the choice kept in `treeFont`.
+
+**Checked:** the Options dialog rendered in a test program in the light and dark themes: all four theme names whole, the Font button's text whole. **Not checked:** at your own zoom setting.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
