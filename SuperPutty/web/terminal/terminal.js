@@ -130,6 +130,7 @@
         term.write(bytes, function () {
             post({ type: 'ack' });
             scheduleSettle();
+            scheduleFindAgain();
         });
     }
 
@@ -618,37 +619,103 @@
         find.current = null;
     }
 
-    /** Find every match in the scrollback and screen, mark them, and select the one nearest the end */
-    function runFind() {
-        clearFindMarks();
-        var input = document.getElementById('findText');
-        var text = input.value;
+    /**
+     * What the find bar is looking for, from its text and its case and regex buttons
+     * @returns {RegExp|null|false} null with no text to find, false when the text isn't a regular expression
+     */
+    function findRegex() {
+        var text = document.getElementById('findText').value;
         var caseOn = document.getElementById('findCase').getAttribute('aria-pressed') === 'true';
         var regexOn = document.getElementById('findRegex').getAttribute('aria-pressed') === 'true';
+        if (!text) { return null; }
+        try {
+            return new RegExp(regexOn ? text : text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseOn ? 'g' : 'gi');
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /**
+     * Find every match in the scrollback and screen and mark them (not yet the current one: showMatch or
+     * markCurrent), or say in the find bar why there's none
+     * @returns {boolean} whether there's a match
+     */
+    function findAndMark() {
+        clearFindMarks();
+        var input = document.getElementById('findText');
+        var regex = findRegex();
         find.matches = [];
         find.index = -1;
         input.classList.remove('nomatch');
-        if (!text) {
+        if (regex === null) {
             document.getElementById('findCount').textContent = '';
-            return;
+            return false;
         }
-        var regex;
-        try {
-            regex = new RegExp(regexOn ? text : text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseOn ? 'g' : 'gi');
-        } catch (e) {
+        if (regex === false) {
             input.classList.add('nomatch');
             document.getElementById('findCount').textContent = 'bad regex';
-            return;
+            return false;
         }
         find.matches = findInBuffer(regex, MAX_FIND_MATCHES);
         if (!find.matches.length) {
             input.classList.add('nomatch');
             document.getElementById('findCount').textContent = 'No results';
-            return;
+            return false;
         }
         // marks for each match, on each row it's on (find.decorations[i] are match i's; null while it's the current one)
         find.decorations = find.matches.map(function (m) { return markSpans(m.spans, FIND_MATCH_COLOUR); });
-        showMatch(find.matches.length - 1);
+        return true;
+    }
+
+    /** Find every match in the scrollback and screen, mark them, and select the one nearest the end */
+    function runFind() {
+        if (findAndMark()) { showMatch(find.matches.length - 1); }
+    }
+
+    /** How long output must have stopped arriving before the find bar looks through it again */
+    var FIND_AGAIN_MS = 150;
+    /** The wait for output to stop (FIND_AGAIN_MS), or null */
+    var findAgainTimer = null;
+
+    /**
+     * Output arrived: with the find bar open, look again once it stops, so the count and the marks take in what's
+     * new (a command run again with the bar open said "1 of 1" though its output held a second match, until the bar
+     * was closed and opened). Waits for a pause because looking goes through the whole scrollback. As SuperXTerminal's
+     * continuous find (its commit 9cd65ff).
+     */
+    function scheduleFindAgain() {
+        if (document.getElementById('find').hidden) { return; }
+        if (findAgainTimer !== null) { window.clearTimeout(findAgainTimer); }
+        findAgainTimer = window.setTimeout(function () {
+            findAgainTimer = null;
+            findAgain();
+        }, FIND_AGAIN_MS);
+    }
+
+    /**
+     * Find again after output arrived, staying on the match being shown: the view isn't scrolled and the selection
+     * isn't touched, as the user may be reading or typing. The current match is known by where its mark is now (its
+     * marker follows the line as the scrollback is trimmed). If it's gone (cleared, or scrolled out of the
+     * scrollback) the newest match is the current one; if there was none, the newest is shown as when typing in
+     * the bar.
+     */
+    function findAgain() {
+        if (document.getElementById('find').hidden) { return; }
+        var mark = find.current && find.current.mark[0];
+        var was = mark && !mark.marker.isDisposed ? { row: mark.marker.line, col: find.matches[find.current.index].col } : null;
+        var before = find.matches;
+        var regex = findRegex();
+        var now = regex ? findInBuffer(regex, MAX_FIND_MATCHES) : [];
+        // nothing new and nothing moved: the marks are right as they are
+        var same = now.length === before.length && now.every(function (m, i) {
+            return m.row === before[i].row && m.col === before[i].col && m.length === before[i].length;
+        });
+        if (same) { return; }
+        if (!findAndMark()) { return; }
+        if (!was) { showMatch(find.matches.length - 1); return; }
+        var index = find.matches.length - 1;
+        find.matches.forEach(function (m, i) { if (m.row === was.row && m.col === was.col) { index = i; } });
+        markCurrent(index);
     }
 
     /** Background of every find match, and of the current one */
@@ -657,11 +724,19 @@
     /** Select a match and scroll it into the middle of the view */
     function showMatch(index) {
         if (!find.matches.length) { return; }
-        find.index = (index + find.matches.length) % find.matches.length;
-        var m = find.matches[find.index];
+        index = (index + find.matches.length) % find.matches.length;
+        var m = find.matches[index];
         term.select(m.col, m.row, m.length);
         // Find's own selection, which Copy on Select leaves alone (selectionIsFinds)
         find.selected = term.getSelectionPosition() || null;
+        markCurrent(index);
+        term.scrollToLine(Math.max(0, m.row - Math.floor(term.rows / 2)));
+    }
+
+    /** Make a match the current one: its brighter mark, and its place among the matches in the find bar ("2 of 5") */
+    function markCurrent(index) {
+        find.index = index;
+        var m = find.matches[find.index];
         // marks cover the selection, so the current match gets a brighter mark instead of its usual one (with both,
         // xterm.js draws the one registered first on top, which is the usual one)
         if (find.current) {
@@ -674,7 +749,6 @@
             find.decorations[find.index] = null;
         }
         find.current = { index: find.index, mark: markSpans(m.spans, FIND_CURRENT_COLOUR, '#000000') };
-        term.scrollToLine(Math.max(0, m.row - Math.floor(term.rows / 2)));
         document.getElementById('findCount').textContent = (find.index + 1) + ' of ' + find.matches.length;
     }
 

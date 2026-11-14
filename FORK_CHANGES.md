@@ -2514,6 +2514,12 @@ SuperXPuTTY's terminal page (`web/terminal/terminal.js`) and SuperXTerminal's st
 
 **Fix** (SuperXTerminal 436cbb7): only the selection that is Find's current match is skipped (`selectionIsFinds`, `find.selected`). **Checked:** with the bar open, Find's match isn't copied and a selection the user makes is; the second fails on the code before.
 
+### Continuous find: output arriving while the find bar is open
+
+With the find bar open on "1 of 1", output that held the text again left it at "1 of 1", unmarked, until the bar was closed and opened. Now, as SuperXTerminal's 9cd65ff, the bar looks again 150 ms after output stops arriving (`scheduleFindAgain`, `findAgain`): the count and marks take in what's new, it stays on the match being shown (the view isn't scrolled and the selection isn't touched, as the user may be reading or typing) and Enter goes on to the new match; with nothing found yet, the first match to arrive is shown. Output that changes no match leaves the marks as they are. Looking is split out of `runFind` into `findRegex` and `findAndMark`, and the current match's mark into `markCurrent`.
+
+**Checked:** "1 of 1" becomes "1 of 2" with both marked when the text arrives again, and Enter moves to "2 of 2"; "No results" becomes "1 of 1" when the first match arrives. Both fail on the code before.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
