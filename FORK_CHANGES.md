@@ -2688,6 +2688,12 @@ As SuperXTerminal (its b8986c3, dc4226a, 9cb4022): **Line Numbers**, in the term
 
 **Checked:** page tests: numbering with a wrapped line and empty rows; 200 lines through a 20-line scrollback before turning it on ends at 200 and 201; the alternate screen hides the gutter and it comes back; a button's colour on its command's lines, ending where a command is typed; off by default and in the menu. **Not checked:** in the running app, and a real button's colour reaching the page.
 
+## Built-in terminal: a session through a jump host says so at the top
+
+As SuperXTerminal (its f7c0902): a built-in terminal tab going through a jump host began with the login prompts and nothing else, so a password prompt could be the jump host's or the target's, with no way to tell. Each connection now starts with a line such as "Connecting to 10.0.0.5 through the jump host Bastions/b1 (me@bastion.example), from folder "HQ"." A jump host named as a session shows that session's address too, and it says where the jump host came from: your local override, the session's own Jump host, or its folder (`JumpHosts.Notice`, `NoticeText`; `FolderSettings.FolderOf`). PuTTY windows aren't written into, so PuTTY tabs are as before.
+
+**Checked:** unit tests (`SuperPuttyUnitTests/JumpHostNoticeTests.cs`): user@host as given, a session's name with its address and port, no user. In a test program, a built-in terminal tab through a jump host: its log starts with the line. **Not checked:** a jump host from a folder or an override in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

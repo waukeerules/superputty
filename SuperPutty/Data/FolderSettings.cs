@@ -386,6 +386,23 @@ namespace SuperPutty.Data
             return null;
         }
 
+        /// <summary>The nearest folder that gives a session a field's default, for saying where a value came from</summary>
+        /// <param name="session">The session (its ID gives the folder)</param>
+        /// <param name="field">"Username", "PuttyProfile", "Port", "JumpHost" or "HighlightRules"</param>
+        /// <returns>The folder's path, e.g. "HQ/Core"; null if no folder sets it</returns>
+        public static string FolderOf(SessionData session, string field)
+        {
+            string folder = session.IsDatabase ? DatabaseSessions.FolderOf(session.SessionId) : SessionData.GetSessionParentId(session.SessionId) ?? string.Empty;
+            foreach (FolderSetting setting in Along(StoreOf(session), folder))
+            {
+                string value = field == "Username" ? setting.Username : field == "PuttyProfile" ? setting.PuttyProfile : field == "JumpHost" ? setting.JumpHost
+                    : field == "HighlightRules" ? setting.HighlightRules : setting.Port > 0 ? setting.Port.ToString() : null;
+                if (!string.IsNullOrEmpty(value))
+                    return setting.Path;
+            }
+            return null;
+        }
+
         /// <summary>Use the Database folders' settings as last read from the table (or its cache)</summary>
         /// <param name="settings">The settings</param>
         public static void ReplaceDatabase(IEnumerable<FolderSetting> settings)
