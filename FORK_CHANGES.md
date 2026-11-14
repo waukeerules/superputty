@@ -563,7 +563,7 @@ The Sessions tree now has four top-level groups, always in this order: **Favorit
   - **Clearing:** right-click Recent → **Clear Recent**. Delete on an entry removes just that one.
   - **Turning it off:** Tools → Options → GUI → **Show recent**.
 - **Open or closed:** both groups start closed, with how many sessions they hold after the name ("Favorites (3)"). Every top-level group has an open/close arrow, like the folders (`ShowRootLines`; before, they had none, so a closed group didn't look openable). Opening or closing one yourself (the arrow, double-click, the keyboard) is remembered between runs, in `SessionShortcuts.json` (`FavoritesExpanded`, `RecentExpanded`); a search opening everything, Expand all and Collapse all aren't (`SessionTreeview.RememberGroup` checks the event's `TreeViewAction`). Clearing a search puts them back as you left them.
-- **Entries in both:** double-click or Enter opens the session. Right-click offers **Connect**, **Show in Sessions tree** and removing the entry, plus **Add to Favorites** in Recent. The tooltip says where the session lives. A session that's renamed or moved stays a favourite; a deleted one is dropped from both.
+- **Entries in both:** double-click or Enter opens the session. Right-click offers **Connect**, the file transfers (see "File transfer from Favorites and Recent"), **Show in Sessions tree** and removing the entry, plus **Add to Favorites** in Recent. The tooltip says where the session lives. A session that's renamed or moved stays a favourite; a deleted one is dropped from both.
 - **Per user:** both lists are in `SessionShortcuts.json` beside your `SuperXPuTTY.settings` (`Data/SessionShortcuts.cs`), not in `Sessions.xml`, so starring a session in a shared settings folder doesn't change it for the team.
 - **Private sessions** (padlock): sessions only you see, in `PrivateSessions.xml` beside your `SuperXPuTTY.settings` instead of the shared `Sessions.xml`.
   - **Creating one:** right-click Private sessions → **New session...** or **New folder**.
@@ -2366,6 +2366,17 @@ Upstream's 38 commits up to `43e7353` move SuperXPuTTY from .NET Framework 4.8 t
 2. Pick Red: every tile turns red, logos and custom icons too. Pick Default: each goes back to its own colour. Choose Cisco in red and save: the tree and tab show a red Cisco logo.
 3. Open a session and let it drop: its icon in the tree dims under a red cross; when it reconnects it gets the green dot again.
 4. Repeat 1–3 in the light and dark themes, and at the 24 and 16 pixel icon sizes.
+
+## File transfer from Favorites and Recent
+
+A Favorites or Recent entry's right-click menu had only Connect, Show in Sessions tree and the entry's own items, so starting a file transfer meant finding the session in the tree first. SuperXTerminal's menu for the entries has **File transfer (SFTP)**; this one now has the session menu's file transfers, under Connect:
+
+- **File transfer (pscp)**, greyed when pscp isn't set in Options, as in the session menu.
+- **WinSCP (external)** and **FileZilla (external)**, shown only when they're set in Options, as in the session menu.
+
+They act on the entry's session (`SelectedSession`), not the node's Tag, which for an entry is a `SessionShortcut` (`SessionTreeview.BuildShortcutMenus`, `contextMenuStripShortcut_Opening`). Unlike SuperXTerminal's, the pscp item isn't greyed for sessions that aren't SSH; the session menu doesn't grey it either.
+
+**Checked:** it compiles. **Not checked in the running app.** Manual test: right-click a Recent entry and a Favorites entry; the menu has File transfer (pscp) below Connect, plus WinSCP and FileZilla if they're set in Options. Each opens the transfer for that session. Clear pscp's path in Options: the item is greyed.
 
 ## Offering changes upstream in small batches
 

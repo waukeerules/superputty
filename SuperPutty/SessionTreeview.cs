@@ -148,6 +148,9 @@ namespace SuperPutty
         /// <summary>Items of <see cref="contextMenuStripShortcut"/> whose text or visibility depends on the entry</summary>
         ToolStripMenuItem shortcutFavoriteToolStripMenuItem, shortcutRemoveToolStripMenuItem;
 
+        /// <summary>The file transfer items of <see cref="contextMenuStripShortcut"/>, shown and enabled as the session menu's are</summary>
+        ToolStripMenuItem shortcutScpToolStripMenuItem, shortcutWinScpToolStripMenuItem, shortcutFileZillaToolStripMenuItem;
+
         /// <summary>Whether a redraw of Favorites and Recent is already queued</summary>
         bool shortcutRebuildPending;
 
@@ -2921,10 +2924,21 @@ namespace SuperPutty
             connect.Font = this.connectToolStripMenuItem.Font;
             this.shortcutFavoriteToolStripMenuItem = new ToolStripMenuItem("Add to Favorites", null, (s, e) => this.ToggleFavorite(this.SelectedSession));
             this.shortcutRemoveToolStripMenuItem = new ToolStripMenuItem("Remove from Recent", null, (s, e) => this.RemoveShortcut(this.treeView1.SelectedNode));
+            // file transfers, as in the session menu and SuperXTerminal's Favorites and Recent menu; they act on the
+            // entry's session (SelectedSession), since the node's Tag is a SessionShortcut
+            this.shortcutScpToolStripMenuItem = new ToolStripMenuItem(this.fileBrowserToolStripMenuItem.Text, null,
+                (s, e) => SuperPuTTY.OpenScpSession(this.SelectedSession));
+            this.shortcutWinScpToolStripMenuItem = new ToolStripMenuItem(this.winSCPToolStripMenuItem.Text, null,
+                (s, e) => ExternalApplications.openWinSCP(this.SelectedSession));
+            this.shortcutFileZillaToolStripMenuItem = new ToolStripMenuItem(this.fileZillaToolStripMenuItem.Text, null,
+                (s, e) => ExternalApplications.openFileZilla(this.SelectedSession));
             this.contextMenuStripShortcut = new ContextMenuStrip { ShowImageMargin = false };
             this.contextMenuStripShortcut.Items.AddRange(new ToolStripItem[]
             {
                 connect,
+                this.shortcutScpToolStripMenuItem,
+                this.shortcutWinScpToolStripMenuItem,
+                this.shortcutFileZillaToolStripMenuItem,
                 new ToolStripMenuItem("Show in Sessions tree", null, (s, e) => this.ShowInTree(this.SelectedSession)),
                 new ToolStripSeparator(),
                 this.shortcutFavoriteToolStripMenuItem,
@@ -2977,6 +2991,11 @@ namespace SuperPutty
             this.shortcutFavoriteToolStripMenuItem.Visible = shortcut.Group == RootKind.Recent;
             this.shortcutFavoriteToolStripMenuItem.Text = favorite ? "Remove from Favorites" : "Add to Favorites";
             this.shortcutRemoveToolStripMenuItem.Text = shortcut.Group == RootKind.Favorites ? "Remove from Favorites" : "Remove from Recent";
+            // the same rules as the session menu (contextMenuStripAddTreeItem_Opening): pscp greyed when it isn't set,
+            // WinSCP and FileZilla only when they're set
+            this.shortcutScpToolStripMenuItem.Enabled = SuperPuTTY.IsScpEnabled;
+            this.shortcutWinScpToolStripMenuItem.Visible = SuperPuTTY.IsWinSCPEnabled;
+            this.shortcutFileZillaToolStripMenuItem.Visible = SuperPuTTY.IsFilezillaEnabled;
         }
 
         /// <summary>Add a session to Favorites, or remove it if it's there</summary>
