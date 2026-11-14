@@ -176,6 +176,83 @@
     }
 
     /**
+     * A line as matching sees it, from buffer row `start`: its text, the rows a long line wraps onto joined back on
+     * (so a match isn't missed, or coloured from its second character, where the line wraps), and for each character
+     * of the text the row and column of the cell it's drawn in, and that cell's width. A character's place in the
+     * text isn't its column: one taking two columns (a Chinese character, many emoji) counts once, an emoji is two
+     * characters of text in one cell, and an accent added to a letter (e + U+0301) is text with no column of its own;
+     * using the place in the text as the column put every highlight and find match after such a character off by a
+     * column or more. Rows of plain ASCII, nearly all of them, are read as text at once: their characters and columns
+     * are one to one. As SuperXTerminal's terminal page (its commit a0cb53f).
+     * @returns {{text: string, row: number[], col: number[], width: number[], rows: number}} rows: how many it spans
+     */
+    function lineCells(start) {
+        var buffer = term.buffer.active;
+        var cells = { text: '', row: [], col: [], width: [], rows: 0 };
+        var cell;
+        var r = start;
+        var continues;
+        do {
+            var line = buffer.getLine(r);
+            if (!line) { break; }
+            var next = buffer.getLine(r + 1);
+            continues = !!(next && next.isWrapped);
+            // a row the line goes on from is read whole: its last cells are the line's, not padding
+            var text = line.translateToString(!continues);
+            if (!/[^\x20-\x7e]/.test(text)) {
+                for (var k = 0; k < text.length; k++) {
+                    cells.row.push(r); cells.col.push(k); cells.width.push(1);
+                }
+                cells.text += text;
+            } else {
+                var used = '';
+                for (var c = 0; c < line.length; c++) {
+                    cell = line.getCell(c, cell);
+                    if (!cell) { break; }
+                    var width = cell.getWidth();
+                    // the second half of a character two columns wide
+                    if (width === 0) { continue; }
+                    var chars = cell.getChars() || ' ';
+                    for (var u = 0; u < chars.length; u++) {
+                        cells.row.push(r); cells.col.push(c); cells.width.push(width);
+                    }
+                    used += chars;
+                }
+                if (!continues) {
+                    // trailing blank cells aren't the line's, as translateToString(true) leaves them off
+                    var kept = used.replace(/ +$/, '').length;
+                    cells.row.length = cells.col.length = cells.width.length = cells.text.length + kept;
+                    used = used.substring(0, kept);
+                }
+                cells.text += used;
+            }
+            r++;
+        } while (r < buffer.length && continues);
+        cells.rows = Math.max(1, r - start);
+        return cells;
+    }
+
+    /**
+     * Where part of a line's text [start, end) is drawn: a stretch of cells on each row it's on (one, or more where the
+     * line wraps), for a decoration each
+     * @returns {Array<{row: number, x: number, width: number}>}
+     */
+    function cellSpans(cells, start, end) {
+        var spans = [];
+        end = Math.min(end, cells.text.length);
+        for (var i = start; i < end; i++) {
+            var row = cells.row[i], col = cells.col[i], right = col + cells.width[i];
+            var last = spans[spans.length - 1];
+            if (last && last.row === row && col <= last.x + last.width) {
+                last.width = Math.max(last.width, right - last.x);
+            } else {
+                spans.push({ row: row, x: col, width: right - col });
+            }
+        }
+        return spans;
+    }
+
+    /**
      * Send the session log what changed: lines the cursor has left, and the cursor's own line. A line is sent once,
      * when the cursor first moves below it, so "--More--" (erased on the same line) never reaches the log, and a
      * screen repainted after a resize isn't logged twice.
@@ -232,7 +309,11 @@
     function disposeEntries(list) {
         list.forEach(function (entry) { entry.decorations.forEach(function (d) { d.dispose(); }); });
         flushDecorations();
-        list.forEach(function (entry) { entry.marker.dispose(); });
+        list.forEach(function (entry) {
+            entry.marker.dispose();
+            // a wrapped line's markers on its other rows
+            (entry.markers || []).forEach(function (m) { m.dispose(); });
+        });
     }
 
     /**
@@ -246,41 +327,52 @@
             disposeEntries(entries);
             entries = [];
         }
-        var from = all || !scanFrom || scanFrom.isDisposed ? 0 : scanFrom.line;
+        // from the start of the line the first row is part of, so a line wrapped onto it is matched whole
+        var from = logicalStart(all || !scanFrom || scanFrom.isDisposed ? 0 : scanFrom.line);
         var to = buffer.length;
         entries = entries.filter(function (e) { return !e.marker.isDisposed; });
         var byLine = {};
         entries.forEach(function (e) { if (e.marker.line >= from) { byLine[e.marker.line] = e; } });
 
-        for (var i = from; i < to; i++) {
-            var line = buffer.getLine(i);
-            var text = line ? line.translateToString(true) : '';
+        for (var i = from; i < to; ) {
+            var cells = lineCells(i);
+            var text = cells.text;
+            var next = i + cells.rows;
             var entry = byLine[i];
-            if (entry && entry.text === text && entry.set === set) { continue; }
+            if (entry && entry.text === text && entry.set === set) { i = next; continue; }
             if (entry) {
                 disposeEntries([entry]);
                 entries.splice(entries.indexOf(entry), 1);
             }
             var found = set ? SpRules.matches(set, text, MAX_MATCH_LENGTH) : [];
-            if (!found.length) { continue; }
-            var marker = markLine(i);
-            if (!marker) { continue; }
+            if (!found.length) { i = next; continue; }
+            // a marker on each of the line's rows, for its decorations there; the first is the entry's place
+            var markers = [];
+            for (var r = i; r < next; r++) { markers.push(markLine(r)); }
+            if (!markers[0]) { markers.forEach(function (m) { if (m) { m.dispose(); } }); i = next; continue; }
             var decorations = [];
+            var first = i;
             found.forEach(function (m) {
                 var style = styleFor(m.style);
                 if (!style || (!style.color && !style.background)) { return; }
-                var options = {
-                    marker: marker,
-                    x: m.start,
-                    width: Math.max(1, Math.min(term.cols, m.line ? term.cols : m.end) - m.start),
-                    layer: 'top'
-                };
-                if (style.color) { options.foregroundColor = style.color; }
-                if (style.background) { options.backgroundColor = style.background; }
-                var decoration = term.registerDecoration(options);
-                if (decoration) { decorations.push(decoration); }
+                // a whole-line rule colours every row of the line; a match, the cells its characters are drawn in
+                var spans = m.line
+                    ? markers.map(function (_, k) { return { row: first + k, x: 0, width: term.cols }; })
+                    : cellSpans(cells, m.start, m.end);
+                spans.forEach(function (span) {
+                    var marker = markers[span.row - first];
+                    if (!marker) { return; }
+                    var options = {
+                        marker: marker, x: span.x, width: Math.max(1, Math.min(term.cols - span.x, span.width)), layer: 'top'
+                    };
+                    if (style.color) { options.foregroundColor = style.color; }
+                    if (style.background) { options.backgroundColor = style.background; }
+                    var decoration = term.registerDecoration(options);
+                    if (decoration) { decorations.push(decoration); }
+                });
             });
-            entries.push({ marker: marker, decorations: decorations, text: text, set: set });
+            entries.push({ marker: markers[0], markers: markers.slice(1).filter(Boolean), decorations: decorations, text: text, set: set });
+            i = next;
         }
         if (scanFrom) { scanFrom.dispose(); }
         // next time, start at the top of the screen: lines above it can no longer change
@@ -345,6 +437,48 @@
     }
 
     /**
+     * Mark a match where it's drawn (cellSpans): a mark on each row it's on, so one a long line wraps across is marked
+     * on both rows
+     * @returns {Array<{marker, decoration}>} to pass to unmark
+     */
+    function markSpans(spans, colour, textColour) {
+        return spans.map(function (span) { return mark(span.row, span.x, span.width, colour, textColour); }).filter(Boolean);
+    }
+
+    /**
+     * Where a match begins and how many cells it spans, counting on across the rows it wraps onto, as term.select
+     * takes them (its first cell's column and row, and a length that carries on to the next row at the right edge)
+     */
+    function selectionOf(spans) {
+        var first = spans[0], last = spans[spans.length - 1];
+        return { col: first.x, row: first.row, length: (last.row - first.row) * term.cols + last.x + last.width - first.x };
+    }
+
+    /**
+     * Every match of a regular expression in the scrollback and screen, by whole lines (wrapped rows joined), each
+     * with where it's drawn: at most `limit`
+     * @returns {Array<{spans: Array<{row, x, width}>, col: number, row: number, length: number}>}
+     */
+    function findInBuffer(regex, limit) {
+        var buffer = term.buffer.active;
+        var found = [];
+        for (var row = 0; row < buffer.length && found.length < limit; ) {
+            var cells = lineCells(row);
+            var match;
+            regex.lastIndex = 0;
+            while ((match = regex.exec(cells.text)) !== null && found.length < limit) {
+                if (!match[0].length) { regex.lastIndex++; continue; }
+                var spans = cellSpans(cells, match.index, match.index + match[0].length);
+                if (!spans.length) { continue; }
+                var at = selectionOf(spans);
+                found.push({ spans: spans, col: at.col, row: at.row, length: at.length });
+            }
+            row += cells.rows;
+        }
+        return found;
+    }
+
+    /**
      * Remove marks: every decoration, then flushDecorations, then the markers. xterm.js 6.0.0 keeps decorations in a
      * list sorted by their marker's line, and a disposed marker's line becomes -1. A decoration disposed before its
      * marker is only queued for removal and stays in the list until later; if its marker is disposed meanwhile, the
@@ -391,19 +525,12 @@
         var regex = new RegExp(word ? '\\b' + escaped + '\\b' : escaped, 'gi');
         var colour = (theme && theme.colors && theme.colors.selectionMatch)
             || (theme && theme.base === 'vs' ? '#c8e6a0' : '#4a5a28');
-        var buffer = term.buffer.active;
         var selected = term.getSelectionPosition();
-        for (var row = 0; row < buffer.length && selectionMatches.length < MAX_FIND_MATCHES; row++) {
-            var line = buffer.getLine(row).translateToString(true);
-            var match;
-            regex.lastIndex = 0;
-            while ((match = regex.exec(line)) !== null && selectionMatches.length < MAX_FIND_MATCHES) {
-                // not the selected text itself: the mark would hide the selection
-                if (selected && row === selected.start.y && match.index === selected.start.x) { continue; }
-                var m = mark(row, match.index, match[0].length, colour);
-                if (m) { selectionMatches.push(m); }
-            }
-        }
+        findInBuffer(regex, MAX_FIND_MATCHES).forEach(function (m) {
+            // not the selected text itself: the mark would hide the selection
+            if (selected && m.row === selected.start.y && m.col === selected.start.x) { return; }
+            selectionMatches = selectionMatches.concat(markSpans(m.spans, colour));
+        });
     }
 
     /** Ask TerminalControl for the clipboard; it answers with "paste" */
@@ -473,7 +600,9 @@
 
     /** Remove the marks on every match, and on the current one */
     function clearFindMarks() {
-        unmark(find.decorations.filter(Boolean).concat(find.current && find.current.mark ? [find.current.mark] : []));
+        var marks = [];
+        find.decorations.forEach(function (list) { if (list) { marks = marks.concat(list); } });
+        unmark(marks.concat(find.current && find.current.mark ? find.current.mark : []));
         find.decorations = [];
         find.current = null;
     }
@@ -500,23 +629,14 @@
             document.getElementById('findCount').textContent = 'bad regex';
             return;
         }
-        var buffer = term.buffer.active;
-        for (var row = 0; row < buffer.length && find.matches.length < MAX_FIND_MATCHES; row++) {
-            var line = buffer.getLine(row).translateToString(true);
-            var match;
-            regex.lastIndex = 0;
-            while ((match = regex.exec(line)) !== null && find.matches.length < MAX_FIND_MATCHES) {
-                if (!match[0].length) { regex.lastIndex++; continue; }
-                find.matches.push({ row: row, col: match.index, length: match[0].length });
-            }
-        }
+        find.matches = findInBuffer(regex, MAX_FIND_MATCHES);
         if (!find.matches.length) {
             input.classList.add('nomatch');
             document.getElementById('findCount').textContent = 'No results';
             return;
         }
-        // one mark per match (find.decorations[i] is match i's; null while it's the current one)
-        find.decorations = find.matches.map(function (m) { return mark(m.row, m.col, m.length, FIND_MATCH_COLOUR); });
+        // marks for each match, on each row it's on (find.decorations[i] are match i's; null while it's the current one)
+        find.decorations = find.matches.map(function (m) { return markSpans(m.spans, FIND_MATCH_COLOUR); });
         showMatch(find.matches.length - 1);
     }
 
@@ -532,15 +652,15 @@
         // marks cover the selection, so the current match gets a brighter mark instead of its usual one (with both,
         // xterm.js draws the one registered first on top, which is the usual one)
         if (find.current) {
-            unmark([find.current.mark]);
+            unmark(find.current.mark);
             var previous = find.matches[find.current.index];
-            find.decorations[find.current.index] = mark(previous.row, previous.col, previous.length, FIND_MATCH_COLOUR);
+            find.decorations[find.current.index] = markSpans(previous.spans, FIND_MATCH_COLOUR);
         }
         if (find.decorations[find.index]) {
-            unmark([find.decorations[find.index]]);
+            unmark(find.decorations[find.index]);
             find.decorations[find.index] = null;
         }
-        find.current = { index: find.index, mark: mark(m.row, m.col, m.length, FIND_CURRENT_COLOUR, '#000000') };
+        find.current = { index: find.index, mark: markSpans(m.spans, FIND_CURRENT_COLOUR, '#000000') };
         term.scrollToLine(Math.max(0, m.row - Math.floor(term.rows / 2)));
         document.getElementById('findCount').textContent = (find.index + 1) + ' of ' + find.matches.length;
     }
@@ -1022,6 +1142,11 @@
         term.write(lead + '\x1b[' + colour + 'm' + text + '\x1b[0m\r\n');
     }
 
+    /** Where a decoration is drawn, for the tests (terminalDev): its row, column and width in cells */
+    function placeOf(decoration) {
+        return { row: decoration.marker.line, x: decoration.options.x || 0, width: decoration.options.width || 1 };
+    }
+
     /** Handle a message from TerminalControl */
     function onMessage(message) {
         if (!message || !message.type) { return; }
@@ -1188,7 +1313,20 @@
             feedText: function (text) { write(new TextEncoder().encode(text)); },
             term: term,
             posted: [],
-            matchCount: function (text) { return SpRules.matches(currentSet(), text, MAX_MATCH_LENGTH).length; }
+            matchCount: function (text) { return SpRules.matches(currentSet(), text, MAX_MATCH_LENGTH).length; },
+            // where the highlights and find's marks are drawn: each decoration's row, column and width in cells
+            highlights: function () {
+                var out = [];
+                entries.forEach(function (e) { e.decorations.forEach(function (d) { out.push(placeOf(d)); }); });
+                return out;
+            },
+            findMarks: function () {
+                var out = [];
+                find.decorations.forEach(function (list) { (list || []).forEach(function (m) { out.push(placeOf(m.decoration)); }); });
+                (find.current ? find.current.mark : []).forEach(function (m) { out.push(placeOf(m.decoration)); });
+                return out;
+            },
+            findCount: function () { return document.getElementById('findCount').textContent; }
         };
         term.focus();
         post({ type: 'ready' });

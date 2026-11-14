@@ -2484,6 +2484,20 @@ The search mode and fields were only in Tools > Options. Now, as in SuperXTermin
 
 **Fix:** `.gitignore` makes an exception for `SuperPutty/web/**/*.json`, and the six files are committed.
 
+## Built-in terminal: find and highlights brought up to SuperXTerminal
+
+SuperXPuTTY's terminal page (`web/terminal/terminal.js`) and SuperXTerminal's started as the same code; SuperXTerminal kept fixing its find bar and highlighting. These are ported from it, each its own commit. They're checked by a test program that loads the page in Chromium and drives it through `window.terminalDev`, as TerminalControl would; each test also fails on the code before the change.
+
+### Fix: find, highlights and selection marks off their text after wide characters or across a wrap
+
+**Symptom:** a find match, a highlight or a mark on the selection's other matches could sit off its text: after Chinese or Japanese text, an emoji or an accented letter everything on the line was a column or more out, and a match a long line wrapped across was missed by find or coloured from its third character on the second row only (a log's "192.168.0.10" split as "19" / "2.168.0.10").
+
+**Cause:** they read the terminal a row at a time, and used a match's place in the row's text as its column.
+
+**Fix** (SuperXTerminal a0cb53f): each line is read whole, its wrapped rows joined, with the row and column every character is drawn in (`lineCells`, `cellSpans`); a match is marked on the cells it covers, a mark per row (`markSpans`), and find selects it from its first character to its last (`findInBuffer`, `selectionOf`). `terminalDev.highlights()` and `findMarks()` say where each is drawn, for the tests.
+
+**Checked:** find after Chinese text, find across a wrap (both rows, "1 of 1"), an address split by a wrap coloured on both rows, and a highlight after an emoji and an accent: all pass, and all four fail on the code before.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
