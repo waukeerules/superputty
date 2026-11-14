@@ -39,6 +39,7 @@ namespace SuperPutty.Utils
             { Keys.Delete, 0x53 | ExtendedKeyFlag },
             { Keys.Escape, 0x01 },
             { Keys.LWin, 0x5B | ExtendedKeyFlag },
+            { Keys.RWin, 0x5C | ExtendedKeyFlag },
             { Keys.R, 0x13 },
             { Keys.E, 0x12 },
             { Keys.D, 0x20 },
@@ -47,6 +48,15 @@ namespace SuperPutty.Utils
             { Keys.F4, 0x3E },
             { Keys.PrintScreen, 0x37 | ExtendedKeyFlag }
         };
+
+        /// <summary>A key's scan code, as <see cref="Events"/> sends it; 0 for a key not in the table</summary>
+        /// <param name="key">The key</param>
+        /// <returns>Its scan code, with <see cref="ExtendedKeyFlag"/> for an extended key</returns>
+        public static int ScanCodeOf(Keys key)
+        {
+            int code;
+            return ScanCodes.TryGetValue(key, out code) ? code : 0;
+        }
 
         /// <summary>
         /// The key events for pressing keys together: each pressed in order, then released in reverse, as the control's

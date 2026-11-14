@@ -2570,6 +2570,13 @@ New `Data/RdpFile.cs`, as SuperXTerminal's `external.rs` and `importing/rdp.rs`:
 
 **Checked:** unit tests (`SuperPuttyUnitTests/RdpFileTests.cs`): the options written as .rdp settings, Remote Desktop's own port left out, a fitted display as dynamic resolution; reading a name, host, port and username, the default port, IPv6 with and without brackets, and a file with no address. **Not checked:** mstsc opening the file, and the import menu in the app.
 
+## RDP tabs: Windows keys in full screen, and Copy Screenshot
+
+- **"Windows keys: only when full screen"** (RDP options, `KeyboardHookMode` 2) now means SuperXPuTTY's full screen (F11). The Remote Desktop control applies that mode only to its own full-screen window, which an RDP tab never uses, so the Windows key and Alt+Tab never reached the remote. As SuperXTerminal does, while SuperXPuTTY is full screen a low-level keyboard hook (new `Gui/RdpWindowsKeys.cs`, installed and removed by `frmSuperPutty.ToggleFullScreen`) passes the Windows keys, and Tab or Escape with Alt held, to the focused RDP tab (`RdpControl.SendScanCode`) instead of letting Windows act on them. Only when SuperXPuTTY is in front and the focus is in an RDP tab with that option; other keys and tabs are left alone. "Always" was already handled by the control.
+- **Copy Screenshot** in an RDP tab's menu puts a picture of the remote desktop on the clipboard (`RdpControl.Screenshot`, `PrintWindow` with full-content rendering, so DirectX-drawn content is taken too).
+
+**Checked:** unit tests of which keys are passed on (`RdpKeysTests.WindowsKeysPassedOnInFullScreen`). On the real control in a test program: the screenshot is the control's size; the hook is installed going full screen and removed coming back. **Not checked:** keys reaching a real remote in full screen, and the screenshot's content of a real desktop.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

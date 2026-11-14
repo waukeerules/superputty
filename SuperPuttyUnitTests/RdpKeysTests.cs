@@ -46,5 +46,19 @@ namespace SuperPuttyUnitTests
                 Assert.IsTrue(codes.All(c => c > 0), key.Key);
             }
         }
+    
+        /// <summary>In SuperXPuTTY's full screen, the Windows keys and Alt+Tab / Alt+Esc go to an RDP tab; other keys don't</summary>
+        [Test]
+        public void WindowsKeysPassedOnInFullScreen()
+        {
+            Assert.IsTrue(SuperPutty.Gui.RdpWindowsKeys.IsPassedOn(Keys.LWin, false));
+            Assert.IsTrue(SuperPutty.Gui.RdpWindowsKeys.IsPassedOn(Keys.RWin, false));
+            Assert.IsTrue(SuperPutty.Gui.RdpWindowsKeys.IsPassedOn(Keys.Tab, true), "Alt+Tab");
+            Assert.IsTrue(SuperPutty.Gui.RdpWindowsKeys.IsPassedOn(Keys.Escape, true), "Alt+Esc");
+            Assert.IsFalse(SuperPutty.Gui.RdpWindowsKeys.IsPassedOn(Keys.Tab, false), "Tab alone");
+            Assert.IsFalse(SuperPutty.Gui.RdpWindowsKeys.IsPassedOn(Keys.A, true), "Alt+A");
+            Assert.AreEqual(0x15C, RdpKeys.ScanCodeOf(Keys.RWin), "right Windows key, extended");
+            Assert.AreEqual(0, RdpKeys.ScanCodeOf(Keys.A), "not in the table");
+        }
     }
 }

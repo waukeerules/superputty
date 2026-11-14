@@ -1361,6 +1361,9 @@ namespace SuperPutty
         /// <summary>An RDP tab's Type Clipboard Text, for the login screen and consoles without clipboard sharing</summary>
         private ToolStripMenuItem menuTypeClipboard;
 
+        /// <summary>An RDP tab's Copy Screenshot: a picture of the remote desktop on the clipboard</summary>
+        private ToolStripMenuItem menuCopyScreenshot;
+
         /// <summary>The last key typed into Other Key..., offered next time</summary>
         private static string lastOtherKey = "^C";
 
@@ -1449,18 +1452,33 @@ namespace SuperPutty
                     this.menuRdpKeys.DropDownItems.Add(new ToolStripMenuItem(key.Key, null, (s, e) => this.Rdp?.SendKeyCombination(keys)));
                 }
                 this.menuTypeClipboard = new ToolStripMenuItem("&Type Clipboard Text", null, (s, e) => this.TypeClipboardText());
+                this.menuCopyScreenshot = new ToolStripMenuItem("Copy Screens&hot", null, (s, e) => this.CopyRdpScreenshot());
                 int index = this.contextMenuStrip1.Items.IndexOf(this.menuSendKey);
                 this.contextMenuStrip1.Items.Insert(index, this.menuRdpKeys);
                 this.contextMenuStrip1.Items.Insert(index + 1, this.menuTypeClipboard);
+                this.contextMenuStrip1.Items.Insert(index + 2, this.menuCopyScreenshot);
             }
             if (this.menuRdpKeys != null)
             {
                 bool up = rdp != null && rdp.IsConnected;
                 this.menuRdpKeys.Enabled = up;
                 this.menuTypeClipboard.Enabled = up;
+                this.menuCopyScreenshot.Enabled = up;
                 // the terminal keys (Ctrl+C, Ctrl+]...) are for terminals
                 this.menuSendKey.Visible = false;
             }
+        }
+
+        /// <summary>Put a picture of the RDP tab's remote desktop on the clipboard (RdpControl.Screenshot)</summary>
+        private void CopyRdpScreenshot()
+        {
+            if (this.Rdp == null)
+                return;
+            using (System.Drawing.Bitmap picture = this.Rdp.Screenshot())
+            {
+                Clipboard.SetImage(picture);
+            }
+            SuperPuTTY.ReportStatus("Copied a screenshot of " + this.Text);
         }
 
         /// <summary>Type the clipboard's text into the RDP tab, key by key (RdpControl.TypeText)</summary>

@@ -439,6 +439,57 @@ namespace SuperPutty.Gui
             this.Focus();
         }
 
+        /// <summary>Whether this session's Windows keys option is "only when full screen" (RdpWindowsKeys passes them on then)</summary>
+        public bool WindowsKeysOnlyInFullScreen
+        {
+            get { return this.options.KeyboardHookMode == 2; }
+        }
+
+        /// <summary>
+        /// Send one key going down or up, by its scan code (<see cref="RdpKeys.ScanCodeOf"/>): RdpWindowsKeys passes the
+        /// Windows key and Alt+Tab on with it while SuperXPuTTY is full screen
+        /// </summary>
+        /// <param name="key">The key</param>
+        /// <param name="up">true for the key going up</param>
+        public void SendScanCode(Keys key, bool up)
+        {
+            int code = RdpKeys.ScanCodeOf(key);
+            if (code == 0 || this.ended || this.IsDisposed)
+                return;
+            try
+            {
+                ((IMsRdpClientNonScriptable)this.GetOcx()).SendKeys(1, new short[] { (short)(up ? -1 : 0) }, new[] { code });
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("Could not send a key to " + this.session.Host, ex);
+            }
+        }
+
+        /// <summary>
+        /// A picture of the remote desktop as shown in the tab (the tab menu's Copy Screenshot, as SuperXTerminal's): the
+        /// control's window drawn with PrintWindow's full-content mode, which takes what the control draws with DirectX too
+        /// </summary>
+        /// <returns>The picture; the caller disposes of it</returns>
+        public System.Drawing.Bitmap Screenshot()
+        {
+            System.Drawing.Bitmap bitmap = new System.Drawing.Bitmap(Math.Max(1, this.Width), Math.Max(1, this.Height));
+            using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(bitmap))
+            {
+                IntPtr dc = g.GetHdc();
+                try
+                {
+                    // PW_RENDERFULLCONTENT (2): DirectX and DWM content too, Windows 8.1 and later
+                    NativeMethods.PrintWindow(this.Handle, dc, 2);
+                }
+                finally
+                {
+                    g.ReleaseHdc(dc);
+                }
+            }
+            return bitmap;
+        }
+
         /// <summary>
         /// Type text into the remote desktop, key by key: the tab menu's Type Clipboard Text, for where pasting doesn't
         /// reach (Windows' login screen, a console without clipboard sharing), as SuperXTerminal's. Line breaks are

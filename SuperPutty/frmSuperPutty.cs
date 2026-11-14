@@ -955,6 +955,8 @@ namespace SuperPutty
                 this.fullscreenViewState.Hide();
             }
             this.fullScreenToolStripMenuItem.Checked = !this.fullScreenToolStripMenuItem.Checked;
+            // RDP tabs set to "Windows keys only when full screen" get them now (RdpWindowsKeys)
+            RdpWindowsKeys.SetFullScreen(this.fullScreenToolStripMenuItem.Checked);
 
         }
 
