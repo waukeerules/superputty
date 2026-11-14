@@ -2602,6 +2602,12 @@ As SuperXTerminal (its 50be4ea), reading plink's and PuTTY's own words rather th
 
 **Checked:** unit tests (`SuperPuttyUnitTests/ConnectFailureTests.cs`) with plink 0.85's messages, captured here for a closed port, an unknown host and a timeout: refused login, a router's own "Access denied", one long before the end, too many attempts, unknown host, host key cancelled, no algorithm in common (kind and offer), network failures, words read out of the pseudo console's output, and the delays. In a test program with auto-reconnect on, built-in terminal tabs: a closed port drops and schedules a reconnect; an unknown host drops without one. **Not checked:** a refused login and a host key prompt against a real SSH server, and PuTTY tabs in the running app.
 
+## Built-in terminal: a long scrollback is resized once the drag stops
+
+As SuperXTerminal (its e91a4c4): a change of columns wraps every line the terminal keeps again and moves each highlight with its line, about a sixth of a second for 6,000 lines, and that happened at every step of dragging the window's or a split's edge, with plink resized as often (its pseudo console then draws the screen again each time). A terminal with more than 200 lines now keeps its size while its tab's is changing and is fitted once it has been still for 100 ms (`fitWhenStill` in `web/terminal/terminal.js`); with fewer lines, or before its first size, it's fitted at once as before.
+
+**Checked:** a page test drags the window narrower over six frames with 400 lines in the terminal: the session is told the new size once (six times before the change); a terminal with one line still resizes at once. **Not checked:** dragging in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
