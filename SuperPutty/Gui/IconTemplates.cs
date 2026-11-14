@@ -1100,7 +1100,9 @@ namespace SuperPutty.Gui
         {
             using (GraphicsPath bubble = RoundRect(new RectangleF(0.06f, 0.1f, 0.88f, 0.6f), 0.16f))
             {
-                bubble.AddPolygon(new[] { new PointF(0.24f, 0.62f), new PointF(0.2f, 0.92f), new PointF(0.48f, 0.66f) });
+                // the tail runs the same way round as the bubble: the other way, the overlap just above the bubble's
+                // bottom edge wound to zero and the background showed through a sliver there
+                bubble.AddPolygon(new[] { new PointF(0.48f, 0.66f), new PointF(0.2f, 0.92f), new PointF(0.24f, 0.62f) });
                 bubble.FillMode = FillMode.Winding;
                 using (Brush fill = new LinearGradientBrush(new PointF(0, 0.08f), new PointF(0, 0.94f), Shade(body, 0.18f), Shade(body, -0.12f)))
                 {
