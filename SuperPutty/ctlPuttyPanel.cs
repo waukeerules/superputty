@@ -736,8 +736,8 @@ namespace SuperPutty
         }
 
         /// <summary>
-        /// Show the tab's icon by priority: the script spinner, then the disconnected badge, then the connecting badge,
-        /// then a silence badge, then the tab's own icon. New output pulses the whole tab instead of a badge
+        /// Show the tab's icon by priority: the script spinner, then the disconnected badge, then a silence badge, then
+        /// the tab's own icon (with its connecting or connected dot, <see cref="TabDotColor"/>). New output pulses the whole tab instead of a badge
         /// (TabIcons.SetPulse, as SuperXTerminal's).
         /// </summary>
         private void UpdateTabIcon()
@@ -745,7 +745,6 @@ namespace SuperPutty
             TabIcons.SetPulse(this, this.outputAlert == OutputAlert.Activity);
             System.Drawing.Icon badge = this.scriptRunning ? Spinner.CurrentIcon()
                 : this.connection == ConnectionState.Disconnected ? TabBadges.Disconnected
-                : this.IsConnecting ? TabBadges.Connecting
                 : this.outputAlert == OutputAlert.Silence ? TabBadges.Silence
                 : null;
             if (badge != null)
@@ -955,6 +954,23 @@ namespace SuperPutty
         public bool IsDisconnected
         {
             get { return this.connection == ConnectionState.Disconnected || this.connection == ConnectionState.Reconnecting; }
+        }
+
+        /// <summary>
+        /// The dot TabIcons draws on the tab's icon, as the Sessions tree does (and SuperXTerminal's tabs): yellow while
+        /// connecting or reconnecting, green once connected; none for a dropped session (its red cross shows) or one
+        /// whose connection isn't followed (local shells, serial lines, VNC...)
+        /// </summary>
+        [System.ComponentModel.Browsable(false)]
+        public System.Drawing.Color? TabDotColor
+        {
+            get
+            {
+                if (this.connection == ConnectionState.Disconnected || this.Session == null || !ConnectionProgress.IsTracked(this.Session.Proto)
+                    || (this.AppPanel == null || (this.AppPanel.EmbeddedApplicationFactory == null && this.m_puttyStartInfo.SessionLogPath == null)))
+                    return null;
+                return this.IsConnecting ? System.Drawing.Color.FromArgb(0xE3, 0xB3, 0x41) : System.Drawing.Color.FromArgb(0x2E, 0xB8, 0x4E);
+            }
         }
 
         /// <summary>Whether the session is connecting or reconnecting and the far end hasn't answered yet (a yellow dot)</summary>
@@ -1195,6 +1211,8 @@ namespace SuperPutty
                 this.seenInactive = false;
             }
             this.UpdateTabIcon();
+            // the dot on the tab's icon: yellow, green, or gone for the red cross
+            TabIcons.Redraw(this);
             ConnectionChanged?.Invoke(this, EventArgs.Empty);
         }
 

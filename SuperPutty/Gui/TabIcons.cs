@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
@@ -90,7 +91,7 @@ namespace SuperPutty.Gui
         /// <summary>The tabs pulsing for new output (ctlPuttyPanel's Watch for Activity)</summary>
         private static readonly HashSet<DockContent> pulsing = new HashSet<DockContent>();
 
-        /// <summary>Draws the pulsing tabs again a few times a second, while there are any</summary>
+        /// <summary>Repaints the strips with a pulsing tab about 25 times a second, while there are any</summary>
         private static Timer pulseTimer;
 
         /// <summary>When the pulse started, so every pulsing tab is in step</summary>
@@ -115,15 +116,33 @@ namespace SuperPutty.Gui
                 return;
             if (pulseTimer == null)
             {
-                pulseTimer = new Timer { Interval = 60 };
+                pulseTimer = new Timer { Interval = 40 };
                 pulseTimer.Tick += PulseTick;
             }
             // with Windows' animations off (Settings > Accessibility > Visual effects) the colour is held still
             pulseTimer.Enabled = pulsing.Count > 0 && SystemInformation.UIEffectsEnabled;
-            if (content.Pane != null)
+            Redraw(content);
+        }
+
+        /// <summary>
+        /// Repaint the tab strip a tab is on, after its state dot or pulse changed; only the strip, not the session
+        /// window under it
+        /// </summary>
+        /// <param name="content">The tab</param>
+        public static void Redraw(DockContent content)
+        {
+            DockPane pane = content?.Pane;
+            if (pane == null)
+                return;
+            foreach (KeyValuePair<DockPaneStripBase, DockPane> hooked in hookedPanes)
             {
-                content.Pane.Invalidate(true);
+                if (hooked.Value == pane)
+                {
+                    hooked.Key.Invalidate();
+                    return;
+                }
             }
+            pane.Invalidate(true);
         }
 
         /// <summary>Whether a tab is pulsing for new output</summary>
@@ -164,7 +183,10 @@ namespace SuperPutty.Gui
             return selected ? Blend(Color.White, color, 0.45f * level) : Blend(color, background, 0.15f + 0.7f * level);
         }
 
-        /// <summary>Draw the pulsing tabs again at the pulse's new level, straight over them, so nothing else repaints</summary>
+        /// <summary>
+        /// Move the pulse on: repaint each strip that has a pulsing tab. The strips paint double-buffered, the pulse
+        /// included (<see cref="PaintOver"/>), so each frame shows whole and nothing flickers
+        /// </summary>
         /// <param name="sender">The timer</param>
         /// <param name="e">Not used</param>
         private static void PulseTick(object sender, EventArgs e)
@@ -175,18 +197,11 @@ namespace SuperPutty.Gui
                 pulseTimer.Stop();
                 return;
             }
-            foreach (DockPaneStripBase strip in hookedStrips)
+            foreach (KeyValuePair<DockPaneStripBase, DockPane> hooked in hookedPanes)
             {
-                if (strip.IsHandleCreated && strip.Visible)
+                if (hooked.Key.IsHandleCreated && hooked.Key.Visible && hooked.Value.Contents.Cast<IDockContent>().Any(IsPulsing))
                 {
-                    try
-                    {
-                        Paint(strip, true);
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Debug("Could not draw a pulsing tab", ex);
-                    }
+                    hooked.Key.Invalidate();
                 }
             }
         }
@@ -231,6 +246,9 @@ namespace SuperPutty.Gui
 
         /// <summary>The strips already hooked</summary>
         private static readonly HashSet<DockPaneStripBase> hookedStrips = new HashSet<DockPaneStripBase>();
+
+        /// <summary>The pane each hooked strip belongs to, for repainting the strip a tab is on</summary>
+        private static readonly Dictionary<DockPaneStripBase, DockPane> hookedPanes = new Dictionary<DockPaneStripBase, DockPane>();
 
         /// <summary>A transparent 16x16 icon, so DockPanelSuite reserves the icon space but draws nothing in it</summary>
         private static readonly Icon placeholder = MakePlaceholder();
@@ -289,6 +307,15 @@ namespace SuperPutty.Gui
         {
             if (pane.Appearance != DockPane.AppearanceStyle.Document || !hookedStrips.Add(strip))
                 return;
+            hookedPanes[strip] = pane;
+            strip.Disposed += (s, e) => hookedPanes.Remove(strip);
+            // SuperPuTTY's own copies of the strips call PaintOver from their paint; only others need drawing over after
+            if (strip.GetType().Namespace == "SuperPutty.DockPanelSuite")
+            {
+                strip.Disposed += (s, e) => hookedStrips.Remove(strip);
+                strip.Invalidate();
+                return;
+            }
             StripPainter painter = new StripPainter(strip);
             if (strip.IsHandleCreated)
             {
@@ -312,20 +339,43 @@ namespace SuperPutty.Gui
         /// <param name="strip">The strip</param>
         private static void Paint(DockPaneStripBase strip)
         {
-            Paint(strip, false);
+            using (Graphics g = strip.CreateGraphics())
+            {
+                Draw(strip, g);
+            }
         }
 
-        /// <summary>Draw the real icons, environment colours and pulses over a strip's tabs</summary>
+        /// <summary>
+        /// Draw the icons, environment colours, state dots and pulses as part of a strip's own paint: SuperPuTTY's
+        /// copies of DockPanelSuite's strips call this at the end of OnPaint, into their double buffer
+        /// </summary>
         /// <param name="strip">The strip</param>
-        /// <param name="pulsingOnly">true to draw only the pulsing tabs, whole (the pulse's timer); false after the strip painted</param>
-        private static void Paint(DockPaneStripBase strip, bool pulsingOnly)
+        /// <param name="g">The paint's graphics</param>
+        public static void PaintOver(DockPaneStripBase strip, Graphics g)
+        {
+            if (!hookedStrips.Contains(strip))
+                return;
+            try
+            {
+                Draw(strip, g);
+            }
+            catch (Exception ex)
+            {
+                // a failed icon must never break painting the tabs
+                Log.Debug("Could not draw tab icons", ex);
+            }
+        }
+
+        /// <summary>Draw the real icons, environment colours, state dots and pulses on a strip's tabs</summary>
+        /// <param name="strip">The strip</param>
+        /// <param name="g">Where to draw: the strip's own paint, or the screen after it</param>
+        private static void Draw(DockPaneStripBase strip, Graphics g)
         {
             IEnumerable tabs = typeof(DockPaneStripBase).GetProperty("Tabs", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)?.GetValue(strip) as IEnumerable;
             if (tabs == null)
                 return;
             int slotStart, slot;
             IconSlot(strip, out slotStart, out slot);
-            using (Graphics g = strip.CreateGraphics())
             {
                 g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                 g.PixelOffsetMode = PixelOffsetMode.HighQuality;
@@ -340,8 +390,6 @@ namespace SuperPutty.Gui
                     if (bounds == null || (width is int && (int)width == 0))
                         continue;
                     bool pulse = IsPulsing(content);
-                    if (pulsingOnly && !pulse)
-                        continue;
 
                     // the environment colour (e.g. red for production): the selected tab is filled with it, others are
                     // tinted with it and get a stripe along the top edge
@@ -399,8 +447,38 @@ namespace SuperPutty.Gui
                     int x = rect.X + slotStart + (slot - size) / 2;
                     int y = rect.Y + (rect.Height - size) / 2;
                     g.DrawImage(BitmapOf(icon), new Rectangle(x, y, size, size));
+                    // the session's connection, as the Sessions tree shows it: yellow while connecting, green once up
+                    Color? dot = (content as ctlPuttyPanel)?.TabDotColor;
+                    if (dot.HasValue)
+                    {
+                        DrawDot(g, new Rectangle(x, y, size, size), dot.Value, TabBackground(content as DockContent));
+                    }
                 }
             }
+        }
+
+        /// <summary>
+        /// A state dot in an icon's bottom-right corner, ringed in the tab's background so it stands off the icon, as
+        /// IconLibrary.DrawStateDot draws the tree's
+        /// </summary>
+        /// <param name="g">The strip's graphics</param>
+        /// <param name="icon">Where the icon is</param>
+        /// <param name="color">The dot's colour</param>
+        /// <param name="ring">The ring's colour</param>
+        private static void DrawDot(Graphics g, Rectangle icon, Color color, Color ring)
+        {
+            float size = Math.Max(5f, icon.Width * 0.42f);
+            float edge = Math.Max(1.5f, icon.Width * 0.07f);
+            RectangleF bounds = new RectangleF(icon.Right - size, icon.Bottom - size, size, size);
+            SmoothingMode smoothing = g.SmoothingMode;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (SolidBrush ringBrush = new SolidBrush(ring))
+            using (SolidBrush fill = new SolidBrush(color))
+            {
+                g.FillEllipse(ringBrush, RectangleF.Inflate(bounds, edge, edge));
+                g.FillEllipse(fill, bounds);
+            }
+            g.SmoothingMode = smoothing;
         }
 
         /// <summary>The theme's accent, which a tab without an environment colour pulses in: its selected tab's colour</summary>
