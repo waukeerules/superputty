@@ -940,7 +940,6 @@ namespace SuperPutty
             bool inactive = PuttyWindow.IsInactive(window);
             bool autoReconnect = SuperPuTTY.Settings.AutoReconnect;
             int maxAttempts = Math.Max(1, SuperPuTTY.Settings.AutoReconnectAttempts);
-            int delay = Math.Max(1, SuperPuTTY.Settings.AutoReconnectDelaySeconds);
 
             if (box != IntPtr.Zero && box != this.handledErrorBox)
             {
@@ -958,7 +957,19 @@ namespace SuperPutty
                     }
                 }
 
-                if (!autoReconnect)
+                // why it failed, from the box and the end of the session log: a refused login, an unknown host or a
+                // host key that wasn't accepted isn't retried by itself (a wrong password retried can lock the account)
+                ConnectFailure failure = ConnectFailure.Read(this.RecentLogText() + "\n" + error);
+                string why = failure.Describe(this.Session.Host + " port " + this.Session.Port);
+                int delay = ConnectFailure.ReconnectDelay(SuperPuTTY.Settings.AutoReconnectDelaySeconds, this.reconnectAttempts);
+                if (!failure.Reconnects)
+                {
+                    // PuTTY's own box stays up with its message; Reconnect in the tab menu closes it
+                    this.nextReconnectAt = DateTime.MinValue;
+                    Log.InfoFormat("Session {0} failed: {1}; not reconnecting by itself", this.Text, failure.Kind);
+                    SuperPuTTY.ReportStatus($"{this.Text}: {why} Right-click the tab -> Reconnect to try again");
+                }
+                else if (!autoReconnect)
                 {
                     // PuTTY's own box stays up; Reconnect in the tab menu closes it
                     SuperPuTTY.ReportStatus($"{this.Text} disconnected: {error}");
@@ -1060,6 +1071,16 @@ namespace SuperPutty
                 }
             }
             return (now - this.reconnectSentAt).TotalSeconds >= QuietConnectedSeconds;
+        }
+
+        /// <summary>The end of the session log since the last (re)start as plain text, for ConnectFailure.Read</summary>
+        /// <returns>The text; empty if there's none</returns>
+        private string RecentLogText()
+        {
+            long length = SessionLog.LengthOf(this.SessionLogPath);
+            long from = Math.Max(length < this.logLengthAtReconnect ? 0 : this.logLengthAtReconnect, length - 4096);
+            byte[] output = length > from ? SessionLog.ReadBytesFrom(this.SessionLogPath, from, 4096) : null;
+            return ConnectionProgress.PlainText(output, output?.Length ?? 0);
         }
 
         /// <summary>Reconnect now, from the tab menu: close PuTTY's error box if it's up, then restart the session</summary>

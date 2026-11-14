@@ -310,7 +310,7 @@ When a PuTTY session drops (network error, the device reloads, the server times 
 
 - **Detecting a drop:** PuTTY shows a "PuTTY Fatal Error" box with the reason (e.g. "Remote side unexpectedly closed network connection"). About once a second SuperPuTTY looks for that box among the windows of each tab's PuTTY process.
 - **Badge and status:** the tab gets a red-cross badge, which beats the activity and silence badges; only a running script's spinner beats it. The status bar shows the reason, and if SuperPuTTY isn't in front, its taskbar button flashes.
-- **Reconnecting automatically** (Tools → Options → Advanced → **Dropped sessions**; on by default, every 10 s, up to 6 times):
+- **Reconnecting automatically** (Tools → Options → Advanced → **Dropped sessions**; on by default, up to 6 times, the first after 10 s and each later one twice as long, up to 2 minutes, since "Reconnect only when it can help"):
   - SuperPuTTY closes PuTTY's error box and, after the delay, sends PuTTY's own **Restart Session**. That reconnects in the same window and appends to the same session log, so Search Output and alerts carry on.
   - A failed attempt shows a new error box, which counts as an attempt; after the last one it gives up and says so.
   - The session counts as back once it prints some text again (e.g. `login as:`) and is still running at the next check, or after 30 s active with no output. The badge then clears and the status bar says "reconnected". (Until "Connecting state on tabs and in the tree" this was any output, or 15 s.)
@@ -2588,6 +2588,18 @@ As SuperXTerminal (its adb6fe1, c343e83, 721d6ce): a session shows **yellow whil
 - **Sessions tree:** a yellow dot (`IconLibrary.OpenState.Connecting`). A session open in several tabs shows the best of them: connected, then connecting, then dropped (`IconLibrary.Better`).
 
 **Checked:** unit tests (`SuperPuttyUnitTests/ConnectionProgressTests.cs`): the pseudo console's start-up codes, prompts and errors, PuTTY's log header, a PuTTY log as PuTTY wrote it, the one-second rule, which protocols are tracked, the tree's best state. In a test program, built-in terminal tabs against local servers: one answering after 2 s stays connecting until its text, then connected a second later; one sending only codes and then a prompt 3 s later, the same; a closed port goes from connecting to dropped. PuTTY's log for a raw session read as connecting before the prompt and as text after. **Not checked:** PuTTY and RDP tabs' dots in the running app, and an SSH host that times out.
+
+## Reconnect only when it can help, and say what went wrong
+
+As SuperXTerminal (its 50be4ea), reading plink's and PuTTY's own words rather than OpenSSH's (new `Utils/ConnectFailure.cs`):
+
+- **Not retried by itself,** with a message saying what to do: a **refused login** ("Access denied", "No supported authentication methods available"; a wrong password tried again and again can lock the account), **too many login attempts**, an **unknown host** ("Host does not exist"), a **host key that wasn't accepted** ("Connection abandoned", for example cancelled at the built-in terminal's prompt, which used to ask again at every automatic reconnect), and **no algorithm in common** (says which kind and what the device offers, and to allow older algorithms in its PuTTY profile).
+- **Retried, with a hint:** nothing answering on the port ("Connection refused": rebooting, SSH off, another port), no route, a timeout, and any other drop.
+- **Back-off:** each automatic attempt waits twice as long as the last, from the delay in Options up to 2 minutes (10, 20, 40, 80, 120, 120 s), so a switch's reload is ridden out; a delay set above 2 minutes stays as set (`ConnectFailure.ReconnectDelay`). The same for built-in terminal, PuTTY and RDP tabs. An RDP tab's attempts start again once it's logged in.
+- Only plink's or PuTTY's last 8 lines are read, and their words only count on a line of their own, so the session's own "% Access denied" from a router isn't taken for a refused login.
+- **Built-in terminal:** the last 4 KB of plink's output, codes taken out (`ConnectionProgress.PlainText`), read in `TerminalControl.OnExited`; the message is shown in the terminal, and Enter tries again. **PuTTY tabs:** the error box's text and the end of the session log (`ctlPuttyPanel.RecentLogText`); for a failure that isn't retried, PuTTY's box stays up and the status bar says why.
+
+**Checked:** unit tests (`SuperPuttyUnitTests/ConnectFailureTests.cs`) with plink 0.85's messages, captured here for a closed port, an unknown host and a timeout: refused login, a router's own "Access denied", one long before the end, too many attempts, unknown host, host key cancelled, no algorithm in common (kind and offer), network failures, words read out of the pseudo console's output, and the delays. In a test program with auto-reconnect on, built-in terminal tabs: a closed port drops and schedules a reconnect; an unknown host drops without one. **Not checked:** a refused login and a host key prompt against a real SSH server, and PuTTY tabs in the running app.
 
 ## Offering changes upstream in small batches
 

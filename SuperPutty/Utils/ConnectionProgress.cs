@@ -73,6 +73,40 @@ namespace SuperPutty.Utils
             return false;
         }
 
+        /// <summary>
+        /// Output as plain text, for reading a failure's last words (ConnectFailure.Read): escape sequences and control
+        /// characters taken out, line breaks kept, and a cursor move (which the pseudo console uses between lines)
+        /// taken as a line break
+        /// </summary>
+        /// <param name="output">The output, as bytes from plink or the session log</param>
+        /// <param name="length">How many bytes of <paramref name="output"/> count</param>
+        /// <returns>The text, UTF-8 decoded</returns>
+        public static string PlainText(byte[] output, int length)
+        {
+            if (output == null)
+                return string.Empty;
+            length = Math.Min(length, output.Length);
+            System.IO.MemoryStream text = new System.IO.MemoryStream(length);
+            int at = 0;
+            while (at < length)
+            {
+                byte b = output[at];
+                if (b == 0x1B)
+                {
+                    int end = SkipEscape(output, length, at);
+                    byte final = output[end - 1];
+                    if (end - at > 2 && output[at + 1] == (byte)'[' && (final == (byte)'H' || final == (byte)'f'))
+                        text.WriteByte((byte)'\n');
+                    at = end;
+                    continue;
+                }
+                if ((b >= 0x20 && b != 0x7F) || b == (byte)'\n' || b == (byte)'\r' || b == (byte)'\t')
+                    text.WriteByte(b);
+                at++;
+            }
+            return Encoding.UTF8.GetString(text.GetBuffer(), 0, (int)text.Length);
+        }
+
         /// <summary>Whether a byte is at the start of a line</summary>
         /// <param name="output">The output</param>
         /// <param name="at">The byte's position</param>

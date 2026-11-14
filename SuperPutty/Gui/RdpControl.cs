@@ -644,6 +644,8 @@ namespace SuperPutty.Gui
         private void OnLoginComplete()
         {
             this.loggedIn = true;
+            // back in: a later drop starts its attempts, and their delays, afresh
+            this.reconnectAttempts = 0;
             this.HideCover();
             Log.InfoFormat("Logged in to {0}", this.session.Host);
             // the tab may have been resized while connecting
@@ -698,7 +700,8 @@ namespace SuperPutty.Gui
             switch (AfterEnd(clean, wasLoggedIn, this.reconnectAttempts, SuperPuTTY.Settings.AutoReconnect, SuperPuTTY.Settings.AutoReconnectAttempts))
             {
                 case EndAction.Reconnect:
-                    this.reconnectSecondsLeft = Math.Max(1, SuperPuTTY.Settings.AutoReconnectDelaySeconds);
+                    // twice as long each time, up to two minutes, as the terminal tabs (ConnectFailure.ReconnectDelay)
+                    this.reconnectSecondsLeft = ConnectFailure.ReconnectDelay(SuperPuTTY.Settings.AutoReconnectDelaySeconds, this.reconnectAttempts);
                     this.ShowReconnectCountdown();
                     this.reconnectTimer.Start();
                     SuperPuTTY.ReportStatus(this.endReason + ". Reconnecting in " + this.reconnectSecondsLeft + " s");
