@@ -2554,6 +2554,12 @@ As SuperXTerminal's RDP tab menu:
 
 **Checked:** unit tests of the key events (`SuperPuttyUnitTests/RdpKeysTests.cs`: Ctrl+Alt+Delete's codes and order, the Windows key extended, every menu key has codes). **Not checked:** against a real server (Ctrl+Alt+Del bringing up the security screen, typing at the login screen).
 
+## RDP tabs use the display's scaling
+
+On a display scaled to 150 %, a remote desktop was drawn at 100 %: the right number of pixels, but text a third smaller than everything else. The connection now gets the display's scale, as mstsc and SuperXTerminal give it: `RdpControl.ScaleFactors` turns the tab's DPI into Remote Desktop's desktop scale (100 to 500 %) and device scale (100, 140 or 180), set before connecting through the control's extended settings (`IMsRdpExtendedSettings`, declared by hand: IUnknown-only) and passed again with each resize (`UpdateSessionDisplaySettings`, which sent 100 % before). A control too old for them connects at 100 %, as before.
+
+**Checked:** unit tests of the scale for 96, 120, 144, 192 and 1000 DPI; on the real control, the two settings set through the hand-declared interface read back as set (150, 140). **Not checked:** against a real server on a scaled display.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

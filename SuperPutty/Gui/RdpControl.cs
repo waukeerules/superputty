@@ -263,6 +263,8 @@ namespace SuperPutty.Gui
             {
                 settings.ClearTextPassword = this.session.Password;
             }
+            // the display's scale, so at 150 % the remote's text isn't drawn at 100 %, tiny (as SuperXTerminal's and mstsc)
+            this.ApplyScaleFactors();
 
             Log.InfoFormat("Connecting to {0}:{1} as '{2}' with a {3}x{4} desktop{5}", this.session.Host, this.session.Port, this.session.Username, size.Width, size.Height,
                 string.IsNullOrWhiteSpace(this.options.GatewayHost) ? "" : " through gateway " + this.options.GatewayHost);
@@ -562,8 +564,10 @@ namespace SuperPutty.Gui
             Size size = ClampDesktopSize(this.ClientSize);
             try
             {
-                // desktop size, physical size, orientation (landscape), desktop and device scale (100%)
-                this.client.UpdateSessionDisplaySettings((uint)size.Width, (uint)size.Height, (uint)size.Width, (uint)size.Height, 0u, 100u, 100u);
+                // desktop size, physical size, orientation (landscape), and the display's desktop and device scale
+                uint desktopScale, deviceScale;
+                ScaleFactors(this.DeviceDpi, out desktopScale, out deviceScale);
+                this.client.UpdateSessionDisplaySettings((uint)size.Width, (uint)size.Height, (uint)size.Width, (uint)size.Height, 0u, desktopScale, deviceScale);
                 Log.InfoFormat("Changed the remote resolution of {0} to {1}x{2}", this.session.Host, size.Width, size.Height);
             }
             catch (Exception ex)
@@ -743,6 +747,61 @@ namespace SuperPutty.Gui
                 }
             }
             base.Dispose(disposing);
+        }
+
+        /// <summary>
+        /// The remote desktop's scale for a display's DPI, as Remote Desktop takes them: the desktop scale in percent
+        /// (100 to 500), and the device scale, which is only ever 100, 140 or 180
+        /// </summary>
+        /// <param name="dpi">The display's DPI (96 is 100 %)</param>
+        /// <param name="desktopScale">The desktop scale factor, e.g. 150</param>
+        /// <param name="deviceScale">The device scale factor: 100 below 125 %, 140 below 175 %, else 180</param>
+        public static void ScaleFactors(int dpi, out uint desktopScale, out uint deviceScale)
+        {
+            int percent = (int)Math.Round(Math.Max(96, dpi) * 100.0 / 96);
+            desktopScale = (uint)Math.Max(100, Math.Min(500, percent));
+            deviceScale = desktopScale >= 175 ? 180u : desktopScale >= 125 ? 140u : 100u;
+        }
+
+        /// <summary>
+        /// Give the connection the display's scale (<see cref="ScaleFactors"/>) through the control's extended settings,
+        /// before connecting. A control too old for them connects at 100 %, as before.
+        /// </summary>
+        private void ApplyScaleFactors()
+        {
+            uint desktopScale, deviceScale;
+            ScaleFactors(this.DeviceDpi, out desktopScale, out deviceScale);
+            try
+            {
+                IMsRdpExtendedSettings extended = (IMsRdpExtendedSettings)this.GetOcx();
+                object value = desktopScale;
+                extended.put_Property("DesktopScaleFactor", ref value);
+                value = deviceScale;
+                extended.put_Property("DeviceScaleFactor", ref value);
+                Log.InfoFormat("Remote desktop scale for {0}: {1} % (device {2} %)", this.session.Host, desktopScale, deviceScale);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Could not give the remote desktop the display's scale; it connects at 100 %", ex);
+            }
+        }
+
+        /// <summary>
+        /// The control's IMsRdpExtendedSettings interface, for settings that have no property of their own (the scale
+        /// factors). IUnknown-only, so declared by hand; its two methods in vtable order.
+        /// </summary>
+        [ComImport, Guid("302D8188-0052-4807-806A-362B628F9AC5"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        public interface IMsRdpExtendedSettings
+        {
+            /// <summary>Set a setting</summary>
+            /// <param name="name">Its name, e.g. "DesktopScaleFactor"</param>
+            /// <param name="value">Its value</param>
+            void put_Property([MarshalAs(UnmanagedType.BStr)] string name, [In] ref object value);
+
+            /// <summary>Read a setting</summary>
+            /// <param name="name">Its name</param>
+            /// <param name="value">Its value</param>
+            void get_Property([MarshalAs(UnmanagedType.BStr)] string name, out object value);
         }
 
         /// <summary>Limit a size to what the control accepts</summary>

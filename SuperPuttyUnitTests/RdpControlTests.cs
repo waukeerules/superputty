@@ -55,5 +55,22 @@ namespace SuperPuttyUnitTests
             Assert.IsTrue(RdpControl.ShouldReport(3, 0, false), "refused before the desktop");
             Assert.IsTrue(RdpControl.ShouldReport(264, 0, true), "network timeout");
         }
+
+        /// <summary>The remote desktop's scale for the display's DPI: 100 / 125 / 150 / 200 % and the device scales Remote Desktop takes</summary>
+        [Test]
+        public void ScaleFactorsFollowTheDisplay()
+        {
+            uint desktop, device;
+            RdpControl.ScaleFactors(96, out desktop, out device);
+            Assert.AreEqual(new uint[] { 100, 100 }, new[] { desktop, device });
+            RdpControl.ScaleFactors(120, out desktop, out device);
+            Assert.AreEqual(new uint[] { 125, 140 }, new[] { desktop, device });
+            RdpControl.ScaleFactors(144, out desktop, out device);
+            Assert.AreEqual(new uint[] { 150, 140 }, new[] { desktop, device });
+            RdpControl.ScaleFactors(192, out desktop, out device);
+            Assert.AreEqual(new uint[] { 200, 180 }, new[] { desktop, device });
+            RdpControl.ScaleFactors(1000, out desktop, out device);
+            Assert.AreEqual(500u, desktop, "at most 500 %");
+        }
     }
 }
