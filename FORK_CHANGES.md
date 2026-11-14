@@ -2793,6 +2793,12 @@ SuperXTerminal's Environment Colours window was ported from this one and then gr
 
 **Checked:** unit test (`SuperPuttyUnitTests/EnvironmentColorsTests.cs`): the Colour menus' colours are the palette's, red first. The window rendered in a test program in the dark and light themes, with the default rules: swatches beside each colour, the palette under the buttons, and the palette's Teal setting the selected rule to #00838F. **Not checked:** the colour picker from a swatch in the running app.
 
+## Fix: a button with an icon numbered its lines in the usual colour
+
+Symptom: with Line Numbers on, a button bar button with an icon (e.g. a blue Document) left its command's line numbers the usual colour, while a button with a coloured circle and no icon coloured them. Cause: the colour sent to the terminal was the button's circle colour, which isn't used, and usually not set, when the button has an icon. Fix, as SuperXTerminal's b0a8948: the colour is the one the button shows (`ButtonBarStrip.LineNumberColor`): its icon's chosen colour, else the icon's own, else the circle's.
+
+**Checked:** unit tests (`SuperPuttyUnitTests/ButtonColourTests.cs`): an icon's chosen colour, an icon's own (switch green, document blue), the icon over a circle colour, the circle without an icon, none. **Not checked:** in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
