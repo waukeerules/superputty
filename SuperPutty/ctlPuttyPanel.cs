@@ -1191,6 +1191,9 @@ namespace SuperPutty
         /// <summary>The tab menu items added by <see cref="AddOutputMenuItems"/></summary>
         private ToolStripMenuItem menuSearchOutput, menuHighlightedOutput, menuWatchActivity, menuWatchSilence;
 
+        /// <summary>"Compare Output With": the other open tabs with output, each opening a CompareOutputPanel</summary>
+        private ToolStripMenuItem menuCompareOutput;
+
         /// <summary>"Reconnect" and "Stop Reconnecting" at the top of the tab menu, shown while the session is down</summary>
         private ToolStripMenuItem menuReconnect, menuStopReconnecting;
 
@@ -1201,14 +1204,18 @@ namespace SuperPutty
         private ToolStripSeparator menuReconnectSeparator;
 
         /// <summary>
-        /// Add "Search Output...", "Highlighted Output", "Watch for Activity" and "Watch for Silence" to the tab's menu,
-        /// after "Accept Commands". They need a session log, so they're only enabled for PuTTY sessions. Highlighted
+        /// Add "Search Output...", "Highlighted Output", "Compare Output With", "Watch for Activity" and "Watch for
+        /// Silence" to the tab's menu, after "Accept Commands". They need a session log, so they're only enabled for PuTTY sessions. Highlighted
         /// Output is only shown when it's turned on in Tools -> Options -> Terminal.
         /// </summary>
         private void AddOutputMenuItems()
         {
             this.menuSearchOutput = new ToolStripMenuItem("Search &Output...", null, (s, e) => dlgSearchOutput.ShowFor(this));
             this.menuHighlightedOutput = new ToolStripMenuItem("&Highlighted Output", null, (s, e) => HighlightedOutputPanel.ShowFor(this));
+            this.menuCompareOutput = new ToolStripMenuItem("&Compare Output With");
+            // a placeholder, so the submenu arrow shows; the other tabs are listed as it opens
+            this.menuCompareOutput.DropDownItems.Add(new ToolStripMenuItem("(no other tab)") { Enabled = false });
+            this.menuCompareOutput.DropDownOpening += (s, e) => this.FillCompareMenu();
             this.menuWatchActivity = new ToolStripMenuItem("Watch for &Activity", null, (s, e) => this.WatchForActivity(!this.watchActivity));
             this.menuWatchSilence = new ToolStripMenuItem("Watch for &Silence");
             this.menuWatchSilence.DropDownItems.Add(new ToolStripMenuItem("Off", null, (s, e) => this.WatchForSilence(0)) { Tag = 0 });
@@ -1223,8 +1230,9 @@ namespace SuperPutty
             this.contextMenuStrip1.Items.Insert(index, new ToolStripSeparator());
             this.contextMenuStrip1.Items.Insert(index + 1, this.menuSearchOutput);
             this.contextMenuStrip1.Items.Insert(index + 2, this.menuHighlightedOutput);
-            this.contextMenuStrip1.Items.Insert(index + 3, this.menuWatchActivity);
-            this.contextMenuStrip1.Items.Insert(index + 4, this.menuWatchSilence);
+            this.contextMenuStrip1.Items.Insert(index + 3, this.menuCompareOutput);
+            this.contextMenuStrip1.Items.Insert(index + 4, this.menuWatchActivity);
+            this.contextMenuStrip1.Items.Insert(index + 5, this.menuWatchSilence);
 
             this.menuReconnect = new ToolStripMenuItem("&Reconnect", null, (s, e) => this.Reconnect());
             this.menuReconnect.Font = new System.Drawing.Font(this.menuReconnect.Font, System.Drawing.FontStyle.Bold);
@@ -1237,6 +1245,30 @@ namespace SuperPutty
             this.contextMenuStrip1.Items.Insert(3, this.menuReconnectSeparator);
         }
 
+        /// <summary>
+        /// List the other open tabs that have output for Compare Output With, as SuperXTerminal's tab menu does; picking
+        /// one shows this tab's output beside it in Monaco's diff editor (CompareOutputPanel)
+        /// </summary>
+        private void FillCompareMenu()
+        {
+            this.menuCompareOutput.DropDownItems.Clear();
+            DockPanel dock = this.DockPanel ?? SuperPuTTY.MainForm?.DockPanel;
+            if (dock != null)
+            {
+                foreach (ctlPuttyPanel other in dock.Contents.OfType<ctlPuttyPanel>())
+                {
+                    if (other == this || other.IsDisposed || other.SessionLogPath == null)
+                        continue;
+                    ctlPuttyPanel target = other;
+                    this.menuCompareOutput.DropDownItems.Add(new ToolStripMenuItem(other.Text, null, (s, e) => CompareOutputPanel.ShowFor(this, target)));
+                }
+            }
+            if (this.menuCompareOutput.DropDownItems.Count == 0)
+            {
+                this.menuCompareOutput.DropDownItems.Add(new ToolStripMenuItem("(no other tab)") { Enabled = false });
+            }
+        }
+
         /// <summary>Tick and enable the output menu items to match this tab before the menu opens</summary>
         private void UpdateOutputMenuItems()
         {
@@ -1244,6 +1276,7 @@ namespace SuperPutty
             this.menuSearchOutput.Enabled = hasLog;
             this.menuHighlightedOutput.Visible = SuperPuTTY.Settings.HighlightedOutputEnabled;
             this.menuHighlightedOutput.Enabled = hasLog;
+            this.menuCompareOutput.Enabled = hasLog;
             this.menuWatchActivity.Enabled = hasLog;
             this.menuWatchSilence.Enabled = hasLog;
             this.menuWatchActivity.Checked = this.watchActivity;

@@ -2720,6 +2720,18 @@ As SuperXTerminal (its e98ae20): Watch for Activity marked a tab with new output
 
 **Checked:** unit tests (`SuperPuttyUnitTests/TabPulseTests.cs`): the level over a period and held still, the colour near the background at rest and near the colour at full, a filled tab going lighter. In a test program with SuperXPuTTY's own tab strip on the dark theme, the pulsing tab's pixels read 29,73,105 → 8,108,175 → 16,95,149 → 37,59,76 over 1.2 s, the other tabs unchanged. **Not checked:** in the running app, with an environment colour, and with animations off.
 
+## Compare Output With
+
+As SuperXTerminal (its be6efa5): a tab's menu has **Compare Output With**, listing the other open tabs with output; picking one shows both tabs' output side by side in Monaco's diff editor, docked beside the tab, the differences marked: one switch's config against another's, or before and after a change. The toolbar has **Inline** (the differences in one column), **Ignore spaces** (on by default), **Follow** (read both again every 2 seconds), ↑/↓ to go to the difference before or after, **Refresh**, and the number of differences. The session logs' time-stamp lines are left out, and escape sequences taken out as Search Output shows them; the last 4 MB of each log is compared. It closes with either tab and isn't saved in layouts; it's dark unless SuperXPuTTY's theme is light.
+
+| File | Role |
+|---|---|
+| `Gui/CompareOutputPanel.cs` | New. The docked panel: a WebView2 on the page, sending both logs when the page asks |
+| `web/compare/index.html`, `compare.js`, `compare.css` | New. The page, after SuperXTerminal's, talking to the panel through WebView2's messages; installed with the rest of `web\` |
+| `ctlPuttyPanel.cs` | The Compare Output With submenu (`FillCompareMenu`) |
+
+**Checked:** page tests: the page asks for the outputs when it loads, counts "2 differences" with the time stamps left out and both titles shown; the same output says "The same", the light theme shows, Follow asks again after 2 s. In a test program, the real panel docked with two tabs' logs (one with a colour code): the page showed "2 differences" between the cleaned logs, side by side with the changed lines marked. **Not checked:** the menu in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
