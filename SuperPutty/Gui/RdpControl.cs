@@ -413,11 +413,57 @@ namespace SuperPutty.Gui
             }
         }
 
-        /// <summary>Convert a command to scan codes and pass them to the control in one SendKeys call</summary>
+        /// <summary>
+        /// Press keys together in the remote desktop, from the tab menu's Send Key (Ctrl+Alt+Del, the Windows key, Alt+Tab:
+        /// keys Windows or SuperXPuTTY would take before they reached the control), as SuperXTerminal's RDP tab menu. Sent as
+        /// fixed scan codes (<see cref="RdpKeys"/>). Works from the moment the connection is up, the login screen too.
+        /// </summary>
+        /// <param name="keys">The keys, from <see cref="RdpKeys.MenuKeys"/></param>
+        public void SendKeyCombination(Keys[] keys)
+        {
+            if (this.ended || this.IsDisposed)
+                return;
+            int[] scanCodes;
+            short[] keyUps;
+            RdpKeys.Events(keys, out scanCodes, out keyUps);
+            try
+            {
+                ((IMsRdpClientNonScriptable)this.GetOcx()).SendKeys(scanCodes.Length, keyUps, scanCodes);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Could not send keys to " + this.session.Host, ex);
+            }
+            this.Focus();
+        }
+
+        /// <summary>
+        /// Type text into the remote desktop, key by key: the tab menu's Type Clipboard Text, for where pasting doesn't
+        /// reach (Windows' login screen, a console without clipboard sharing), as SuperXTerminal's. Line breaks are
+        /// typed as Enter. Unlike <see cref="SendCommand"/>, it doesn't wait for the desktop: the login screen comes first.
+        /// </summary>
+        /// <param name="text">The text</param>
+        public void TypeText(string text)
+        {
+            if (this.ended || this.IsDisposed || string.IsNullOrEmpty(text))
+                return;
+            this.SendKeystrokes(new CommandData(text.Replace("\r\n", "\r").Replace('\n', '\r')), false);
+            this.Focus();
+        }
+
+        /// <summary>Convert a command to scan codes and pass them to the control in one SendKeys call, once logged in</summary>
         /// <param name="command">The text and keys to send</param>
         private void SendKeystrokes(CommandData command)
         {
-            if (!this.loggedIn || this.IsDisposed)
+            this.SendKeystrokes(command, true);
+        }
+
+        /// <summary>Convert a command to scan codes and pass them to the control in one SendKeys call</summary>
+        /// <param name="command">The text and keys to send</param>
+        /// <param name="needsDesktop">Only once the session has reached the desktop (scripts); false for the login screen too</param>
+        private void SendKeystrokes(CommandData command, bool needsDesktop)
+        {
+            if ((needsDesktop && !this.loggedIn) || this.ended || this.IsDisposed)
                 return;
 
             System.Collections.Generic.List<int> scanCodes = new System.Collections.Generic.List<int>();

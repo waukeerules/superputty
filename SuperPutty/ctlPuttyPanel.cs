@@ -1355,6 +1355,12 @@ namespace SuperPutty
         /// <summary>The tab menu's Special Command submenu: PuTTY's own, read when the menu opens</summary>
         private ToolStripMenuItem menuSpecialCommand;
 
+        /// <summary>An RDP tab's Send Key: the keys a remote desktop can't be typed (<see cref="RdpKeys.MenuKeys"/>); made on first use</summary>
+        private ToolStripMenuItem menuRdpKeys;
+
+        /// <summary>An RDP tab's Type Clipboard Text, for the login screen and consoles without clipboard sharing</summary>
+        private ToolStripMenuItem menuTypeClipboard;
+
         /// <summary>The last key typed into Other Key..., offered next time</summary>
         private static string lastOtherKey = "^C";
 
@@ -1398,6 +1404,7 @@ namespace SuperPutty
         /// </summary>
         private void UpdateKeyMenuItems()
         {
+            this.UpdateRdpMenuItems();
             this.menuSendKey.Enabled = this.CanReceiveCommands;
             bool puttyProtocol = !(Session.Proto == ConnectionProtocol.VNC || Session.Proto == ConnectionProtocol.Mintty
                 || Session.Proto == ConnectionProtocol.RDP || Session.Proto == ConnectionProtocol.WINCMD
@@ -1423,6 +1430,49 @@ namespace SuperPutty
                 return;
             }
             this.AddSpecialCommands(this.menuSpecialCommand.DropDownItems, commands);
+        }
+
+        /// <summary>
+        /// An RDP tab's Send Key (Ctrl+Alt+Del, the Windows key and others, <see cref="RdpKeys.MenuKeys"/>) and Type
+        /// Clipboard Text, in place of the terminal keys, as SuperXTerminal's RDP tab menu; made the first time the menu
+        /// opens on an RDP tab, enabled while the session is up
+        /// </summary>
+        private void UpdateRdpMenuItems()
+        {
+            RdpControl rdp = this.Rdp;
+            if (rdp != null && this.menuRdpKeys == null)
+            {
+                this.menuRdpKeys = new ToolStripMenuItem("Send &Key");
+                foreach (KeyValuePair<string, Keys[]> key in RdpKeys.MenuKeys)
+                {
+                    Keys[] keys = key.Value;
+                    this.menuRdpKeys.DropDownItems.Add(new ToolStripMenuItem(key.Key, null, (s, e) => this.Rdp?.SendKeyCombination(keys)));
+                }
+                this.menuTypeClipboard = new ToolStripMenuItem("&Type Clipboard Text", null, (s, e) => this.TypeClipboardText());
+                int index = this.contextMenuStrip1.Items.IndexOf(this.menuSendKey);
+                this.contextMenuStrip1.Items.Insert(index, this.menuRdpKeys);
+                this.contextMenuStrip1.Items.Insert(index + 1, this.menuTypeClipboard);
+            }
+            if (this.menuRdpKeys != null)
+            {
+                bool up = rdp != null && rdp.IsConnected;
+                this.menuRdpKeys.Enabled = up;
+                this.menuTypeClipboard.Enabled = up;
+                // the terminal keys (Ctrl+C, Ctrl+]...) are for terminals
+                this.menuSendKey.Visible = false;
+            }
+        }
+
+        /// <summary>Type the clipboard's text into the RDP tab, key by key (RdpControl.TypeText)</summary>
+        private void TypeClipboardText()
+        {
+            string text = Clipboard.ContainsText() ? Clipboard.GetText() : null;
+            if (string.IsNullOrEmpty(text))
+            {
+                SuperPuTTY.ReportStatus("The clipboard has no text to type");
+                return;
+            }
+            this.Rdp?.TypeText(text);
         }
 
         /// <summary>Add PuTTY's special commands to a menu, with their separators and submenus</summary>

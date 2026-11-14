@@ -2544,6 +2544,16 @@ An RDP tab closed when its session ended: quietly for a logoff, after a message 
 
 **Checked:** unit tests of `AfterEnd` and `ShouldReport` (`SuperPuttyUnitTests/RdpControlTests.cs`). The real Remote Desktop control, in a test program: connecting to a closed port, the tab stays with Windows' "Remote Desktop can't connect to the remote computer..." and "Click to connect again", with no automatic retry; Reconnect connects again; a drop of a logged-in session (simulated) counts down "Reconnecting in 9 s (try 1 of 6)"; Stop Reconnecting stops it. **Not checked:** against a real server, the tab badge and tree dot by eye.
 
+## RDP tabs: Send Key (Ctrl+Alt+Del, the Windows key...) and Type Clipboard Text
+
+As SuperXTerminal's RDP tab menu:
+
+- **Send Key** on an RDP tab offers the keys that can't be typed into a remote desktop from here, because Windows or SuperXPuTTY takes them first: Ctrl+Alt+Delete, Ctrl+Shift+Esc, the Windows key, Windows+R / E / D / L, Alt+Tab, Alt+F4 and Print Screen (new `Utils/RdpKeys.cs`). They're sent through the control's `SendKeys` as fixed scan codes, pressed in order and released in reverse (`RdpControl.SendKeyCombination`), so the keyboard layout doesn't matter. The terminal keys (Ctrl+C, Ctrl+]...) are hidden on RDP tabs.
+- **Type Clipboard Text** types the clipboard's text into the remote desktop key by key, line breaks as Enter (`RdpControl.TypeText`): for where pasting doesn't reach, such as Windows' login screen or a console without clipboard sharing. Unlike Send Commands, it doesn't wait for the desktop.
+- Both are enabled while the session is up.
+
+**Checked:** unit tests of the key events (`SuperPuttyUnitTests/RdpKeysTests.cs`: Ctrl+Alt+Delete's codes and order, the Windows key extended, every menu key has codes). **Not checked:** against a real server (Ctrl+Alt+Del bringing up the security screen, typing at the login screen).
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
