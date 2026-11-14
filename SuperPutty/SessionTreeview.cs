@@ -1413,6 +1413,9 @@ namespace SuperPutty
 
         private void contextMenuStripFolder_Opening(object sender, CancelEventArgs e)
         {
+            // right-clicked inside a selection with folders: the selection menu instead
+            if (this.ShowSelectionMenu(e))
+                return;
             bool isRootNode = this.treeView1.SelectedNode != null && this.treeView1.SelectedNode.Parent != null;
             this.renameToolStripMenuItem.Enabled = isRootNode;
             // TODO: handle removing folder and nodes in it recursively
@@ -1455,6 +1458,9 @@ namespace SuperPutty
 
         private void contextMenuStripAddTreeItem_Opening(object sender, CancelEventArgs e)
         {
+            // right-clicked inside a selection with folders: the selection menu instead
+            if (this.ShowSelectionMenu(e))
+                return;
             // disable file transfers if pscp isn't configured.
             fileBrowserToolStripMenuItem.Enabled = SuperPuTTY.IsScpEnabled;
             fileZillaToolStripMenuItem.Enabled = SuperPuTTY.IsFilezillaEnabled;
@@ -2479,9 +2485,11 @@ namespace SuperPutty
         #region Multiple selection
 
         /// <summary>
-        /// Sessions selected besides the tree's own selected node, with Ctrl+click and Shift+click. The tree view only
-        /// selects one node; these are painted with a selection background, and Connect, Enter and Delete act on them
-        /// all (<see cref="SelectedSessionNodes"/>). Only session nodes: not folders, nor Favorites and Recent entries.
+        /// Sessions and folders selected besides the tree's own selected node, with Ctrl+click and Shift+click, all in
+        /// one root, as in SuperXTerminal. The tree view only selects one node; these are painted with a selection
+        /// background. With only sessions, Connect, Enter and Delete act on them all (<see cref="SelectedSessionNodes"/>);
+        /// with folders too, right-click offers the selection menu (<see cref="ShowSelectionMenu"/>) and a drag moves
+        /// them all (<see cref="MoveItems"/>). Never Favorites and Recent entries, nor the roots.
         /// </summary>
         readonly List<TreeNode> multiSelection = new List<TreeNode>();
 
@@ -2500,13 +2508,15 @@ namespace SuperPutty
         {
             TreeNode current = this.treeView1.SelectedNode;
             Keys modifiers = Control.ModifierKeys;
-            if (e.Action == TreeViewAction.ByMouse && (modifiers & Keys.Shift) != 0 && IsSessionNode(e.Node))
+            // a selection is in one root: a click in another starts a new one
+            if (e.Action == TreeViewAction.ByMouse && (modifiers & Keys.Shift) != 0 && this.IsSelectable(e.Node)
+                && (this.selectionAnchor == null || KindOf(this.selectionAnchor) == KindOf(e.Node)))
             {
-                this.SetMultiSelection(this.SessionsBetween(this.selectionAnchor ?? current, e.Node));
+                this.SetMultiSelection(this.ItemsBetween(this.selectionAnchor ?? current, e.Node));
             }
-            else if (e.Action == TreeViewAction.ByMouse && (modifiers & Keys.Control) != 0 && IsSessionNode(e.Node))
+            else if (e.Action == TreeViewAction.ByMouse && (modifiers & Keys.Control) != 0 && this.IsSelectable(e.Node))
             {
-                List<TreeNode> nodes = this.SelectedSessionNodes();
+                List<TreeNode> nodes = this.SelectedItemNodes().Where(n => KindOf(n) == KindOf(e.Node)).ToList();
                 if (nodes.Contains(e.Node))
                 {
                     // Ctrl+click on a selected session takes it out, and the selection stays where it was
@@ -2523,10 +2533,432 @@ namespace SuperPutty
                     this.selectionAnchor = e.Node;
                 }
             }
-            else if (e.Action != TreeViewAction.Unknown || !this.SelectedSessionNodes().Contains(e.Node))
+            else if (e.Action != TreeViewAction.Unknown || !this.SelectedItemNodes().Contains(e.Node))
             {
                 this.SetMultiSelection(null);
                 this.selectionAnchor = e.Node;
+            }
+        }
+
+        /// <summary>Whether a node can join a multiple selection: a session or folder in Saved, Private or Database sessions</summary>
+        /// <param name="node">The node</param>
+        /// <returns>true for sessions and folders, false for the roots and Favorites and Recent</returns>
+        bool IsSelectable(TreeNode node)
+        {
+            return node != null && node.Parent != null && !IsQuickNode(node) && (IsSessionNode(node) || IsFolderNode(node));
+        }
+
+        /// <summary>
+        /// The selected sessions' and folders' nodes: the multiple selection with the tree's selected node, or just the
+        /// selected node when it's a session or folder
+        /// </summary>
+        /// <returns>The nodes; empty when nothing selectable is selected</returns>
+        List<TreeNode> SelectedItemNodes()
+        {
+            List<TreeNode> nodes = this.multiSelection.Where(n => n.TreeView != null).ToList();
+            TreeNode selected = this.treeView1.SelectedNode;
+            if (this.IsSelectable(selected) && !nodes.Contains(selected))
+            {
+                nodes.Add(selected);
+            }
+            return nodes;
+        }
+
+        /// <summary>Whether several things are selected and at least one is a folder: the selection menu's case</summary>
+        /// <returns>true for a selection with folders in it</returns>
+        bool SelectionHasFolders()
+        {
+            List<TreeNode> nodes = this.SelectedItemNodes();
+            return nodes.Count > 1 && nodes.Any(n => !IsSessionNode(n));
+        }
+
+        /// <summary>
+        /// What a selection holds, as SuperXTerminal's selectionItems: the outermost folders (one inside another
+        /// selected folder goes with it) and the sessions not inside any selected folder
+        /// </summary>
+        /// <param name="nodes">The selected nodes</param>
+        /// <param name="folders">The folders to act on</param>
+        /// <param name="sessions">The sessions to act on</param>
+        void SplitSelection(List<TreeNode> nodes, out List<TreeNode> folders, out List<TreeNode> sessions)
+        {
+            HashSet<TreeNode> chosen = new HashSet<TreeNode>(nodes.Where(n => !IsSessionNode(n)));
+            Func<TreeNode, bool> insideChosen = n =>
+            {
+                for (TreeNode p = n.Parent; p != null; p = p.Parent)
+                {
+                    if (chosen.Contains(p))
+                        return true;
+                }
+                return false;
+            };
+            folders = nodes.Where(n => !IsSessionNode(n) && !insideChosen(n)).ToList();
+            sessions = nodes.Where(n => IsSessionNode(n) && !insideChosen(n)).ToList();
+        }
+
+        /// <summary>A selection being dragged: what the drag carries when several things are dragged at once</summary>
+        sealed class SelectionDrag
+        {
+            /// <summary>The selected nodes</summary>
+            public List<TreeNode> Nodes;
+        }
+
+        /// <summary>
+        /// The selection menu, for a selection with folders in it, as SuperXTerminal's: Connect all, Move to folder...,
+        /// Delete and Export to CSV. Opened in place of the folder or session menu when the node right-clicked is in
+        /// such a selection; built here rather than in the designer file, beside the code that uses it.
+        /// </summary>
+        ContextMenuStrip contextMenuStripSelection;
+
+        /// <summary>
+        /// Show the selection menu instead of the menu that's opening, when the node right-clicked is part of a selection
+        /// with folders in it. Called first by the folder and session menus' Opening handlers.
+        /// </summary>
+        /// <param name="e">The opening menu's event, cancelled when the selection menu shows instead</param>
+        /// <returns>true if the selection menu shows instead</returns>
+        bool ShowSelectionMenu(CancelEventArgs e)
+        {
+            List<TreeNode> nodes = this.SelectedItemNodes();
+            if (!this.SelectionHasFolders() || !nodes.Contains(this.treeView1.SelectedNode))
+                return false;
+            e.Cancel = true;
+            List<TreeNode> folders, sessions;
+            this.SplitSelection(nodes, out folders, out sessions);
+            List<SessionData> all = this.SessionsIn(folders, sessions);
+            int count = folders.Count + sessions.Count;
+            // Database sessions change only while the table can be written, and locked rows not at all
+            bool database = IsDatabaseNode(nodes[0]);
+            string blocked = !database ? null
+                : !DatabaseSessions.Writable ? "Database sessions can't be written now (read-only, no permission, or not read yet)."
+                : all.Any(s => s.DatabaseLocked) ? "Some of these are locked in the database."
+                : null;
+
+            if (this.contextMenuStripSelection == null)
+            {
+                this.contextMenuStripSelection = new ContextMenuStrip { ShowImageMargin = false, ShowItemToolTips = true };
+            }
+            this.contextMenuStripSelection.Items.Clear();
+            ToolStripMenuItem connect = new ToolStripMenuItem(string.Format("Connect all ({0})", all.Count), null, (s, a) => this.ConnectAll(all))
+            {
+                Enabled = all.Count > 0,
+                Font = new Font(this.contextMenuStripSelection.Font, FontStyle.Bold)
+            };
+            ToolStripMenuItem move = new ToolStripMenuItem(string.Format("Move {0} items to folder...", count), null, (s, a) => this.AskMoveItems(folders, sessions))
+            {
+                Enabled = blocked == null,
+                ToolTipText = blocked
+            };
+            ToolStripMenuItem delete = new ToolStripMenuItem(string.Format("Delete {0} items...", count), null, (s, a) => this.DeleteItems(folders, sessions))
+            {
+                Enabled = blocked == null,
+                ToolTipText = blocked
+            };
+            ToolStripMenuItem export = new ToolStripMenuItem(string.Format("Export {0} sessions to CSV...", all.Count), null,
+                (s, a) => SessionCsv.ExportWithDialog(this, all, "Sessions.csv")) { Enabled = all.Count > 0 };
+            this.contextMenuStripSelection.Items.AddRange(new ToolStripItem[] { connect, new ToolStripSeparator(), move, delete, export });
+            if (this.contextMenuStripSelection.Renderer != ((ToolStrip)this.contextMenuStripFolder).Renderer)
+            {
+                // the same look as the tree's other menus (theme)
+                this.contextMenuStripSelection.Renderer = this.contextMenuStripFolder.Renderer;
+                this.contextMenuStripSelection.BackColor = this.contextMenuStripFolder.BackColor;
+                this.contextMenuStripSelection.ForeColor = this.contextMenuStripFolder.ForeColor;
+            }
+            Point at = Cursor.Position;
+            // after the cancelled menu has finished opening
+            this.BeginInvoke((MethodInvoker)(() => this.contextMenuStripSelection.Show(at)));
+            return true;
+        }
+
+        /// <summary>Every session a selection holds: those in its folders (and their subfolders) and those selected</summary>
+        /// <param name="folders">The selected folders</param>
+        /// <param name="sessions">The selected sessions</param>
+        /// <returns>The sessions, each once</returns>
+        List<SessionData> SessionsIn(List<TreeNode> folders, List<TreeNode> sessions)
+        {
+            List<SessionData> all = new List<SessionData>();
+            foreach (TreeNode folder in folders)
+            {
+                GetAllSessions(folder, all);
+            }
+            all.AddRange(sessions.Select(n => (SessionData)n.Tag));
+            return all.Distinct().ToList();
+        }
+
+        /// <summary>Open sessions, asking first when there are more than MaxSessionsToOpen (as a folder's Connect all)</summary>
+        /// <param name="sessions">The sessions</param>
+        void ConnectAll(List<SessionData> sessions)
+        {
+            if (sessions.Count > MaxSessionsToOpen && DialogResult.Cancel == Messenger.MessageBox(
+                "Open All " + sessions.Count + " sessions?", "WARNING", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning))
+                return;
+            foreach (SessionData session in sessions)
+            {
+                SuperPuTTY.OpenProtoSession(session);
+            }
+        }
+
+        /// <summary>
+        /// Move to folder...: ask for a folder path in the selection's root (as SuperXTerminal: e.g. Lab/Core, empty for
+        /// the top) and move the selection there. In Saved and Private sessions missing folders are made; in Database
+        /// sessions the folder must be there already.
+        /// </summary>
+        /// <param name="folders">The selected folders</param>
+        /// <param name="sessions">The selected sessions</param>
+        void AskMoveItems(List<TreeNode> folders, List<TreeNode> sessions)
+        {
+            TreeNode first = folders.Concat(sessions).FirstOrDefault();
+            if (first == null)
+                return;
+            TreeNode root = RootOf(first);
+            string start = NodePath(first.Parent);
+            dlgRenameItem.ItemNameValidationHandler validator = delegate (string name, out string error)
+            {
+                error = name.IndexOfAny(new[] { '<', '>', '|', '\\' }) >= 0 ? "A folder path can't have < > | or \\" : string.Empty;
+                return error.Length == 0;
+            };
+            using (dlgRenameItem dialog = new dlgRenameItem
+            {
+                Text = string.Format("Move {0} items to folder", folders.Count + sessions.Count),
+                ItemName = start,
+                DetailName = "Folder path in " + RootName(KindOf(root)) + ", e.g. Lab/Core; empty for the top",
+                ItemNameValidator = validator
+            })
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                    return;
+                string path = (dialog.ItemName ?? string.Empty).Trim().Trim('/');
+                TreeNode target = path.Length == 0 ? root
+                    : IsDatabaseNode(root) ? this.FindFolderNode(root, path)
+                    : this.FindOrCreateParentNode(root, path + SessionIdDelim + "x");
+                if (target == null)
+                {
+                    Messenger.MessageBox("There's no folder \"" + path + "\" in Database sessions. Make it first with New folder.",
+                        "Move", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                this.MoveItems(folders, sessions, target);
+            }
+        }
+
+        /// <summary>A folder's node under a root by its path, filling folders on the way; null if it isn't there</summary>
+        /// <param name="root">The root</param>
+        /// <param name="path">e.g. "Lab/Core"</param>
+        /// <returns>The folder, or null</returns>
+        TreeNode FindFolderNode(TreeNode root, string path)
+        {
+            TreeNode node = root;
+            foreach (string part in path.Split(SessionIdDelim.ToCharArray(), StringSplitOptions.RemoveEmptyEntries))
+            {
+                this.EnsureFolderFilled(node);
+                node = node.Nodes[part];
+                if (node == null || IsSessionNode(node))
+                    return null;
+            }
+            return node;
+        }
+
+        /// <summary>
+        /// Move a selection's folders and sessions into a folder of the same root, as SuperXTerminal's moveItems: each
+        /// folder with all below it, each session on its own. A session whose name is taken there gets a free one
+        /// ("sw1-1") without asking; a folder isn't moved into itself, nor beside one of its name. Saved and Private
+        /// sessions are saved once at the end however many move (SuperPuTTY.BatchSaves), with the tree's drawing held
+        /// off meanwhile; Database sessions go one by one, as the table checks each. What didn't move is listed once.
+        /// </summary>
+        /// <param name="folders">The outermost selected folders</param>
+        /// <param name="sessions">The selected sessions not in those folders</param>
+        /// <param name="target">The folder or root to move them into</param>
+        void MoveItems(List<TreeNode> folders, List<TreeNode> sessions, TreeNode target)
+        {
+            List<string> problems = new List<string>();
+            int moved = 0;
+            bool database = IsDatabaseNode(target);
+            Cursor previous = Cursor.Current;
+            Cursor.Current = Cursors.WaitCursor;
+            using (SuperPuTTY.BatchSaves())
+            using (SessionShortcuts.Batch())
+            {
+                this.EnsureFolderFilled(target);
+                this.treeView1.BeginUpdate();
+                try
+                {
+                    // fill every folder before any moves: each move marks the folder index stale, and filling a folder
+                    // after that rebuilt the index of every session, once per folder moved
+                    foreach (TreeNode folder in folders)
+                    {
+                        if (!database)
+                            this.FillSubtree(folder);
+                    }
+                    foreach (TreeNode node in folders.Concat(sessions))
+                    {
+                        if (node.TreeView == null || node.Parent == target)
+                            continue;
+                        string name = PlainName(node);
+                        bool intoItself = false;
+                        for (TreeNode p = target; p != null; p = p.Parent)
+                        {
+                            intoItself |= p == node;
+                        }
+                        if (intoItself)
+                        {
+                            problems.Add(name + ": can't go into itself");
+                            continue;
+                        }
+                        if (database)
+                        {
+                            if (!this.CanMoveInDatabase(node, target))
+                            {
+                                problems.Add(name + ": can't go there");
+                                continue;
+                            }
+                            this.MoveInDatabase(node, target);
+                            moved++;
+                            continue;
+                        }
+                        if (!IsSessionNode(node) && target.Nodes.ContainsKey(name))
+                        {
+                            problems.Add(name + ": there's already a folder of that name there");
+                            continue;
+                        }
+                        if (IsSessionNode(node) && this.FindMoveConflict(node, target) != null)
+                        {
+                            // a free name, as SuperXTerminal gives two of one name moved together
+                            ((SessionData)node.Tag).SessionName = this.UniqueName(target, name, node);
+                        }
+                        string conflict = this.FindMoveConflict(node, target);
+                        if (conflict != null)
+                        {
+                            problems.Add(name + ": there is already a session " + conflict);
+                            continue;
+                        }
+                        if (this.MoveNode(node, target) != null)
+                            moved++;
+                    }
+                    if (moved > 0 && !database)
+                    {
+                        // once, when BatchSaves ends (a single drag waits for timerDelayedSave instead)
+                        SuperPuTTY.SaveSessions();
+                    }
+                }
+                finally
+                {
+                    this.treeView1.EndUpdate();
+                    Cursor.Current = previous;
+                }
+            }
+            this.SetMultiSelection(null);
+            target.Expand();
+            SuperPuTTY.ReportStatus("Moved {0} item{1} to {2}", moved, moved == 1 ? "" : "s", PlainName(target));
+            if (problems.Count > 0)
+            {
+                Messenger.MessageBox("These weren't moved:\n\n" + string.Join("\n", problems.Take(15)) + (problems.Count > 15 ? "\n..." : ""),
+                    "Move", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        /// <summary>
+        /// Copy a selection into a folder of another root, as a drag of one item there does (each through
+        /// <see cref="Transfer"/>), with Sessions.xml and PrivateSessions.xml saved once at the end
+        /// </summary>
+        /// <param name="folders">The outermost selected folders</param>
+        /// <param name="sessions">The selected sessions not in those folders</param>
+        /// <param name="target">The folder or root in the other root</param>
+        void CopyItems(List<TreeNode> folders, List<TreeNode> sessions, TreeNode target)
+        {
+            using (SuperPuTTY.BatchSaves())
+            using (SessionShortcuts.Batch())
+            {
+                foreach (TreeNode node in folders.Concat(sessions))
+                {
+                    this.Transfer(node, KindOf(target), NodePath(target), false);
+                }
+            }
+            this.SetMultiSelection(null);
+        }
+
+        /// <summary>
+        /// Delete a selection's folders and sessions after asking once, as SuperXTerminal's removeItems: Saved and
+        /// Private sessions in one save of their files however many there are, Database ones through the table (a
+        /// folder at a time, the sessions as one batch).
+        /// </summary>
+        /// <param name="folders">The outermost selected folders</param>
+        /// <param name="sessions">The selected sessions not in those folders</param>
+        void DeleteItems(List<TreeNode> folders, List<TreeNode> sessions)
+        {
+            List<SessionData> inFolders = this.SessionsIn(folders, new List<TreeNode>());
+            List<string> what = new List<string>();
+            if (folders.Count > 0)
+                what.Add(string.Format("{0} folder{1} ({2} session{3} in them)", folders.Count, folders.Count == 1 ? "" : "s", inFolders.Count, inFolders.Count == 1 ? "" : "s"));
+            if (sessions.Count > 0)
+                what.Add(string.Format("{0} session{1}", sessions.Count, sessions.Count == 1 ? "" : "s"));
+            if (DialogResult.Yes != Messenger.MessageBox("Delete " + string.Join(" and ", what) + "?", "Delete",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning))
+                return;
+
+            this.SetMultiSelection(null);
+            List<string> problems = new List<string>();
+            using (SuperPuTTY.BatchSaves())
+            using (SessionShortcuts.Batch())
+            {
+                List<SessionData> database = new List<SessionData>();
+                List<SessionData> files = new List<SessionData>();
+                foreach (TreeNode folder in folders)
+                {
+                    List<SessionData> under = new List<SessionData>();
+                    GetAllSessions(folder, under);
+                    if (IsDatabaseNode(folder))
+                    {
+                        if (under.Any(s => s.DatabaseLocked))
+                        {
+                            problems.Add(PlainName(folder) + ": a session in it is locked in the database");
+                            continue;
+                        }
+                        if (this.WriteDatabase(new DatabaseOutbox.PendingChange { Kind = DatabaseOutbox.ChangeKind.DeleteFolder, From = DatabaseFolder(folder) }))
+                            under.ForEach(s => SessionShortcuts.Forget(s.SessionId));
+                        continue;
+                    }
+                    files.AddRange(under);
+                    FolderSettings.Remove(StoreOf(folder).Value, NodePath(folder));
+                    folder.Remove();
+                }
+                foreach (TreeNode node in sessions)
+                {
+                    SessionData session = (SessionData)node.Tag;
+                    if (session.IsDatabase)
+                    {
+                        if (session.DatabaseLocked)
+                            problems.Add(session.SessionName + ": locked in the database");
+                        else
+                            database.Add(session);
+                        continue;
+                    }
+                    files.Add(session);
+                    node.Remove();
+                }
+                if (database.Count > 0)
+                {
+                    List<string> errors;
+                    HashSet<int> refused;
+                    DatabaseSessions.SubmitBatch(database.Select(s => new DatabaseOutbox.PendingChange { Kind = DatabaseOutbox.ChangeKind.Delete, Session = s }).ToList(), out errors, out refused);
+                    problems.AddRange(errors);
+                    for (int i = 0; i < database.Count; i++)
+                    {
+                        if (!refused.Contains(i))
+                            SessionShortcuts.Forget(database[i].SessionId);
+                    }
+                }
+                if (files.Count > 0)
+                {
+                    // the nodes are gone already, so the tree needn't hear of each one
+                    SuperPuTTY.RemoveSessions(files.Select(s => s.SessionId), false);
+                    files.ForEach(s => SessionShortcuts.Forget(s.SessionId));
+                    this.MarkIndexDirty();
+                    SuperPuTTY.SaveSessions();
+                }
+            }
+            SuperPuTTY.ReportStatus("Deleted {0}", string.Join(" and ", what));
+            if (problems.Count > 0)
+            {
+                Messenger.MessageBox("These weren't deleted:\n\n" + string.Join("\n", problems.Take(15)), "Delete",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
@@ -2559,11 +2991,14 @@ namespace SuperPutty
             return nodes;
         }
 
-        /// <summary>The session nodes shown from one node to another, in either direction, both included</summary>
+        /// <summary>
+        /// The session and folder nodes shown from one node to another, in either direction, both included, in the
+        /// root of <paramref name="to"/> (Shift+click; folders take part as in SuperXTerminal)
+        /// </summary>
         /// <param name="from">Where the range starts (any node), or null to take just <paramref name="to"/></param>
         /// <param name="to">Where it ends</param>
-        /// <returns>The session nodes, top to bottom</returns>
-        List<TreeNode> SessionsBetween(TreeNode from, TreeNode to)
+        /// <returns>The nodes, top to bottom</returns>
+        List<TreeNode> ItemsBetween(TreeNode from, TreeNode to)
         {
             List<TreeNode> shown = new List<TreeNode>();
             for (TreeNode node = this.treeView1.Nodes.Count > 0 ? this.treeView1.Nodes[0] : null; node != null; node = node.NextVisibleNode)
@@ -2573,7 +3008,7 @@ namespace SuperPutty
             int a = from == null ? -1 : shown.IndexOf(from), b = shown.IndexOf(to);
             if (a < 0 || b < 0)
                 return new List<TreeNode> { to };
-            return shown.Skip(Math.Min(a, b)).Take(Math.Abs(a - b) + 1).Where(IsSessionNode).ToList();
+            return shown.Skip(Math.Min(a, b)).Take(Math.Abs(a - b) + 1).Where(n => this.IsSelectable(n) && KindOf(n) == KindOf(to)).ToList();
         }
 
         /// <summary>Replace the multiple selection, painting the nodes that join it and clearing those that leave</summary>
@@ -3842,6 +4277,27 @@ namespace SuperPutty
             return IsSessionNode(node) && node.Parent != null ? node.Parent : node;
         }
 
+        /// <summary>
+        /// Where a dragged selection would go if dropped on a node: the folder or root under the pointer (a session's
+        /// folder), unless it's in Favorites or Recent, one of the selection or inside a selected folder, or in
+        /// Database sessions while they can't be written
+        /// </summary>
+        /// <param name="many">The dragged selection</param>
+        /// <param name="over">The node under the pointer</param>
+        /// <returns>The folder, or null where it can't be dropped</returns>
+        TreeNode SelectionDropTarget(SelectionDrag many, TreeNode over)
+        {
+            TreeNode target = this.DropTarget(over);
+            if (target == null || IsQuickNode(target) || !IsFolderNode(target) || (IsDatabaseNode(target) && DatabaseLocked(target)))
+                return null;
+            for (TreeNode p = target; p != null; p = p.Parent)
+            {
+                if (!IsSessionNode(p) && many.Nodes.Contains(p))
+                    return null;
+            }
+            return target;
+        }
+
         private void treeView1_ItemDrag(object sender, ItemDragEventArgs e)
         {
             // Get the tree
@@ -3854,7 +4310,14 @@ namespace SuperPutty
             //if (node != null && IsSessionNode(node))
             // the top-level nodes and the Favorites and Recent entries stay where they are; in Database sessions a
             // folder can be dragged only when the table can be written (a session also onto Favorites)
-            if (node != null && node.Parent != null && !IsQuickNode(node) && (!IsDatabaseNode(node) || IsSessionNode(node) || !DatabaseLocked(node)))
+            List<TreeNode> selection = this.SelectedItemNodes();
+            if (selection.Count > 1 && selection.Contains(node))
+            {
+                // part of a selection: the whole selection goes, as in SuperXTerminal
+                if (!IsDatabaseNode(node) || DatabaseSessions.Writable)
+                    this.treeView1.DoDragDrop(new SelectionDrag { Nodes = selection }, DragDropEffects.Copy);
+            }
+            else if (node != null && node.Parent != null && !IsQuickNode(node) && (!IsDatabaseNode(node) || IsSessionNode(node) || !DatabaseLocked(node)))
             {
                 this.treeView1.DoDragDrop(node, DragDropEffects.Copy);
             }
@@ -3869,6 +4332,17 @@ namespace SuperPutty
             e.Effect = DragDropEffects.None;
 
             // Is it a valid format?
+            SelectionDrag many = (SelectionDrag)e.Data.GetData(typeof(SelectionDrag));
+            if (many != null)
+            {
+                TreeNode over = tree.GetNodeAt(tree.PointToClient(new Point(e.X, e.Y)));
+                if (this.SelectionDropTarget(many, over) != null)
+                {
+                    tree.SelectedNode = over;
+                    e.Effect = DragDropEffects.Copy;
+                }
+                return;
+            }
             TreeNode nodePayload = (TreeNode) e.Data.GetData(typeof(TreeNode));
             if (nodePayload != null)
             {
@@ -3930,6 +4404,21 @@ namespace SuperPutty
             // Get the node underneath the mouse; on a session, its folder
             TreeNode node = this.DropTarget(tree.GetNodeAt(pt));
 
+            SelectionDrag many = (SelectionDrag)e.Data.GetData(typeof(SelectionDrag));
+            if (many != null)
+            {
+                TreeNode into = this.SelectionDropTarget(many, tree.GetNodeAt(pt));
+                if (into == null)
+                    return;
+                List<TreeNode> folders, sessions;
+                this.SplitSelection(many.Nodes, out folders, out sessions);
+                if (KindOf(into) == KindOf(many.Nodes[0]))
+                    this.MoveItems(folders, sessions, into);
+                else
+                    // into another root: copied, as one dragged there is
+                    this.CopyItems(folders, sessions, into);
+                return;
+            }
             TreeNode nodeDropped = (TreeNode)e.Data.GetData(typeof(TreeNode));
             if (node != null && RootOf(node) == this.nodeFavorites && IsSessionNode(nodeDropped))
             {
@@ -4241,7 +4730,16 @@ namespace SuperPutty
 
         private void treeView1_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Delete && this.SelectedSessionNodes().Count > 1)
+            if (e.KeyCode == Keys.Delete && this.SelectionHasFolders())
+            {
+                // folders and sessions selected: one question for them all, one save
+                List<TreeNode> folders, sessions;
+                this.SplitSelection(this.SelectedItemNodes(), out folders, out sessions);
+                if (!IsDatabaseNode(folders[0]) || DatabaseSessions.Writable)
+                    this.DeleteItems(folders, sessions);
+                e.Handled = true;
+            }
+            else if (e.KeyCode == Keys.Delete && this.SelectedSessionNodes().Count > 1)
             {
                 // several sessions selected: one question for them all
                 this.DeleteSessions(this.SelectedSessionNodes());

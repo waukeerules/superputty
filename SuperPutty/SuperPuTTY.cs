@@ -441,6 +441,12 @@ namespace SuperPutty
         /// </summary>
         public static void SaveSessions()
         {
+            if (saveBatchDepth > 0)
+            {
+                // inside BatchSaves: the batch saves once at its end
+                saveBatchPending = true;
+                return;
+            }
             Log.InfoFormat("Saving all sessions");
             // sessions from the Postgres table live there (and in its local cache), never in these files
             List<SessionData> all = GetAllSessions().Where(s => !s.IsDatabase).ToList();
@@ -458,8 +464,33 @@ namespace SuperPutty
             }
         }
 
+        /// <summary>How many <see cref="BatchSaves"/> scopes are open</summary>
+        private static int saveBatchDepth;
+
+        /// <summary>Whether <see cref="SaveSessions"/> was called inside an open <see cref="BatchSaves"/></summary>
+        private static bool saveBatchPending;
+
         /// <summary>
-        /// Remove a session from the in-application sessions database. 
+        /// Save the session files once at the end of a scope, however many times <see cref="SaveSessions"/> is called in
+        /// it: the Sessions tree's moves and deletes of a selection, where each folder and session moved would
+        /// otherwise read, back up and write Sessions.xml again. Nothing is written if nothing asked to save. Scopes nest.
+        /// </summary>
+        /// <returns>The scope; dispose it to save</returns>
+        public static IDisposable BatchSaves()
+        {
+            saveBatchDepth++;
+            return new SessionShortcuts.BatchScope(() =>
+            {
+                if (--saveBatchDepth == 0 && saveBatchPending)
+                {
+                    saveBatchPending = false;
+                    SaveSessions();
+                }
+            });
+        }
+
+        /// <summary>
+        /// Remove a session from the in-application sessions database.
         /// </summary>
         /// <param name="sessionId">The <seealso cref="SessionData.SessionId"/> of the session to remove</param>
         /// <returns>true on success, or false on failure or if session did not exist</returns>

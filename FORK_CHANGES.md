@@ -1581,7 +1581,7 @@ That alone left the cursor flickering as you moved over the edge: the splitter w
 
 ## Selecting several sessions in the tree
 
-**Ctrl+click** adds a session to the selection or takes it out, and **Shift+click** selects every session shown between the last session clicked and this one. A plain click or the arrow keys go back to one. Only sessions take part, not folders or Favorites and Recent entries.
+**Ctrl+click** adds a session to the selection or takes it out, and **Shift+click** selects every session shown between the last session clicked and this one. A plain click or the arrow keys go back to one. Folders can be selected too since "Selecting folders and sessions together"; Favorites and Recent entries can't.
 
 - **Connect** (the menu, or Enter) opens them all; the menu says "Connect 5 sessions".
 - **Delete** (the menu, or the Delete key) asks once, listing them ("Delete 5 sessions"). Database sessions go to the table in one batch (`DatabaseSessions.SubmitBatch`); those locked, or in a table that can't be written, are left and listed. Sessions.xml is saved once.
@@ -2421,6 +2421,19 @@ SuperXTerminal was made fast with 10,000-session files; this brings the same wor
 - **Fix: backups named with the 12-hour clock.** **Symptom:** a save at 1 pm replaced the backup from 1 am, and "keep the last 20" could delete newer backups and keep older ones. **Cause:** `BackUpFiles` named backups `yyyyMMdd_hhmmss` and kept the first 20 by name, with 20 written in place of its `count`. **Fix:** `HH`, the newest 20 by the time of the save they hold, and `count` used. This is in upstream too.
 
 **Checked** with the test program: 52 saves left no `.saving` file and at most 20 backups, and the saved file reads back with all 10,000 sessions.
+
+### Selecting folders and sessions together
+
+As in SuperXTerminal, **Ctrl+click** and **Shift+click** select folders as well as sessions, all in one root (a click in another root starts a new selection).
+
+- **Right-click** in a selection with folders in it shows the selection menu (`ShowSelectionMenu`): **Connect all (n)**, **Move n items to folder...** (a folder path, e.g. Lab/Core, empty for the top; made if missing, except in Database sessions), **Delete n items...** and **Export n sessions to CSV...**. A selection of sessions only keeps the session menu it had.
+- **Dragging** any selection of two or more moves them all into the folder dropped on (`MoveItems`); dropped into another root, they're copied, as a single item is.
+- **Delete** with folders selected asks once, "Delete 3 folders (75 sessions in them) and 2 sessions?" (`DeleteItems`).
+- **One save:** `SuperPuTTY.BatchSaves()` makes every `SaveSessions` inside it one save at its end. A selection moved or deleted in Saved or Private sessions writes Sessions.xml (or PrivateSessions.xml) once, and Favorites, Recent and the overrides once. Database sessions go through the table one at a time, as each is checked there.
+- **What goes:** a folder inside another selected folder goes with it, and a session inside a selected folder likewise (`SplitSelection`). A session whose name is taken where it's going gets a free one ("sw1-1") without asking; a folder isn't moved into itself or beside one of the same name, and those left are listed once at the end.
+- Folders being moved are filled first: each move marks the folder index stale, and filling a folder after that rebuilt the index of every session, once per folder.
+
+**Checked** with the test program: the 100 folders of the 10,000-session file, selected and moved into a new folder, took 1.2 s (0.8 s with the folders already open) with one save; the saved file has all 10,000 sessions under the new folder with unique IDs, and every session is found by its ID. **Not checked in the running app:** the menu, dragging, Delete, and Database sessions. Manual test: Ctrl+click two folders and a session, right-click one of them, try each item; drag the selection onto another folder; drag it into Private sessions (a copy); press Delete.
 
 ## Offering changes upstream in small batches
 
