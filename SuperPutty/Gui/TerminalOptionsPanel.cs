@@ -12,7 +12,7 @@ namespace SuperPutty.Gui
     /// The built-in terminal's defaults on Tools -> Options -> Terminal (dlgFindPutty): highlighting rules, theme, font,
     /// font size, cursor, blinking, bell, copy on select, marking the selection's matches, showing a paste of several
     /// lines first, scrollback, keys, session log time stamps, the renderer, word delimiters, wrapping lines, whether
-    /// the built-in highlighting rules are used, and the terminal's own colours over the theme's. These are the same
+    /// the built-in highlighting rules are used, the terminal's own colours over the theme's, and the anti-idle string. These are the same
     /// preferences each terminal's right-click menu changes (Utils.TerminalPreferences), so a change in either shows in
     /// the other and in every open terminal tab. Built in code: a label and a control per row.
     /// </summary>
@@ -66,6 +66,8 @@ namespace SuperPutty.Gui
         /// <summary>The Colours row's buttons, by preference name</summary>
         private readonly Dictionary<string, Button> colourButtons = new Dictionary<string, Button>();
 
+        private readonly TextBox antiIdle = new TextBox { Width = 160 };
+        private readonly NumericUpDown antiIdleSeconds = new NumericUpDown { Minimum = 1, Maximum = 86400, Increment = 30, Width = 90 };
         private readonly CheckBox wrap = new CheckBox { Text = "Wrap lines at the tab's width (off: 300 columns, panned with the scroll bar or Shift+wheel)", AutoSize = true };
 
         /// <summary>Lay out the rows; <see cref="LoadPreferences"/> fills them</summary>
@@ -102,6 +104,7 @@ namespace SuperPutty.Gui
             AddRow(table, "Drawing:", this.renderer);
             AddRow(table, "Word delimiters:", this.WordSeparatorsRow());
             AddRow(table, "Colours:", this.ColoursRow());
+            AddRow(table, "Anti-idle:", this.AntiIdleRow());
             table.Controls.Add(this.copyOnSelect, 1, table.RowCount++);
             table.Controls.Add(this.markMatches, 1, table.RowCount++);
             table.Controls.Add(this.wrap, 1, table.RowCount++);
@@ -145,6 +148,23 @@ namespace SuperPutty.Gui
                 row.Controls.Add(button);
                 row.Controls.Add(reset);
             }
+            return row;
+        }
+
+        /// <summary>
+        /// The anti-idle row, as KiTTY's: the string typed after a quiet spell (KiTTY's escapes, e.g. \x05\ for
+        /// Ctrl+E), and after how many seconds without typing
+        /// </summary>
+        /// <returns>The row's control</returns>
+        private Control AntiIdleRow()
+        {
+            FlowLayoutPanel row = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0), WrapContents = false };
+            this.antiIdle.Margin = new Padding(0, 3, 0, 0);
+            row.Controls.Add(this.antiIdle);
+            row.Controls.Add(new Label { Text = "typed after", AutoSize = true, Margin = new Padding(6, 6, 0, 0) });
+            this.antiIdleSeconds.Margin = new Padding(6, 3, 0, 0);
+            row.Controls.Add(this.antiIdleSeconds);
+            row.Controls.Add(new Label { Text = "s without typing, in remote sessions (KiTTY's escapes: \\x05\\ is Ctrl+E)", AutoSize = true, Margin = new Padding(6, 6, 0, 0) });
             return row;
         }
 
@@ -301,6 +321,9 @@ namespace SuperPutty.Gui
             Fill(this.renderer, new[] { C("Fast (WebGL, uses the graphics card)", "webgl"), C("Compatible (slower with a lot of output)", "dom") }, prefs["renderer"]);
             this.wordSeparators.Text = prefs["wordSeparators"];
             this.wrap.Checked = prefs["wrap"] != "false";
+            this.antiIdle.Text = prefs["antiIdle"];
+            int idleSeconds;
+            this.antiIdleSeconds.Value = int.TryParse(prefs["antiIdleSeconds"], out idleSeconds) && idleSeconds > 0 ? Math.Min(idleSeconds, 86400) : AntiIdle.DefaultSeconds;
             foreach (string[] pref in ColourPrefs)
             {
                 this.SetColour(pref[0], prefs[pref[0]]);
@@ -330,6 +353,8 @@ namespace SuperPutty.Gui
                 { "renderer", value(this.renderer) },
                 { "wordSeparators", TerminalPreferences.NormalizeWordSeparators(this.wordSeparators.Text) },
                 { "wrap", this.wrap.Checked ? "true" : "false" },
+                { "antiIdle", this.antiIdle.Text },
+                { "antiIdleSeconds", ((int)this.antiIdleSeconds.Value).ToString() },
                 { "colorBackground", this.colours["colorBackground"] },
                 { "colorForeground", this.colours["colorForeground"] },
                 { "colorSelection", this.colours["colorSelection"] },

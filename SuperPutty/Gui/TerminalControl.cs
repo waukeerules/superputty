@@ -150,6 +150,16 @@ namespace SuperPutty.Gui
         /// <summary>How many bytes <see cref="recentOutput"/> holds</summary>
         private int recentBytes;
 
+        /// <summary>When something was last typed into the session (by the user, a button, a script) or it started; for the anti-idle string</summary>
+        private DateTime typedAt = DateTime.Now;
+
+        /// <summary>Looks every few seconds whether the anti-idle string is due (<see cref="SendAntiIdle"/>)</summary>
+        private Timer antiIdleTimer;
+
+        /// <summary>Whether a script is running in the tab, so the anti-idle string isn't typed into what it reads; set by ctlPuttyPanel</summary>
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public Func<bool> ScriptRunning { get; set; }
+
         /// <summary>How much of plink's last output is kept for <see cref="recentOutput"/></summary>
         private const int RecentOutputBytes = 4096;
 
@@ -224,6 +234,13 @@ namespace SuperPutty.Gui
             this.lineBreakTimer.Tick += (s, e) => { this.lineBreakTimer.Stop(); this.SendPending(); };
             this.answeredTimer = new Timer { Interval = (int)ConnectionProgress.AnsweredAfter.TotalMilliseconds };
             this.answeredTimer.Tick += (s, e) => this.OnAnswered();
+            // the anti-idle string's due time is checked every 5 s, so its seconds are counted to within that
+            this.antiIdleTimer = new Timer { Interval = 5000 };
+            this.antiIdleTimer.Tick += (s, e) => this.SendAntiIdle();
+            if (!IsLocalShell(session.Proto))
+            {
+                this.antiIdleTimer.Start();
+            }
             // connecting from the start, not only once the page has loaded and plink runs
             this.connecting = ConnectionProgress.IsTracked(session.Proto);
             TerminalPreferences.Changed += this.OnPreferencesChanged;
@@ -810,6 +827,8 @@ namespace SuperPutty.Gui
                 started.Start(PuttyStartInfo.PlinkCommandLine(this.session, plink, true), this.columns, this.rows, Path.GetDirectoryName(plink));
                 this.pty = started;
                 this.startedAt = DateTime.Now;
+                // the anti-idle string counts its quiet spell from the start of each connection
+                this.typedAt = DateTime.Now;
                 this.disconnected = false;
                 this.StateChanged?.Invoke(this, EventArgs.Empty);
             }
@@ -1169,12 +1188,31 @@ namespace SuperPutty.Gui
                 target.EnsureVirtualTerminalInput();
             }
             target.Write(Encoding.UTF8.GetBytes(data));
+            this.typedAt = DateTime.Now;
             // a local shell's running command (ping -t) only stops on the console's Ctrl+C signal, which typing 0x03
             // doesn't raise in a pseudo console; the 0x03 still goes first, for line editors that read it as a key
             if (IsLocalShell(this.session.Proto) && data.IndexOf('\x03') >= 0)
             {
                 target.SendCtrlC();
             }
+        }
+
+        /// <summary>
+        /// Type the anti-idle string (Options -> Terminal, as KiTTY's) if it's due: the session is up, nothing typed for
+        /// its seconds, and no script running in the tab (it would read the echo). Only remote sessions: the timer
+        /// isn't started for local shells, which have no idle timeout to keep awake.
+        /// </summary>
+        private void SendAntiIdle()
+        {
+            if (this.disconnected || this.pty == null || this.connecting)
+                return;
+            string keys = AntiIdle.Keys(TerminalPreferences.Get("antiIdle"));
+            int seconds;
+            int.TryParse(TerminalPreferences.Get("antiIdleSeconds"), out seconds);
+            if (!AntiIdle.IsDue(keys, seconds, this.typedAt, DateTime.Now) || (this.ScriptRunning != null && this.ScriptRunning()))
+                return;
+            // never logged: it's the user's own text, as anything typed
+            this.Type(this.pty, keys);
         }
 
         /// <summary>
@@ -1410,6 +1448,7 @@ namespace SuperPutty.Gui
                 this.closing = true;
                 TerminalPreferences.Changed -= this.OnPreferencesChanged;
                 this.reconnectTimer.Dispose();
+                this.antiIdleTimer.Dispose();
                 this.lineBreakTimer.Dispose();
                 this.pty?.Dispose();
                 this.pty = null;

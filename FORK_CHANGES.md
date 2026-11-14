@@ -2663,6 +2663,16 @@ As SuperXTerminal (its ea4ce1d): a tab was watched for activity only once its ow
 
 **Checked** in a test program on the real tab code: with the option on, a new tab is watched, and its first output while not looked at raises the activity alert; turning the option off and on again stops and starts the watch; with it off, a new tab isn't watched. **Not checked:** the checkbox in the running app.
 
+## Built-in terminal: an anti-idle string
+
+As SuperXTerminal (its 17961a5, b92caa2) and KiTTY: a device's own idle timeout (Cisco's `exec-timeout`, a shell's `TMOUT`) doesn't see SSH keep-alives and logs a quiet session out. Tools → Options → Terminal → **Anti-idle** sets a string typed into a remote built-in terminal session after that many seconds with nothing typed (180 by default, KiTTY's), and again after each such spell. It's written as KiTTY writes it, with KiTTY's escapes (`\xHH` a character by its hex code, `\kHH` a key by its virtual-key code, `\r`, `\n`, `\t`, `\h` for backspace, `\\`; a trailing `\` only ends it; KiTTY's pauses and Ctrl+Break are left out). `\x05\` (Ctrl+E, the end of the line on a Cisco) shows nothing.
+
+- Empty (the default) sends nothing. Not in local shells (cmd, PowerShell, WSL), which have no idle timeout to keep awake, nor while a script runs in the tab (it would read the echo), nor while connecting or down.
+- **Unlike SuperXTerminal,** it's one setting for every remote terminal tab, not a profile's: the built-in terminal uses PuTTY profiles, which have no such setting.
+- **Code:** new `Utils/AntiIdle.cs` (`Keys`, `IsDue`), `TerminalControl.SendAntiIdle` (checked every 5 s; `typedAt` set by everything typed), the `antiIdle` and `antiIdleSeconds` preferences and their row in `Gui/TerminalOptionsPanel.cs`.
+
+**Checked:** unit tests (`SuperPuttyUnitTests/AntiIdleTests.cs`, ported from SuperXTerminal's): hex codes, virtual-key codes, named escapes, pauses left out, other backslashes kept, the due time. In a test program, a built-in terminal tab to a local server with Ctrl+E after 1 s: the server received it after each quiet spell once connected. **Not checked:** a Cisco's exec-timeout kept awake, and the Options row in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
