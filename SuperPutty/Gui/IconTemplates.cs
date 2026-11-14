@@ -47,7 +47,7 @@ namespace SuperPutty.Gui
             Add("voicerouter", "Voice router", Color.FromArgb(0x6A, 0x3D, 0x9A), PaintVoiceRouter);
             Add("nexus", "Data centre switch", Color.FromArgb(0x2E, 0x7D, 0x32), PaintNexus);
             Add("firewall", "Firewall", Color.FromArgb(0xC6, 0x4B, 0x2B), PaintFirewall);
-            Add("vpn", "VPN concentrator", Color.FromArgb(0x6A, 0x3D, 0x9A), PaintVpn);
+            Add("vpn", "VPN", Color.FromArgb(0x6A, 0x3D, 0x9A), PaintVpn);
             Add("wireless", "Wireless", Color.FromArgb(0x1E, 0x63, 0xB4), PaintWireless);
             Add("accesspoint", "Access point", Color.FromArgb(0x1E, 0x63, 0xB4), PaintAccessPoint);
             Add("wlc", "Wireless controller", Color.FromArgb(0x1E, 0x63, 0xB4), PaintWirelessController);
@@ -87,6 +87,21 @@ namespace SuperPutty.Gui
             AddGeneral("mobile", "Mobile device", Color.FromArgb(0x60, 0x7D, 0x8B), PaintMobile);
             AddGeneral("star", "Star", Color.FromArgb(0xF9, 0xA8, 0x25), PaintStar);
             AddGeneral("lock", "Padlock", Color.FromArgb(0x60, 0x7D, 0x8B), PaintLock);
+            // general icons from SuperXTerminal, for what sessions are often sorted by
+            AddGeneral("building", "Building", Color.FromArgb(0x60, 0x7D, 0x8B), PaintBuilding);
+            AddGeneral("person", "Person", Color.FromArgb(0x1E, 0x63, 0xB4), PaintPerson);
+            AddGeneral("key", "Key", Color.FromArgb(0xF9, 0xA8, 0x25), PaintKey);
+            AddGeneral("shield", "Shield", Color.FromArgb(0x2E, 0x7D, 0x32), PaintShield);
+            AddGeneral("gear", "Settings", Color.FromArgb(0x60, 0x7D, 0x8B), PaintGear);
+            AddGeneral("wrench", "Wrench", Color.FromArgb(0x78, 0x90, 0x9C), PaintWrench);
+            AddGeneral("warning", "Warning", Color.FromArgb(0xF9, 0xA8, 0x25), PaintWarning);
+            AddGeneral("bell", "Bell", Color.FromArgb(0xF9, 0xA8, 0x25), PaintBell);
+            AddGeneral("calendar", "Calendar", Color.FromArgb(0xC6, 0x28, 0x28), PaintCalendar);
+            AddGeneral("flask", "Lab", Color.FromArgb(0x8E, 0x24, 0xAA), PaintFlask);
+            AddGeneral("bug", "Bug", Color.FromArgb(0x43, 0xA0, 0x47), PaintBug);
+            AddGeneral("code", "Code", Color.FromArgb(0x45, 0x5A, 0x64), PaintCode);
+            AddGeneral("heart", "Heart", Color.FromArgb(0xD8, 0x1B, 0x60), PaintHeart);
+            AddGeneral("tag", "Tag", Color.FromArgb(0x00, 0x83, 0x8F), PaintTag);
 
             // toolbar glyphs: drawn the same way so they match and scale with the icons, but not offered for sessions
             AddGlyph("check", Color.FromArgb(0x2E, 0x9E, 0x44), PaintCheck);
@@ -528,33 +543,58 @@ namespace SuperPutty.Gui
             }
         }
 
-        /// <summary>VPN concentrator: a box with two tunnels through it, traffic going each way, their mouths on the side</summary>
+        /// <summary>A shield's outline, a flat top and curved sides meeting at a point: the VPN's and the Shield's (General)</summary>
+        /// <returns>The outline</returns>
+        private static GraphicsPath ShieldPath()
+        {
+            GraphicsPath path = new GraphicsPath();
+            path.AddLine(0.5f, 0.05f, 0.88f, 0.17f);
+            path.AddBezier(0.88f, 0.17f, 0.9f, 0.6f, 0.72f, 0.82f, 0.5f, 0.95f);
+            path.AddBezier(0.5f, 0.95f, 0.28f, 0.82f, 0.1f, 0.6f, 0.12f, 0.17f);
+            path.CloseFigure();
+            return path;
+        }
+
+        /// <summary>A padlock: a shackle over a body with a keyhole</summary>
+        /// <param name="g">The graphics</param>
+        /// <param name="cx">Its centre's x</param>
+        /// <param name="cy">Its centre's y</param>
+        /// <param name="size">Its height</param>
+        /// <param name="color">The shackle's and body's colour</param>
+        /// <param name="hole">The keyhole's colour</param>
+        private static void Padlock(Graphics g, float cx, float cy, float size, Color color, Color hole)
+        {
+            float w = size * 0.78f, bodyH = size * 0.56f, top = cy - size / 2, sw = w * 0.62f;
+            using (Pen shackle = new Pen(color, size * 0.13f))
+            {
+                g.DrawArc(shackle, cx - sw / 2, top + size * 0.065f, sw, size * 0.62f, 180, 180);
+                g.DrawLine(shackle, cx - sw / 2, top + size * 0.37f, cx - sw / 2, top + size * 0.5f);
+                g.DrawLine(shackle, cx + sw / 2, top + size * 0.37f, cx + sw / 2, top + size * 0.5f);
+            }
+            using (GraphicsPath lockBody = RoundRect(new RectangleF(cx - w / 2, cy + size / 2 - bodyH, w, bodyH), size * 0.08f))
+            using (Brush fill = new SolidBrush(color))
+            using (Brush keyhole = new SolidBrush(hole))
+            {
+                g.FillPath(fill, lockBody);
+                float ky = cy + size / 2 - bodyH * 0.62f;
+                g.FillEllipse(keyhole, cx - size * 0.075f, ky - size * 0.075f, size * 0.15f, size * 0.15f);
+                g.FillRectangle(keyhole, cx - size * 0.03f, ky, size * 0.06f, size * 0.17f);
+            }
+        }
+
+        /// <summary>
+        /// VPN: a shield with a padlock, as SuperXTerminal draws it. It was a box with two tunnels through it, which
+        /// couldn't be told for anything at a tab's 16 pixels. The Shield icon (General) has a tick where this has the lock
+        /// </summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
         private static void PaintVpn(Graphics g, Color body)
         {
-            IsoBox(g, body, new RectangleF(0.04f, 0.30f, 0.62f, 0.64f), 0.28f, 0.32f);
-            using (Pen tube = new Pen(Glyph, 0.045f))
-            using (Brush white = new SolidBrush(Glyph))
+            using (GraphicsPath shield = ShieldPath())
             {
-                float[] tops = { 0.38f, 0.66f };
-                for (int i = 0; i < 2; i++)
-                {
-                    using (GraphicsPath path = RoundRect(new RectangleF(0.10f, tops[i], 0.56f, 0.20f), 0.10f))
-                    {
-                        g.DrawPath(tube, path);
-                    }
-                    float y = tops[i] + 0.10f;
-                    if (i == 0)
-                    {
-                        Arrow(g, white, new PointF(0.18f, y), new PointF(0.60f, y), 0.04f, 0.08f);
-                    }
-                    else
-                    {
-                        Arrow(g, white, new PointF(0.58f, y), new PointF(0.16f, y), 0.04f, 0.08f);
-                    }
-                    // the side face rises as it goes back, so each tunnel's mouth sits higher than the tunnel
-                    g.DrawEllipse(tube, 0.75f, tops[i] - 0.13f, 0.10f, 0.20f);
-                }
+                FillBody(g, shield, body);
             }
+            Padlock(g, 0.5f, 0.47f, 0.42f, Glyph, body);
         }
 
         /// <summary>Wireless: an access point with signal arcs above it</summary>
@@ -949,7 +989,13 @@ namespace SuperPutty.Gui
             }
         }
 
-        /// <summary>Globe: a sphere with meridians and parallels</summary>
+        /// <summary>
+        /// Globe: the usual globe sign, as SuperXTerminal draws it: the meridians curving round, the equator, and two
+        /// latitudes straight across, as seen from level with the equator. The old pinched arcs for latitudes didn't
+        /// read as a globe at a tab's 16 pixels
+        /// </summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
         private static void PaintGlobe(Graphics g, Color body)
         {
             using (GraphicsPath sphere = new GraphicsPath())
@@ -957,13 +1003,15 @@ namespace SuperPutty.Gui
                 sphere.AddEllipse(0.06f, 0.06f, 0.88f, 0.88f);
                 FillBody(g, sphere, body);
             }
-            using (Pen line = new Pen(Color.FromArgb(200, Glyph), 0.045f))
+            using (Pen line = new Pen(Color.FromArgb(225, Glyph), 0.05f))
             {
-                g.DrawEllipse(line, 0.3f, 0.07f, 0.4f, 0.86f);
-                g.DrawLine(line, 0.5f, 0.07f, 0.5f, 0.93f);
-                g.DrawLine(line, 0.07f, 0.5f, 0.93f, 0.5f);
-                g.DrawArc(line, 0.12f, 0.16f, 0.76f, 0.3f, 20, 140);
-                g.DrawArc(line, 0.12f, 0.54f, 0.76f, 0.3f, 200, 140);
+                g.DrawEllipse(line, 0.31f, 0.08f, 0.38f, 0.84f);
+                g.DrawLine(line, 0.5f, 0.08f, 0.5f, 0.92f);
+                g.DrawLine(line, 0.08f, 0.5f, 0.92f, 0.5f);
+                // a latitude 0.2 above and below the equator: the chord of the 0.42 circle there
+                float half = (float)Math.Sqrt(0.42 * 0.42 - 0.2 * 0.2);
+                g.DrawLine(line, 0.5f - half, 0.3f, 0.5f + half, 0.3f);
+                g.DrawLine(line, 0.5f - half, 0.7f, 0.5f + half, 0.7f);
             }
         }
 
@@ -1125,12 +1173,17 @@ namespace SuperPutty.Gui
             {
                 FillBody(g, tile, body);
             }
+            // the dot and both arcs round one centre, the outer arc ending well inside the square's edge (it used to
+            // run into it)
+            const float x = 0.28f, y = 0.72f;
             using (Brush dot = new SolidBrush(Glyph))
             using (Pen arc = new Pen(Glyph, 0.1f))
             {
-                g.FillEllipse(dot, 0.2f, 0.66f, 0.15f, 0.15f);
-                g.DrawArc(arc, -0.08f, 0.38f, 0.66f, 0.66f, 270, 90);
-                g.DrawArc(arc, -0.34f, 0.12f, 1.18f, 1.18f, 270, 90);
+                g.FillEllipse(dot, x - 0.075f, y - 0.075f, 0.15f, 0.15f);
+                foreach (float r in new[] { 0.24f, 0.43f })
+                {
+                    g.DrawArc(arc, x - r, y - r, r * 2, r * 2, 270, 90);
+                }
             }
         }
 
@@ -1186,6 +1239,330 @@ namespace SuperPutty.Gui
                 g.FillEllipse(hole, 0.43f, 0.56f, 0.14f, 0.14f);
                 g.FillRectangle(hole, 0.47f, 0.64f, 0.06f, 0.16f);
             }
+        }
+
+        /// <summary>Fill a path in one colour</summary>
+        /// <param name="g">The graphics</param>
+        /// <param name="path">The shape; disposed afterwards</param>
+        /// <param name="color">The colour</param>
+        private static void FillSolid(Graphics g, GraphicsPath path, Color color)
+        {
+            using (path)
+            using (Brush brush = new SolidBrush(color))
+            {
+                g.FillPath(brush, path);
+            }
+        }
+
+        /// <summary>Fill a path as a coloured body (<see cref="FillBody"/>), then dispose of it</summary>
+        /// <param name="g">The graphics</param>
+        /// <param name="path">The shape; disposed afterwards</param>
+        /// <param name="body">The body colour</param>
+        private static void FillBodyOf(Graphics g, GraphicsPath path, Color body)
+        {
+            using (path)
+            {
+                FillBody(g, path, body);
+            }
+        }
+
+        /// <summary>A closed polygon as a path, filled by GDI+'s default Alternate rule</summary>
+        /// <param name="points">The corners, as x, y pairs</param>
+        /// <returns>The path</returns>
+        private static GraphicsPath PolygonPath(params float[] points)
+        {
+            PointF[] corners = new PointF[points.Length / 2];
+            for (int i = 0; i < corners.Length; i++)
+            {
+                corners[i] = new PointF(points[i * 2], points[i * 2 + 1]);
+            }
+            GraphicsPath path = new GraphicsPath();
+            path.AddPolygon(corners);
+            return path;
+        }
+
+        /// <summary>Draw rotated about the icon's centre, as SVG's rotate(angle 0.5 0.5)</summary>
+        /// <param name="g">The graphics</param>
+        /// <param name="degrees">Clockwise on screen</param>
+        /// <param name="draw">What to draw rotated</param>
+        private static void Rotated(Graphics g, float degrees, Action draw)
+        {
+            GraphicsState state = g.Save();
+            g.TranslateTransform(0.5f, 0.5f);
+            g.RotateTransform(degrees);
+            g.TranslateTransform(-0.5f, -0.5f);
+            draw();
+            g.Restore(state);
+        }
+
+        /// <summary>Building: an office block with rows of windows and a door, for a site</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintBuilding(Graphics g, Color body)
+        {
+            FillBodyOf(g, RoundRect(new RectangleF(0.18f, 0.08f, 0.64f, 0.86f), 0.04f), body);
+            using (Brush window = new SolidBrush(Color.FromArgb(225, Glyph)))
+            {
+                foreach (float y in new[] { 0.18f, 0.34f, 0.5f })
+                {
+                    foreach (float x in new[] { 0.28f, 0.44f, 0.6f })
+                    {
+                        g.FillRectangle(window, x, y, 0.12f, 0.1f);
+                    }
+                }
+            }
+            using (Brush door = new SolidBrush(Shade(body, -0.4f)))
+            {
+                g.FillRectangle(door, 0.42f, 0.7f, 0.16f, 0.24f);
+            }
+        }
+
+        /// <summary>Person: a head and shoulders, for a user's own session</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintPerson(Graphics g, Color body)
+        {
+            GraphicsPath head = new GraphicsPath();
+            head.AddEllipse(0.32f, 0.06f, 0.36f, 0.36f);
+            FillBodyOf(g, head, body);
+            GraphicsPath shoulders = new GraphicsPath();
+            shoulders.AddArc(0.12f, 0.48f, 0.76f, 0.6f, 180, 180);
+            shoulders.AddLine(0.88f, 0.78f, 0.88f, 0.94f);
+            shoulders.AddLine(0.88f, 0.94f, 0.12f, 0.94f);
+            shoulders.CloseFigure();
+            FillBodyOf(g, shoulders, body);
+        }
+
+        /// <summary>Key: a key on the slant, its bow a ring the background shows through</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintKey(Graphics g, Color body)
+        {
+            Rotated(g, -40, () =>
+            {
+                FillBodyOf(g, PolygonPath(0.4f, 0.45f, 0.96f, 0.45f, 0.96f, 0.66f, 0.88f, 0.66f, 0.88f, 0.56f, 0.8f, 0.56f,
+                    0.8f, 0.66f, 0.72f, 0.66f, 0.72f, 0.56f, 0.4f, 0.56f), body);
+                // Alternate fill: the inner circle is the bow's hole
+                GraphicsPath bow = new GraphicsPath();
+                bow.AddEllipse(0.04f, 0.3f, 0.42f, 0.42f);
+                bow.AddEllipse(0.15f, 0.41f, 0.2f, 0.2f);
+                FillBodyOf(g, bow, body);
+            });
+        }
+
+        /// <summary>Shield: a shield with a tick, for something secured</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintShield(Graphics g, Color body)
+        {
+            FillBodyOf(g, ShieldPath(), body);
+            using (Pen tick = new Pen(Glyph, 0.09f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+            {
+                g.DrawLines(tick, new[] { new PointF(0.31f, 0.5f), new PointF(0.45f, 0.64f), new PointF(0.7f, 0.36f) });
+            }
+        }
+
+        /// <summary>Settings: a gear of eight teeth, its middle a hole the background shows through</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintGear(Graphics g, Color body)
+        {
+            const double step = Math.PI * 2 / 8;
+            Func<double, float, PointF> at = (angle, r) => new PointF(0.5f + (float)Math.Cos(angle) * r, 0.5f + (float)Math.Sin(angle) * r);
+            List<PointF> points = new List<PointF>();
+            for (int i = 0; i < 8; i++)
+            {
+                double a = i * step;
+                points.Add(at(a - step * 0.32, 0.34f));
+                points.Add(at(a - step * 0.17, 0.46f));
+                points.Add(at(a + step * 0.17, 0.46f));
+                points.Add(at(a + step * 0.32, 0.34f));
+            }
+            // Alternate fill: the circle is the hole
+            GraphicsPath gear = new GraphicsPath();
+            gear.AddPolygon(points.ToArray());
+            gear.AddEllipse(0.36f, 0.36f, 0.28f, 0.28f);
+            FillBodyOf(g, gear, body);
+        }
+
+        /// <summary>Wrench: an open-ended spanner on the slant, for maintenance</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintWrench(Graphics g, Color body)
+        {
+            // the head: a disc with a square notch out of its end
+            const double cx = 0.5, cy = 0.25, r = 0.2;
+            double edge = Math.Asin(0.07 / r);
+            List<PointF> head = new List<PointF>();
+            for (int i = 0; i <= 24; i++)
+            {
+                double a = -Math.PI / 2 + edge + (Math.PI * 2 - edge * 2) * i / 24;
+                head.Add(new PointF((float)(cx + Math.Cos(a) * r), (float)(cy + Math.Sin(a) * r)));
+            }
+            head.Add(new PointF(0.43f, 0.22f));
+            head.Add(new PointF(0.57f, 0.22f));
+            Rotated(g, 45, () =>
+            {
+                FillBodyOf(g, RoundRect(new RectangleF(0.43f, 0.36f, 0.14f, 0.58f), 0.07f), body);
+                GraphicsPath headPath = new GraphicsPath();
+                headPath.AddPolygon(head.ToArray());
+                FillBodyOf(g, headPath, body);
+            });
+        }
+
+        /// <summary>Warning: a triangle with an exclamation mark, dark on the body so it reads on yellow</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintWarning(Graphics g, Color body)
+        {
+            FillBodyOf(g, PolygonPath(0.5f, 0.07f, 0.96f, 0.9f, 0.04f, 0.9f), body);
+            Color mark = Shade(body, -0.65f);
+            FillSolid(g, RoundRect(new RectangleF(0.455f, 0.33f, 0.09f, 0.33f), 0.04f), mark);
+            using (Brush dot = new SolidBrush(mark))
+            {
+                g.FillEllipse(dot, 0.45f, 0.71f, 0.1f, 0.1f);
+            }
+        }
+
+        /// <summary>Bell: a bell with its clapper, for alerts</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintBell(Graphics g, Color body)
+        {
+            using (Brush dark = new SolidBrush(Shade(body, -0.35f)))
+            {
+                g.FillEllipse(dark, 0.4f, 0.78f, 0.2f, 0.17f);
+                GraphicsPath bell = new GraphicsPath();
+                bell.AddBezier(0.2f, 0.74f, 0.27f, 0.6f, 0.18f, 0.15f, 0.5f, 0.15f);
+                bell.AddBezier(0.5f, 0.15f, 0.82f, 0.15f, 0.73f, 0.6f, 0.8f, 0.74f);
+                bell.AddLine(0.8f, 0.74f, 0.88f, 0.82f);
+                bell.AddLine(0.88f, 0.82f, 0.12f, 0.82f);
+                bell.CloseFigure();
+                FillBodyOf(g, bell, body);
+                g.FillEllipse(dark, 0.45f, 0.06f, 0.1f, 0.1f);
+            }
+        }
+
+        /// <summary>Calendar: a page with a coloured top, its rings and its days, for something on a schedule</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintCalendar(Graphics g, Color body)
+        {
+            FillBodyOf(g, RoundRect(new RectangleF(0.08f, 0.12f, 0.84f, 0.82f), 0.08f), body);
+            using (Brush page = new SolidBrush(Color.FromArgb(0xFA, 0xFA, 0xFA)))
+            using (Brush day = new SolidBrush(Shade(body, -0.1f)))
+            {
+                g.FillRectangle(page, 0.14f, 0.34f, 0.72f, 0.54f);
+                foreach (float y in new[] { 0.42f, 0.57f, 0.72f })
+                {
+                    foreach (float x in new[] { 0.21f, 0.37f, 0.53f, 0.69f })
+                    {
+                        g.FillRectangle(day, x, y, 0.1f, 0.09f);
+                    }
+                }
+            }
+            Color ring = Shade(body, -0.4f);
+            FillSolid(g, RoundRect(new RectangleF(0.26f, 0.05f, 0.08f, 0.16f), 0.04f), ring);
+            FillSolid(g, RoundRect(new RectangleF(0.66f, 0.05f, 0.08f, 0.16f), 0.04f), ring);
+        }
+
+        /// <summary>Lab: a flask of the body's colour, for a lab or test system</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintFlask(Graphics g, Color body)
+        {
+            PointF[] flask =
+            {
+                new PointF(0.38f, 0.06f), new PointF(0.62f, 0.06f), new PointF(0.62f, 0.36f),
+                new PointF(0.9f, 0.88f), new PointF(0.1f, 0.88f), new PointF(0.38f, 0.36f)
+            };
+            using (Brush glass = new SolidBrush(Color.FromArgb(200, 0xEC, 0xEF, 0xF1)))
+            {
+                g.FillPolygon(glass, flask);
+            }
+            // the liquid: the flask below 0.58, where its sides are at x 0.268 and 0.732
+            using (GraphicsPath liquid = PolygonPath(0.262f, 0.58f, 0.738f, 0.58f, 0.9f, 0.88f, 0.1f, 0.88f))
+            using (Brush fill = new LinearGradientBrush(new PointF(0, 0.58f), new PointF(0, 0.89f), Shade(body, 0.18f), Shade(body, -0.12f)))
+            {
+                g.FillPath(fill, liquid);
+            }
+            using (Pen edge = new Pen(Shade(body, -0.35f), 0.045f) { LineJoin = LineJoin.Round })
+            using (Brush bubble = new SolidBrush(Color.FromArgb(200, Glyph)))
+            {
+                g.DrawPolygon(edge, flask);
+                g.FillEllipse(bubble, 0.4f, 0.66f, 0.08f, 0.08f);
+                g.FillEllipse(bubble, 0.54f, 0.74f, 0.06f, 0.06f);
+            }
+        }
+
+        /// <summary>Bug: a beetle with its legs and feelers, for testing or a known problem</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintBug(Graphics g, Color body)
+        {
+            using (Pen leg = new Pen(Shade(body, -0.35f), 0.06f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                float[][] legs = { new[] { 0.48f, -0.08f }, new[] { 0.62f, 0f }, new[] { 0.76f, 0.08f } };
+                foreach (float[] l in legs)
+                {
+                    g.DrawLine(leg, 0.3f, l[0], 0.1f, l[0] + l[1]);
+                    g.DrawLine(leg, 0.7f, l[0], 0.9f, l[0] + l[1]);
+                }
+                g.DrawLine(leg, 0.43f, 0.2f, 0.33f, 0.06f);
+                g.DrawLine(leg, 0.57f, 0.2f, 0.67f, 0.06f);
+            }
+            GraphicsPath headPath = new GraphicsPath();
+            headPath.AddEllipse(0.37f, 0.14f, 0.26f, 0.22f);
+            FillBodyOf(g, headPath, Shade(body, -0.2f));
+            GraphicsPath shell = new GraphicsPath();
+            shell.AddEllipse(0.26f, 0.3f, 0.48f, 0.64f);
+            FillBodyOf(g, shell, body);
+            using (Pen seam = new Pen(Color.FromArgb(200, Glyph), 0.04f))
+            {
+                g.DrawLine(seam, 0.5f, 0.34f, 0.5f, 0.9f);
+            }
+        }
+
+        /// <summary>Code: &lt;/&gt; on a rounded square, for development</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintCode(Graphics g, Color body)
+        {
+            FillBodyOf(g, RoundRect(new RectangleF(0.06f, 0.06f, 0.88f, 0.88f), 0.16f), body);
+            using (Pen pen = new Pen(Glyph, 0.08f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+            {
+                g.DrawLines(pen, new[] { new PointF(0.34f, 0.32f), new PointF(0.18f, 0.5f), new PointF(0.34f, 0.68f) });
+                g.DrawLines(pen, new[] { new PointF(0.66f, 0.32f), new PointF(0.82f, 0.5f), new PointF(0.66f, 0.68f) });
+                g.DrawLine(pen, 0.56f, 0.27f, 0.44f, 0.73f);
+            }
+        }
+
+        /// <summary>Heart: for a favourite</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintHeart(Graphics g, Color body)
+        {
+            GraphicsPath heart = new GraphicsPath();
+            heart.AddBezier(0.5f, 0.9f, 0.2f, 0.68f, 0.04f, 0.52f, 0.06f, 0.32f);
+            heart.AddBezier(0.06f, 0.32f, 0.08f, 0.1f, 0.4f, 0.04f, 0.5f, 0.26f);
+            heart.AddBezier(0.5f, 0.26f, 0.6f, 0.04f, 0.92f, 0.1f, 0.94f, 0.32f);
+            heart.AddBezier(0.94f, 0.32f, 0.96f, 0.52f, 0.8f, 0.68f, 0.5f, 0.9f);
+            heart.CloseFigure();
+            FillBodyOf(g, heart, body);
+        }
+
+        /// <summary>Tag: a price tag on the slant, its hole one the background shows through, for a label</summary>
+        /// <param name="g">Graphics scaled to the unit square</param>
+        /// <param name="body">The body colour</param>
+        private static void PaintTag(Graphics g, Color body)
+        {
+            Rotated(g, -45, () =>
+            {
+                // Alternate fill: the circle is the hole
+                GraphicsPath tag = PolygonPath(0.1f, 0.5f, 0.28f, 0.31f, 0.86f, 0.31f, 0.86f, 0.69f, 0.28f, 0.69f);
+                tag.AddEllipse(0.23f, 0.445f, 0.11f, 0.11f);
+                FillBodyOf(g, tag, body);
+            });
         }
 
         /// <summary>Help: a question mark on a disc</summary>

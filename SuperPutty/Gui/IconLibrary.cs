@@ -410,7 +410,7 @@ namespace SuperPutty.Gui
             None,
             /// <summary>A tab is open and connected: a green dot</summary>
             Connected,
-            /// <summary>Its tabs have all dropped, or are reconnecting: a red dot</summary>
+            /// <summary>Its tabs have all dropped, or are reconnecting: the icon dimmed under a red cross, as SuperXTerminal shows it</summary>
             Disconnected
         }
 
@@ -431,9 +431,16 @@ namespace SuperPutty.Gui
             {
                 using (Image icon = list.Images[baseKey])
                 {
-                    Bitmap bitmap = new Bitmap(icon);
-                    DrawStateDot(bitmap, state == OpenState.Connected ? Color.FromArgb(0x2E, 0xB8, 0x4E) : Color.FromArgb(0xD3, 0x2F, 0x2F), IconPixels(list));
-                    list.Images.Add(key, bitmap);
+                    if (state == OpenState.Connected)
+                    {
+                        Bitmap bitmap = new Bitmap(icon);
+                        DrawStateDot(bitmap, Color.FromArgb(0x2E, 0xB8, 0x4E), IconPixels(list));
+                        list.Images.Add(key, bitmap);
+                    }
+                    else
+                    {
+                        list.Images.Add(key, DrawDropped(icon, IconPixels(list)));
+                    }
                 }
             }
             return key;
@@ -546,6 +553,42 @@ namespace SuperPutty.Gui
                 }
             }
             g.DrawImage(icon, bounds);
+        }
+
+        /// <summary>
+        /// A dropped session's icon for the Sessions tree, as SuperXTerminal draws it: the icon at 55% opacity, under a
+        /// red disc with a white cross in its bottom-right corner, ringed in the background colour like the dot of
+        /// <see cref="DrawStateDot"/>. Called by <see cref="EnsureWithState"/>.
+        /// </summary>
+        /// <param name="icon">The session's icon cell</param>
+        /// <param name="iconPixels">The icon's size in the cell: the badge is sized for it</param>
+        /// <returns>A new bitmap the size of <paramref name="icon"/></returns>
+        public static Bitmap DrawDropped(Image icon, int iconPixels)
+        {
+            Bitmap bitmap = new Bitmap(icon.Width, icon.Height);
+            float size = bitmap.Width;
+            float badge = iconPixels * 0.46f;
+            float ring = Math.Max(1.5f, iconPixels * 0.07f);
+            float inset = (size - iconPixels) / 4;
+            RectangleF bounds = new RectangleF(size - inset - badge - ring, size - inset - badge - ring, badge, badge);
+            Color background = DarkBackground ? Color.FromArgb(0x25, 0x25, 0x26) : Color.White;
+            using (Graphics g = Graphics.FromImage(bitmap))
+            using (ImageAttributes dim = new ImageAttributes())
+            using (Brush ringBrush = new SolidBrush(background))
+            using (Brush fill = new SolidBrush(Color.FromArgb(0xD3, 0x2F, 0x2F)))
+            using (Pen cross = new Pen(Color.White, Math.Max(1.2f, badge * 0.16f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                dim.SetColorMatrix(new ColorMatrix { Matrix33 = 0.55f });
+                g.DrawImage(icon, new Rectangle(0, 0, icon.Width, icon.Height), 0, 0, icon.Width, icon.Height, GraphicsUnit.Pixel, dim);
+                g.FillEllipse(ringBrush, RectangleF.Inflate(bounds, ring, ring));
+                g.FillEllipse(fill, bounds);
+                float arm = badge * 0.2f;
+                PointF centre = new PointF(bounds.X + badge / 2, bounds.Y + badge / 2);
+                g.DrawLine(cross, centre.X - arm, centre.Y - arm, centre.X + arm, centre.Y + arm);
+                g.DrawLine(cross, centre.X + arm, centre.Y - arm, centre.X - arm, centre.Y + arm);
+            }
+            return bitmap;
         }
 
         /// <summary>

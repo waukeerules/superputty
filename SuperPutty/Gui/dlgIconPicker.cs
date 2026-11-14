@@ -150,8 +150,8 @@ namespace SuperPutty.Gui
         }
 
         /// <summary>
-        /// Fill the grid: device and general icons, logos, then custom icons, filtered by the search box. Only the
-        /// tiles that share the selected icon's colour (<see cref="SharesColor"/>) show it; the others show their own.
+        /// Fill the grid: device and general icons, logos, then custom icons, filtered by the search box, each in the
+        /// chosen colour when there is one (<see cref="SharesColor"/>).
         /// </summary>
         /// <param name="selectName">The icon to select afterwards; null keeps the current selection</param>
         private void FillList(string selectName)
@@ -227,17 +227,16 @@ namespace SuperPutty.Gui
         }
 
         /// <summary>
-        /// Whether an icon's tile shows the chosen colour while another is selected: the selected one always, and every
-        /// device and general icon while one of them is selected, to compare a colour across the set. Logos and custom
-        /// icons keep it to themselves; tinting all logos (white for Apple turned them all white) looked like a fault.
+        /// Whether an icon's tile shows the chosen colour: every tile, logos and custom icons included, whenever a colour
+        /// is chosen, so each shows how it would look in it (as SuperXTerminal's Choose Icon); Default draws them all in
+        /// their own colours again.
         /// </summary>
-        /// <param name="name">The tile's icon</param>
-        /// <param name="selected">The selected icon; null if none</param>
+        /// <param name="name">The tile's icon (not used: every tile is treated alike)</param>
+        /// <param name="selected">The selected icon (not used)</param>
         /// <returns>true if the tile should show the chosen colour</returns>
         private bool SharesColor(string name, string selected)
         {
-            return selected != null
-                && (string.Equals(name, selected, StringComparison.OrdinalIgnoreCase) || IconTemplates.Exists(name) && IconTemplates.Exists(selected));
+            return !this.chosenColor.IsEmpty;
         }
 
         /// <summary>Redraw the tiles whose colour changes for the selected icon</summary>
@@ -336,7 +335,7 @@ namespace SuperPutty.Gui
             string selected = this.listIcons.SelectedItems.Count > 0 ? (string)this.listIcons.SelectedItems[0].Tag : null;
             if (selected != null)
             {
-                // the colour follows the selection; tiles that no longer share it go back to their own
+                // the colour follows the selection; every tile already shows it, so this redraws nothing
                 this.Retint(selected, false);
             }
             this.UpdateSelection();

@@ -422,11 +422,11 @@ Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom netw
     - **Who uses it:** set tab icons with `TabIcons.Set`, not the `Icon` property (`SuperPuTTY.ApplyIconForWindow`, the badges in `ctlPuttyPanel`). The tab-list menu shows the real icons and strips the padding.
     - **Classic tabs** have a slanted left edge and start their text a few pixels earlier, so their icons start further in and are a little smaller.
 - **Device templates** (`Gui/IconTemplates.cs`) are drawn in code, so they're sharp at any size, and their body takes any colour.
-  - **Templates:** switch, layer 3 switch, stack switch, core switch, distribution switch, router, voice router, data centre (Nexus) switch, firewall, VPN concentrator, wireless, access point, wireless controller, load balancer, console server, UPS, server, workstation, terminal, Windows, database, storage, cloud, IP phone, camera, printer, folder and flag.
+  - **Templates:** switch, layer 3 switch, stack switch, core switch, distribution switch, router, voice router, data centre (Nexus) switch, firewall, VPN, wireless, access point, wireless controller, load balancer, console server, UPS, server, workstation, terminal, Windows, database, storage, cloud, IP phone, camera, printer, folder and flag.
   - **Colour coding:** "green switch = layer 2, blue switch = layer 3" is one template in two colours.
   - **Core and distribution switches** show what they do: the core switch has the layer 3 arrows going out from a hub, the distribution switch one uplink fanning out to three.
-  - **3D boxes** (data centre switch, stack switch, wireless controller, VPN concentrator, access point) follow the network-diagram symbols; the voice router is a call symbol (a handset with arrows each way), redrawn because the old handset read as a blob.
-  - **General icons** replace the rest of the old Silk PNGs, drawn the same way: home, globe, map, truck, book, document, archive, email, chat, feed, clock, help, information, light bulb, lightning, television and mobile device. The picker lists them under "General".
+  - **3D boxes** (data centre switch, stack switch, wireless controller, access point) follow the network-diagram symbols; the voice router is a call symbol (a handset with arrows each way), redrawn because the old handset read as a blob.
+  - **General icons** replace the rest of the old Silk PNGs, drawn the same way: home, globe, map, truck, book, document, archive, email, chat, feed, clock, help, information, light bulb, lightning, television and mobile device. The picker lists them under "General". Fourteen more came from SuperXTerminal; see "Icons brought up to SuperXTerminal".
   - **The top toolbars' buttons** (connect, clear, send, mask, run script, select tabs, the icon filter's "stop") are drawn the same way, so they match.
 - **Logos** (`Gui/BrandLogos.cs`): 26 OS and vendor logos from [Simple Icons](https://simpleicons.org) 16.36.0. The icon data is CC0 (`Resources/third-party/simple-icons-LICENSE.md`), and the logos remain their owners' trademarks.
   - **The list:** Ubuntu, Debian, Red Hat, CentOS, Fedora, Arch, Mint, openSUSE, SUSE, FreeBSD, OpenBSD, Linux, Apple, Android, Cisco, Palo Alto, Fortinet, VMware, Proxmox, Docker, Kubernetes, Raspberry Pi, Alpine, Rocky, Alma and Kali.
@@ -441,7 +441,7 @@ Session icons were 16x16 PNGs (mostly the famfamfam "Silk" set, plus custom netw
   - **Layout:** a searchable grid grouped as Devices, General, Logos and Custom, plus a large preview.
   - **Dark theme:** the grid uses Windows' dark "items view" style, so the group headings are readable. DarkModeCS's dark Explorer style left them dark blue.
   - **Colour row:** Default, ten named colours, and More... for any colour; More... is outlined when the chosen colour isn't one of the ten.
-  - **Colour preview:** with a device or general icon selected, every device and general icon shows the chosen colour, so you can compare a colour across the whole set (handy for demos). A logo or custom icon shows it only on its own tile. The large preview always shows it.
+  - **Colour preview:** every tile, logos and custom icons included, shows the chosen colour (since "Icons brought up to SuperXTerminal"). The large preview always shows it.
     - **Before:** first the whole device and general set was recoloured, even when a logo was selected; then the selected icon's whole group, so choosing white for Apple turned every logo white, which looked like a fault; then only the selected icon, which made comparing colours slow.
   - **Explicit colours:** a colour chosen for a logo is used as it is. Only near-black brand colours are lightened on the dark theme.
   - **Result:** the picker returns the key to store, with the colour left off when it's the icon's own.
@@ -2202,7 +2202,7 @@ Favorites, Recent and private sessions:
 7. Toolbar: select a session, click **New session**: it's created in that session's folder. **New folder**, **Expand all**, **Collapse all**. **Sort** twice: Z to A, then A to Z; restart: A to Z.
 8. Create new session: type the host first, then the name. **Save** is enabled without clicking elsewhere. Type an existing name: the error shows at once.
 9. Hints: the empty search box says "Search... (press Enter)", or "Type to search..." with "Filter while typing" on. Create new session shows grey examples in Session name, Host address and Login username; each goes when you type. The toolbar's Host and Login boxes show theirs too.
-10. Open a session: its icon in the Sessions tree gets a green dot (in Favorites and Recent too). Let it drop (e.g. 192.168.3.2 left at the login prompt): the dot turns red, and green again once it reconnects. Close the tab: the dot goes.
+10. Open a session: its icon in the Sessions tree gets a green dot (in Favorites and Recent too). Let it drop (e.g. 192.168.3.2 left at the login prompt): the icon dims under a red cross, and gets its green dot again once it reconnects. Close the tab: the dot goes.
 11. A session whose PuTTY profile (or `-i`) uses a key: right-click → WinSCP (external) logs in with the key. Clear the session's username, with the user only in the PuTTY profile's Auto-login username: WinSCP still logs in as that user. A session with `{user}` as its username opens WinSCP as your user, not "{user}".
 12. With two copies of SuperXPuTTY on one settings folder (or a text editor), change a session in one: the other reloads within a few seconds ("Sessions.xml was changed outside SuperXPuTTY") and shows the change. Save in the first again: it doesn't reload itself. Untick Options → GUI → Reload when changed: changes are no longer picked up until File → Reload sessions.
 13. Open View → Log Viewer, then point the settings folder at a large Sessions.xml: the window stays responsive. Close SuperXPuTTY: no error.
@@ -2340,6 +2340,32 @@ Upstream's 38 commits up to `43e7353` move SuperXPuTTY from .NET Framework 4.8 t
 **Fix:** the package is removed from `SuperPutty.csproj` and `SuperPuttyUnitTests.csproj`, and its two DLLs (`Microsoft.AspNetCore.SystemWebAdapters.dll`, `System.Runtime.Caching.dll`) from `Product.wxs`. Npgsql's `Microsoft.Extensions.Logging.Abstractions.dll` and `Microsoft.Extensions.DependencyInjection.Abstractions.dll`, which had been coming from the ASP.NET Core runtime, are now copied to the output and listed in the installer. This is in upstream too.
 
 **Checked:** the solution builds; `SuperXPuTTY.runtimeconfig.json` lists only `Microsoft.NETCore.App` and `Microsoft.WindowsDesktop.App`; every DLL in the output is in the installer (except `Microsoft.Web.WebView2.Wpf.dll`, which isn't used); the app starts and reads the Database sessions. **Not checked:** on a machine without the ASP.NET Core runtime (this one has it, from the SDK).
+
+## Icons brought up to SuperXTerminal
+
+[SuperXTerminal](https://github.com/waukeerules/SuperXTerminal) draws session icons with a line-for-line port of `IconTemplates`. Since that port (its commit e72ab70, "Bring the Sessions tree up to SuperXPuTTY 2.5.1.0") it gained icons and redrew some. They're now the same here, so a Sessions.xml shared by the two apps shows the same icons. The 26 logos and the old PNG key mapping were already the same.
+
+- **Fourteen new General icons** (`IconTemplates`): Building, Person, Key, Shield, Settings (a gear), Wrench, Warning, Bell, Calendar, Lab (a flask), Bug, Code (`</>`), Heart and Tag; keys `building`, `person`, `key`, `shield`, `gear`, `wrench`, `warning`, `bell`, `calendar`, `flask`, `bug`, `code`, `heart` and `tag`. They're for what sessions are often sorted by: sites, people, credentials, security, maintenance, test systems, development and favourites. The Key's bow, the gear's middle and the Tag's hole show the background through.
+- **VPN redrawn:** the VPN concentrator, a 3D box with two tunnels that couldn't be told for anything at a tab's 16 pixels, is now **VPN**, a shield with a padlock. The key is still `vpn`, so sessions with it show the new icon in the colour they had. It shares its outline with Shield, which has a tick where VPN has the lock.
+- **Globe redrawn:** the usual globe sign (meridians, the equator and two straight latitudes) in place of pinched arcs that didn't read as a globe at 16 pixels.
+- **Feed redrawn:** its dot and arcs are round one centre, and the outer arc ends inside the rounded square instead of running into its edge.
+- **Fix: a hole in the Chat bubble.** **Symptom:** a sliver of background showed through where the bubble's tail joins it. **Cause:** the tail was drawn the other way round from the bubble, so with the winding fill the overlap cancelled out. **Fix:** the tail runs the same way round. SuperXTerminal had the same bug, copied from this drawing.
+- **Choose Icon colours every icon:** with a colour picked, every tile, logos and custom icons included, is drawn in it, so each shows how it would look; Default draws them in their own colours again. Before, logos and custom icons kept their own colour unless selected. A colour chosen for a logo is stored and drawn as it is (`cisco#C62828`), as before.
+- **A dropped session in the Sessions tree** shows its icon dimmed under a red cross, as its tab and SuperXTerminal's tree show it, instead of a red dot (`IconLibrary.DrawDropped`). A connected session keeps its green dot.
+- **Not ported:** SuperXTerminal also shows a yellow dot while a session is still connecting. SuperXPuTTY's tabs have no "connecting" state yet, so that's left for later.
+
+| File | Change |
+|---|---|
+| `Gui/IconTemplates.cs` | The 14 General icons; VPN, Globe and Feed redrawn; the Chat tail's direction; helpers `ShieldPath`, `Padlock`, `PolygonPath`, `Rotated`, `FillSolid`, `FillBodyOf` |
+| `Gui/dlgIconPicker.cs` | `SharesColor`: every tile takes the chosen colour |
+| `Gui/IconLibrary.cs` | `DrawDropped`, used by `EnsureWithState` for `OpenState.Disconnected` |
+
+**Checked:** it builds. Every new and changed icon was rendered from the compiled assembly at 16, 32 and 64 pixels on a light and a dark background: each reads at 16, stays inside its square, and the Key, gear and Tag holes show the background. Coloured logos (`cisco#C62828`, `apple#1E63B4`, `ubuntu#2E7D32`) and the dropped look were rendered the same way. **Not checked in the running app.** Manual test:
+
+1. Edit Session → the icon button: General ends with the 14 new icons, and VPN is the shield with a padlock.
+2. Pick Red: every tile turns red, logos and custom icons too. Pick Default: each goes back to its own colour. Choose Cisco in red and save: the tree and tab show a red Cisco logo.
+3. Open a session and let it drop: its icon in the tree dims under a red cross; when it reconnects it gets the green dot again.
+4. Repeat 1–3 in the light and dark themes, and at the 24 and 16 pixel icon sizes.
 
 ---
 *I used Grok/ChatGPT to learn C# and to generate some of this code, so it may not follow best practices. Feedback on the approach is very welcome.*
