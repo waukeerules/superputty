@@ -39,7 +39,7 @@ namespace SuperPutty.Gui
             Color fore = dark ? Color.FromArgb(230, 230, 230) : SystemColors.ControlText;
             Color muted = dark ? Color.FromArgb(150, 150, 150) : SystemColors.GrayText;
 
-            this.box = new TextBox
+            this.box = new HintTextBox
             {
                 Multiline = true,
                 AcceptsReturn = true,
@@ -49,6 +49,9 @@ namespace SuperPutty.Gui
                 Height = DpiUtils.ScaleWidth(150),
                 Font = new Font("Lucida Console", 10f),
                 Text = QuickHosts.AsLines(hosts),
+                // the example shown while it's empty, as SuperXTerminal's
+                Hint = "192.168.0.5" + Environment.NewLine + "sw1.example.com" + Environment.NewLine + "admin@10.0.0.7:2222",
+                HintColor = muted,
                 BackColor = dark ? Color.FromArgb(30, 30, 30) : SystemColors.Window,
                 ForeColor = fore,
                 BorderStyle = BorderStyle.FixedSingle
@@ -133,6 +136,47 @@ namespace SuperPutty.Gui
             base.OnOpened(e);
             this.box.Focus();
             this.box.SelectionStart = this.box.TextLength;
+        }
+
+        /// <summary>
+        /// A text box that shows an example while it's empty, also while it has the keyboard: WinForms' own
+        /// PlaceholderText hides then, and the list's box has the keyboard from the moment it opens
+        /// </summary>
+        private class HintTextBox : TextBox
+        {
+            /// <summary>WM_PAINT</summary>
+            private const int WmPaint = 0x000F;
+
+            /// <summary>The example shown while the box is empty</summary>
+            [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+            public string Hint { get; set; }
+
+            /// <summary>The example's colour</summary>
+            [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+            public Color HintColor { get; set; } = SystemColors.GrayText;
+
+            /// <summary>Draw the example after the box paints, while it's empty</summary>
+            /// <param name="m">The message</param>
+            protected override void WndProc(ref Message m)
+            {
+                base.WndProc(ref m);
+                if (m.Msg == WmPaint && this.TextLength == 0 && !string.IsNullOrEmpty(this.Hint))
+                {
+                    using (Graphics g = this.CreateGraphics())
+                    {
+                        TextRenderer.DrawText(g, this.Hint, this.Font, new Rectangle(1, 1, this.ClientSize.Width - 2, this.ClientSize.Height - 2),
+                            this.HintColor, this.BackColor, TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix);
+                    }
+                }
+            }
+
+            /// <summary>Repaint as text comes or goes, so the example shows or goes with it</summary>
+            /// <param name="e">Not used</param>
+            protected override void OnTextChanged(EventArgs e)
+            {
+                base.OnTextChanged(e);
+                this.Invalidate();
+            }
         }
 
         /// <summary>Stay open while the user is in another program, copying hosts to paste here</summary>
