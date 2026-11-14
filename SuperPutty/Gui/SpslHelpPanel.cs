@@ -47,6 +47,7 @@ namespace SuperPutty.Gui
         private TextBoxBase editor;
 
         /// <summary>The script box this panel inserts into and checks</summary>
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public TextBoxBase Editor
         {
             get { return this.editor; }
@@ -61,6 +62,7 @@ namespace SuperPutty.Gui
         /// Whether to show a Saved scripts tab (SPSL scripts only). The button editor shows it; the Script Editor has
         /// its own saved-scripts panel on the left.
         /// </summary>
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool ShowSavedScripts
         {
             get { return this.tabs.TabPages.Contains(this.savedTab); }

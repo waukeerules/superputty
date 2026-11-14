@@ -30,12 +30,15 @@ namespace SuperPutty.Gui
         private readonly Label labelInfo = new Label();
 
         /// <summary>The script box this panel inserts into and saves from</summary>
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public TextBoxBase Editor { get; set; }
 
         /// <summary>The kind of script being edited, which Save as... saves it as; SPSL if not set</summary>
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public Func<ScriptKind> CurrentKind { get; set; }
 
         /// <summary>Only list scripts of this kind (the button editor lists SPSL scripts); null lists both</summary>
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public ScriptKind? OnlyKind { get; set; }
 
         /// <summary>

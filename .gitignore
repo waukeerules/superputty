@@ -141,3 +141,5 @@ Licenses.licx
 
 # portable zips made for GitHub releases (see README, Making a release of this fork)
 SuperXPuTTY-*.zip
+# cmake build dir
+/build/

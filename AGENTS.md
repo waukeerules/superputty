@@ -2,7 +2,7 @@
 
 Instructions for AI coding agents (Claude, ChatGPT, Grok, Copilot, ...) and for the humans reviewing their work.
 
-This is a fork of [SilverGreen93/superputty](https://github.com/SilverGreen93/superputty): a C# WinForms (.NET Framework 4.8) app that hosts PuTTY and other terminals in tabs. Changes may be offered upstream, so they must be easy to review and explain.
+This is a fork of [SilverGreen93/superputty](https://github.com/SilverGreen93/superputty): a C# WinForms (.NET 10, win-x64) app that hosts PuTTY and other terminals in tabs. Changes may be offered upstream, so they must be easy to review and explain.
 
 ## Document every change
 
@@ -57,25 +57,28 @@ Keep its file tables, known issues and manual test steps accurate. If a change m
 ## Build and test
 
 ```bash
-MSBuild.exe SuperPutty.sln /restore /p:Configuration=Debug /v:minimal
+dotnet build SuperPutty.sln -c Debug -v:minimal
 ```
 
-- Build the `.sln`, not `SuperPutty\SuperPutty.csproj`, so the installer is built too.
-- The output is `bin\Debug\SuperXPuTTY.exe`. If SuperPuTTY is running from there, the build fails to copy the exe; close it first.
+- It needs the .NET 10 SDK. Visual Studio 2022's `MSBuild.exe` can't build `net10.0` projects; use `dotnet build`, or Visual Studio 2026.
+- Build the `.sln`, not `SuperPutty\SuperPutty.csproj`, so the installer and tests are built too. (Building the project alone puts its output in `SuperPutty\bin\Debug\...`, without the `x64`.)
+- The output is `SuperPutty\bin\x64\Debug\net10.0-windows\win-x64\SuperXPuTTY.exe` (a launcher; the code is `SuperXPuTTY.dll` beside it). If SuperPuTTY is running from there, the build fails to copy it; close it first.
+- The build also makes `putty-embed.dll` from the `putty` submodule with CMake and a C compiler (`git submodule update --init`). Without them, add `-p:BuildPuttyEmbed=false`; the installer project then fails, as it ships the dll.
 - The log goes to `%TEMP%\SuperPuTTY.log`. `ApplicationPanel` logs every `MoveWindow` with the panel size, which is useful for window and sizing bugs.
-- `SuperPuttyUnitTests` uses an old NUnit 2.5 GUI runner, and most of its tests need a live SCP server. For new logic, keep it in small static methods that can be checked directly, and list the manual test steps in FORK_CHANGES.md.
+- `SuperPuttyUnitTests` is NUnit 3 (`dotnet test SuperPutty.sln --no-build`); most of its tests need a live SCP server and are skipped without one. For new logic, keep it in small static methods that can be checked directly, and list the manual test steps in FORK_CHANGES.md.
 - Say what you actually verified (built, ran, checked in the UI) and what you didn't.
 
 ## Architecture
 
-**Stack:** C# WinForms on .NET Framework 4.8, built with Visual Studio 2022. The assembly is named `SuperXPuTTY`. NuGet packages:
+**Stack:** C# WinForms on .NET 10 (`net10.0-windows`, win-x64 only), in SDK-style projects: every `.cs` and `.resx` under `SuperPutty\` is compiled without being listed in `SuperPutty.csproj`, and the version and assembly details are in the csproj, not `AssemblyInfo.cs`. Users need the .NET 10 Desktop Runtime (x64). The assembly is named `SuperXPuTTY`. NuGet packages:
 
 - DockPanelSuite 3.1.1 and DockPanelSuite.ThemeVS2015 3.1.1, for Visual Studio-style docking
-- log4net 3.1.0
-- Microsoft.VisualBasic 10.3.0
+- log4net 3.5.0
+- Microsoft.AspNetCore.SystemWebAdapters 2.3.0 and System.Configuration.ConfigurationManager (upstream's, for `System.Web` and `App.config`)
+- System.Management (fork only, for `ApplicationPanel.FindChildProcess`)
 - Newtonsoft.Json 13.0.3 (fork only, used for the placeholder values)
-- Npgsql 8.0.5 (fork only, for Database sessions). It brings 15 support libraries (System.Memory, System.Text.Json, ...), each listed in `SuperPuttyInstaller/Product.wxs`, and `AutoGenerateBindingRedirects` writes their redirects into `SuperXPuTTY.exe.config`. When the package changes, update the installer's list from `bin\Release`
-- Microsoft.Web.WebView2 1.0.4258.31 (fork only, for Highlighted Output). Its `WebView2Loader.dll` goes to `runtimes\<arch>\native` (win-x64, win-x86, win-arm64); the installer lists all three. The runtime itself comes with Windows
+- Npgsql 8.0.5 (fork only, for Database sessions). On .NET 10 only `Npgsql.dll` is copied to the output. Every DLL in the output is listed by name in `SuperPuttyInstaller/Product.wxs`: when a package is added or changed, update that list from the Release output
+- Microsoft.Web.WebView2 1.0.4258.31 (fork only, for Highlighted Output). Its `WebView2Loader.dll` goes to `runtimes\win-x64\native`, which the installer lists. The runtime itself comes with Windows
 
 PuTTY, or [PuTTY Plus](https://github.com/SilverGreen93/putty), is an external runtime requirement.
 
@@ -165,6 +168,8 @@ SCP sessions go through `SuperPuTTY.OpenScpSession` → `PscpBrowserPanel` inste
 
 - **Mixed line endings.** Some files are CRLF and some LF; some are mixed. Preserve each file's existing endings. A script that reads in text mode and writes back can turn a 3-line change into a whole-file diff, so check `git diff --stat` before committing.
 - **WinForms designer files** (`*.Designer.cs`): add controls the way the designer would: declare the field, construct it in `InitializeComponent`, set its properties, add it to its parent's `Controls`, and wire its events.
+- **WFO1000.** The .NET 10 WinForms analyzer fails the build for a public read-write property on a `Control` or `Form` that doesn't say how the designer should save it. Properties set only from code get `[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]`.
+- **.NET 10 differences from .NET Framework.** `Process.Start("https://...")` or a document path needs `UseShellExecute = true` (the default is now false); `Assembly.Location` is the `.dll`, not the `.exe` (use `Application.ExecutablePath`); `Encoding.Default` is UTF-8.
 - **Dark mode.** New dialogs apply `DarkModeCS` the same way the existing dialogs do (`if (SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme) new DarkModeCS(this) { ... }`). It recolors controls during the form's `Load` event, so read themed colors in `OnLoad`, not in the constructor.
 - **Stored sessions.** Never modify a `SessionData` taken from the session tree just to launch it. Its setters raise change events, and the change is saved to `Sessions.xml`, which may be shared by a team. Work on `session.Clone()`, as `SessionVariables.Resolve` does.
 - **Session placeholders** (`{key}`) are resolved only in `PuttyStartInfo` and `SuperPuTTY.OpenScpSession`, and checked in `SuperPuTTY.OpenProtoSession`. New launch paths go through those, not their own substitution.

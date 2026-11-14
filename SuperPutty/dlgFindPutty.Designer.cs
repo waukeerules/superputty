@@ -69,6 +69,7 @@
             this.checkRestrictFloatingWindows = new System.Windows.Forms.CheckBox();
             this.checkSessionsShowSearch = new System.Windows.Forms.CheckBox();
             this.checkBoxCheckForUpdates = new System.Windows.Forms.CheckBox();
+            this.checkBoxEmbeddedTerminal = new System.Windows.Forms.CheckBox();
             this.checkSessionTreeFoldersFirst = new System.Windows.Forms.CheckBox();
             this.checkSessionsShowRecent = new System.Windows.Forms.CheckBox();
             this.checkReloadSessionsWhenChanged = new System.Windows.Forms.CheckBox();
@@ -645,6 +646,18 @@
             this.checkBoxCheckForUpdates.Text = "Automatically check for updates";
             this.toolTip.SetToolTip(this.checkBoxCheckForUpdates, "Check for Updates when Application starts");
             this.checkBoxCheckForUpdates.UseVisualStyleBackColor = true;
+            // 
+            // checkBoxEmbeddedTerminal
+            // 
+            this.checkBoxEmbeddedTerminal.AutoSize = true;
+            this.checkBoxEmbeddedTerminal.Location = new System.Drawing.Point(380, 113);
+            this.checkBoxEmbeddedTerminal.Margin = new System.Windows.Forms.Padding(4);
+            this.checkBoxEmbeddedTerminal.Name = "checkBoxEmbeddedTerminal";
+            this.checkBoxEmbeddedTerminal.Size = new System.Drawing.Size(191, 24);
+            this.checkBoxEmbeddedTerminal.TabIndex = 32;
+            this.checkBoxEmbeddedTerminal.Text = "Use embedded terminal";
+            this.toolTip.SetToolTip(this.checkBoxEmbeddedTerminal, "Host the terminal inside SuperXPuTTY; uncheck to start the putty.exe from the General tab");
+            this.checkBoxEmbeddedTerminal.UseVisualStyleBackColor = true;
             // 
             // checkSessionTreeFoldersFirst
             // 
@@ -1724,6 +1737,7 @@
             | System.Windows.Forms.AnchorStyles.Right)));
             this.groupBox4.Controls.Add(this.chkAutostartX);
             this.groupBox4.Controls.Add(this.checkBoxCheckForUpdates);
+            this.groupBox4.Controls.Add(this.checkBoxEmbeddedTerminal);
             this.groupBox4.Controls.Add(this.checkEnableKeyboardShortcuts);
             this.groupBox4.Controls.Add(this.checkEnableControlTabSwitching);
             this.groupBox4.Controls.Add(this.checkSingleInstanceMode);
@@ -2524,6 +2538,7 @@
         private System.Windows.Forms.GroupBox groupBox6;
         private System.Windows.Forms.CheckBox checkPuttyEnableNewSessionMenu;
         private System.Windows.Forms.CheckBox checkBoxCheckForUpdates;
+        private System.Windows.Forms.CheckBox checkBoxEmbeddedTerminal;
         private System.Windows.Forms.GroupBox groupBox7;
         private System.Windows.Forms.TextBox textBoxHomeDirPrefix;
         private System.Windows.Forms.Label label16;

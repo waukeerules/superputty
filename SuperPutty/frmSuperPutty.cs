@@ -50,6 +50,7 @@ namespace SuperPutty
 
         //internal DockPanel DockPanel { get; private set; }
 
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public ToolWindowDocument CurrentPanel { get; set; }
 
         private SingletonToolWindowHelper<SessionTreeview> sessions;
@@ -1219,7 +1220,7 @@ namespace SuperPutty
 
         private void puTTYConfigurationToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (PuttyEmbed.IsAvailable)
+            if (PuttyEmbed.IsEnabled)
             {
                 PuttyEmbed.ShowConfig();
             }

@@ -86,12 +86,14 @@ namespace SuperPutty
         /// Optional: builds the parameters from this panel's size when the application starts, used instead of
         /// <see cref="ApplicationParameters"/> so an RDP desktop can be sized to fit the tab
         /// </summary>
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public Func<System.Drawing.Size, string> ApplicationParametersForSize { get; set; }
 
         /// <summary>
         /// Optional: creates an application hosted as a control in this panel (e.g. Gui.RdpControl), used instead of
         /// starting <see cref="ApplicationName"/> as a process and capturing its window
         /// </summary>
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public Func<IEmbeddedApplication> EmbeddedApplicationFactory { get; set; }
 
         /// <summary>The hosted application created by <see cref="EmbeddedApplicationFactory"/>, once started</summary>
@@ -112,13 +114,16 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         /// <summary>true if the terminal runs in-process as a child window (no external process)</summary>
         public bool IsEmbedded { get { return this.m_Embedded; } }
         
-        // Some windows need closed with WM_DESTROY others need closed with WM_CLOSE or they leave zombies
+        [Category("Behavior")]
+        [Description("Specifies whether the application should be closed with WM_DESTROY instead of WM_CLOSE.")]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         public bool ApplicationCloseWithDestroy { get; set; }
 
         /// <summary>
         /// Start the application as soon as the panel becomes visible. Set to false to call
         /// <see cref="StartApplication"/> yourself once the panel has its final size.
         /// </summary>
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool StartOnVisible { get; set; } = true;
 
         #endregion
@@ -143,7 +148,7 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
             SuperPuTTY.Settings.SettingsSaving += Settings_SettingsSaving;
             // same test as OnVisibleChanged, so a panel that embeds PuTTY never subscribes:
             // its terminal is our own child window, there is no Alt+Tab switch to follow
-            if (!PuttyEmbed.Supports(this.proto))
+            if (!PuttyEmbed.SupportsEmbedded(this.proto))
             {
                 SuperPuTTY.WindowEvents.SystemSwitch += new EventHandler<GlobalWindowEventArgs>(OnSystemSwitch);
             }
@@ -206,11 +211,74 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
             MoveWindow(src, 0, 0);
         }
 
+        // size the hosted window was last placed at, used to avoid redundant moves (each one
+        // makes a VNC viewer re-layout and visibly shift its content)
+        private System.Drawing.Size m_LastMoveSize = System.Drawing.Size.Empty;
+
+        /// <summary>
+        /// VNC tabs: re-place and focus the viewer with its painting suspended, then repaint once
+        /// the geometry is final. The move is always done (it is what resets the viewer's
+        /// scroll offset), but the user never sees the intermediate states.
+        /// </summary>
+        private void StabilizeAndShowVnc(string caller)
+        {
+            if (!this.ExternalProcessCaptured || !this.Visible || this.IsDisposed)
+            {
+                return;
+            }
+            IntPtr wnd = m_AppWin;
+            if (m_VncSettleTimer == null)
+            {
+                // The viewer re-lays itself out asynchronously after the first move (DPI scaling),
+                // so place it again once it has settled, and only then let it paint.
+                m_VncSettleTimer = new System.Windows.Forms.Timer { Interval = VncSettleMs };
+                m_VncSettleTimer.Tick += delegate
+                {
+                    m_VncSettleTimer.Stop();
+                    if (this.IsDisposed || !this.ExternalProcessCaptured) { return; }
+                    this.EndVncStabilize(true);
+                };
+            }
+            if (!m_VncRedrawOff)
+            {
+                NativeMethods.SendMessage(wnd, (uint)NativeMethods.WM.SETREDRAW, 0, 0);
+                m_VncRedrawOff = true;
+            }
+            this.MoveWindow("StabilizeVnc");
+            this.ReFocusPuTTY(caller);
+            m_VncSettleTimer.Stop();
+            m_VncSettleTimer.Start();
+        }
+
+        // delay before the second placement/repaint of a VNC tab; lower = snappier, too low = clipped image
+        private static readonly int VncSettleMs = Math.Max(10, Convert.ToInt32(ConfigurationManager.AppSettings["SuperPuTTY.VncSettleMs"] ?? "50"));
+        private System.Windows.Forms.Timer m_VncSettleTimer;
+        private bool m_VncRedrawOff;
+
+        private void EndVncStabilize(bool moveAgain)
+        {
+            if (this.Visible && moveAgain)
+            {
+                this.MoveWindow("StabilizeVnc2");
+            }
+            if (m_VncRedrawOff && this.m_AppWin != IntPtr.Zero)
+            {
+                NativeMethods.SendMessage(m_AppWin, (uint)NativeMethods.WM.SETREDRAW, 1, 0);
+                // repaint the viewer and ALL its child controls (toolbar, scrollbars, ...) right now,
+                // otherwise they only paint when the mouse hovers over them
+                NativeMethods.RedrawWindow(m_AppWin, IntPtr.Zero, IntPtr.Zero,
+                    NativeMethods.RDW_INVALIDATE | NativeMethods.RDW_ERASE | NativeMethods.RDW_FRAME
+                    | NativeMethods.RDW_ALLCHILDREN | NativeMethods.RDW_UPDATENOW);
+            }
+            m_VncRedrawOff = false;
+        }
+
         private void MoveWindow(string src, int x, int y)
         {
             if (!SuperPuTTY.IsLayoutChanging)
             {
                 bool success = NativeMethods.MoveWindow(m_AppWin, x, y, this.Width, this.Height, this.Visible);
+                m_LastMoveSize = new System.Drawing.Size(this.Width, this.Height);
                 if (Log.IsInfoEnabled)
                 {
                     Log.InfoFormat("MoveWindow [{3,-15}{4,20}] w={0,4}, h={1,4}, visible={2}, success={5}, hnd={6}", this.Width, this.Height, this.Visible, src, this.Name, success, m_AppWin);
@@ -239,8 +307,15 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
             }
 
             bool result = false;
-            if (proto == Data.ConnectionProtocol.VNC ||
-                proto == Data.ConnectionProtocol.RDP)
+            if (proto == Data.ConnectionProtocol.VNC)
+            {
+                // VNC is placed by StabilizeAndShowVnc; only re-place it here if the size changed
+                if (m_LastMoveSize != this.Size)
+                {
+                    this.MoveWindow("RestoreTabSwitch");
+                }
+            }
+            else if (proto == Data.ConnectionProtocol.RDP)
             {/* If we don't move the window on tab refocus, the contents will be offset depending on screen DPI */
                 this.MoveWindow("RestoreTabSwitch");
             }
@@ -523,7 +598,7 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
                 // no window to ask: the session has not started yet, or it is already closed
                 return;
             }
-            int length = NativeMethods.SendMessage(m_AppWin, NativeMethods.WM_GETTEXTLENGTH, 0, 0) + 1;
+            int length = (int)NativeMethods.SendMessage(m_AppWin, NativeMethods.WM_GETTEXTLENGTH, 0, 0) + 1;
             StringBuilder sb = new StringBuilder(length + 1);
             NativeMethods.SendMessage(m_AppWin, NativeMethods.WM_GETTEXT, sb.Capacity, sb);
             this.SetTabText(sb.ToString());
@@ -705,6 +780,12 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
             {
                 this.StartApplication("OnVisChanged");
             }
+            else if (!this.Visible && m_VncRedrawOff)
+            {
+                // hidden while a VNC viewer's painting was suspended: let it paint again
+                m_VncSettleTimer?.Stop();
+                this.EndVncStabilize(false);
+            }
             else if (this.Visible && this.m_Created && this.b_AppWinFinal && this.ExternalProcessCaptured)
             {
                 this.ShowApplicationWindow("OnVisChanged");
@@ -734,7 +815,7 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
             m_AppWin = IntPtr.Zero;
             // putty-embed.dll beside the exe: PuTTY runs in-process as our child window, no process to capture.
             // The built-in terminal (EmbeddedApplicationFactory, above) still takes precedence when it's on.
-            if (PuttyEmbed.Supports(this.proto))
+            if (PuttyEmbed.SupportsEmbedded(this.proto))
             {
                 this.CreateEmbeddedSession();
                 if (this.Visible && this.ExternalProcessCaptured)
@@ -892,6 +973,13 @@ DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
         /// <summary>Move the hosted window over this panel and give it focus</summary>
         private void ShowApplicationWindow(string caller)
         {
+            if (this.proto == Data.ConnectionProtocol.VNC && !m_Embedded)
+            {
+                // a VNC viewer is placed and focused with its painting suspended, so it doesn't flicker or drift
+                this.StabilizeAndShowVnc(caller);
+                return;
+            }
+
             // Move the child so it's located over the parent
             this.MoveWindow(caller);
 

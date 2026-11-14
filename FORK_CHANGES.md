@@ -790,8 +790,8 @@ Measured against a generated table of 10,000 sessions in 900 folders, 5 levels d
 | `SessionTreeview.cs` | The Database sessions root, its status and menu; adding, editing and removing sessions and folders there (`SaveToDatabase`, `WriteDatabase`), and the guards for when it can't be written (`DatabaseLocked`) |
 | `frmSuperPutty.cs` / `.Designer.cs` | Tools → Database sessions...; `DatabaseSessions.Start()` on load |
 | `Properties/Settings.*`, `App.config` | `DatabaseEnabled`, `DatabaseHost`, `DatabasePort`, `DatabaseName`, `DatabaseSchema`, `DatabaseTable`, `DatabaseUser`, `DatabasePassword`, `DatabaseSslMode`, `DatabaseReadOnly`, `DatabaseNickname`, `DatabaseCheckSeconds` |
-| `SuperPutty.csproj` | Npgsql 8.0.5, `AutoGenerateBindingRedirects` |
-| `SuperPuttyInstaller/Product.wxs` | Npgsql and its 15 support libraries |
+| `SuperPutty.csproj` | Npgsql 8.0.5 |
+| `SuperPuttyInstaller/Product.wxs` | `Npgsql.dll` (its 15 .NET Framework support libraries went with the move to .NET 10) |
 
 **Checked against PostgreSQL 17.5**, in a throwaway `superputty_test` database that was dropped afterwards:
 - **Logging in:** a wrong password was reported as "password authentication failed". A missing database was reported, and read-only refused to create it.
@@ -1383,7 +1383,7 @@ Phase 1 of [docs/MonacoTerminal.md](docs/MonacoTerminal.md). **Off by default:**
 | `dlgFindPutty.cs` / `.Designer.cs` | The **Terminal** page (formerly Highlighting): the option, the WebView2 runtime's version, **Open Rules Folder** |
 | `Properties/Settings.*`, `App.config` | `HighlightedOutputEnabled` (default off) |
 | `SuperPutty.csproj` | The new files, `Microsoft.Web.WebView2` 1.0.4258.31, and `web\**` copied to the output |
-| `SuperPuttyInstaller/Product.wxs` | `Microsoft.Web.WebView2.Core.dll`, `.WinForms.dll`, `runtimes\win-x64\|win-x86\|win-arm64\native\WebView2Loader.dll` (the exe is AnyCPU) and everything under `web\` |
+| `SuperPuttyInstaller/Product.wxs` | `Microsoft.Web.WebView2.Core.dll`, `.WinForms.dll`, `runtimes\win-x64\native\WebView2Loader.dll` (win-x64 only since .NET 10) and everything under `web\` |
 | `Resources/third-party/monaco-editor-LICENSE.txt`, `xterm.js-LICENSE.txt` | New. The libraries' licences |
 
 **Checked:**
@@ -2108,17 +2108,17 @@ Already right: the tree, tab text and Edit Session's title show `SessionName`. R
 
 ## Building and testing
 
-Requirements: Visual Studio 2022 (or Build Tools) with .NET Framework 4.8 and the WiX v3 toolset for the installer.
+Requirements: the .NET 10 SDK, and CMake with a C compiler (Visual Studio's C++ tools) for `putty-embed.dll`; run `git submodule update --init` once. WiX is restored as a NuGet package.
 
 ```bash
-MSBuild.exe SuperPutty.sln /restore /p:Configuration=Debug
+dotnet build SuperPutty.sln -c Debug
 ```
 
 ```bash
-MSBuild.exe SuperPutty.sln /restore /p:Configuration=Release
+dotnet build SuperPutty.sln -c Release
 ```
 
-Output: `bin\Debug\SuperXPuTTY.exe` (the installer goes to `SuperPuttyInstaller\bin\x86\Debug\SuperXPuTTYSetup.msi`). Use `/p:Configuration=Release` for `bin\Release\`.
+Output: `SuperPutty\bin\x64\Debug\net10.0-windows\win-x64\SuperXPuTTY.exe` (the installer goes to `SuperPuttyInstaller\bin\x64\Debug\SuperXPuTTYSetup.msi`). The steps below that say `bin\Debug` mean that folder.
 
 Build the `.sln`, so the installer is built too.
 
@@ -2284,10 +2284,42 @@ The substitution logic (`SessionVariables.Substitute` and `FindMissing`) was che
 Upstream's 11 commits up to `6f6e230` run SSH, Telnet, Rlogin, Raw and Serial sessions inside SuperXPuTTY's own process, as child windows created by `putty-embed.dll` (built from PuTTY Plus, added as the `putty` git submodule), instead of starting putty.exe and capturing its window.
 
 - **New files:** `Utils/PuttyEmbed.cs` (the dll's P/Invoke calls and the `IsAvailable` check), `.gitmodules` and the `putty` submodule.
-- **Only when the dll is there.** `PuttyEmbed.IsAvailable` is true only when `putty-embed.dll` sits beside the exe and loads (right bitness, the expected exports). This build doesn't produce it and the installer doesn't ship it, so the fork behaves as before: external PuTTY for every protocol.
+- **Only when the dll is there.** `PuttyEmbed.IsAvailable` is true only when `putty-embed.dll` sits beside the exe and loads (right bitness, the expected exports). At the time this build didn't produce it and the installer didn't ship it; since the .NET 10 merge (below) both do.
 - **Merge in `ctlApplicationPanel.cs`:** upstream starts the session in `OnVisibleChanged`; the fork starts it in `StartApplication`, after `panel.Show()`. The embedded branch went into `StartApplication`, after the fork's hosted controls (`EmbeddedApplicationFactory`: the built-in terminal and the RDP control), so the built-in terminal still wins for SSH when it's turned on. `ReFocusPuTTY` checks the hosted control first, then the embedded PuTTY.
 - **Known issue:** fork features that work on a PuTTY window of another process (reconnect through the Fatal Error box, Special Command, `-sessionlog` for WAITFOR and Highlighted Output, jump hosts via plink beside PuTTY) haven't been tried with the embedded dll.
 - **Manual test (when a `putty-embed.dll` is available):** put it beside `SuperXPuTTY.exe`, open an SSH session, check typing, focus after switching tabs and Alt+Tab, the tab title, and that closing the tab or typing `exit` closes it; then remove the dll and check the same session opens in external PuTTY.
+
+## Merged from upstream: .NET 10
+
+Upstream's 38 commits up to `43e7353` move SuperXPuTTY from .NET Framework 4.8 to .NET 10, and the fork moved with them. This is version 3.0.0.0.
+
+**What changes for users**
+
+- **The .NET 10 Desktop Runtime (x64) is required.** The installer checks for it and says where to get it. The app is 64-bit only and installs to `C:\Program Files\SuperXPuTTY` (it was `Program Files (x86)`). Settings and sessions are where they were.
+- **Embedded PuTTY is now built and shipped.** `putty-embed.dll` is built from the `putty` submodule and installed, so SSH, Telnet, Rlogin, Raw and Serial tabs run inside SuperXPuTTY instead of in putty.exe, unless **Tools → Options → Advanced → Use embedded terminal** (upstream's new setting, `UseEmbeddedTerminal`, on by default) is unticked. The fork's built-in terminal still takes precedence when it is on.
+- **Known issue:** fork features that work on a PuTTY window of another process (reconnect through the Fatal Error box, Special Command, `-sessionlog` for WAITFOR and Highlighted Output, jump hosts through plink) still haven't been tried with the embedded dll. Untick **Use embedded terminal** to use them as before.
+- Also from upstream: VNC tabs no longer flicker or drift when switching tabs; single instance mode keeps working after the first launch; SCP transfers are cancelled without `Thread.Abort`.
+
+**What changed in the fork to build and run on .NET 10**
+
+| File | Change |
+|---|---|
+| `SuperPutty.csproj` | Upstream's SDK-style project (`net10.0-windows`, win-x64), plus the fork's packages: DockPanelSuite.ThemeVS2005, Newtonsoft.Json, Npgsql, Microsoft.Web.WebView2, and System.Management (a framework reference on .NET Framework). `web\**` is still copied beside the exe. Source files are no longer listed: every `.cs` under the folder is compiled |
+| `Properties/AssemblyInfo.cs` | Removed with upstream; the version is `Version` in `SuperPutty.csproj` (3.0.0.0, was the fork's 2.5.2.0) |
+| `ctlApplicationPanel.cs` | Upstream's VNC handling went into the fork's `ShowApplicationWindow` (`StabilizeAndShowVnc`) and `OnVisibleChanged`; `StartApplication` uses `PuttyEmbed.SupportsEmbedded`, so it follows the new setting |
+| `dlgFindPutty.Designer.cs` / `.cs` | The fork's layout kept (upstream's copy was rewritten by the new designer); the **Use embedded terminal** checkbox added to it by hand |
+| `ctlApplicationPanel.cs`, `dlgEditSession.cs`, `Gui/ScriptLibraryPanel.cs`, `Gui/SpslHelpPanel.cs`, `DockPanelSuite/VS20*DockPaneStrip.cs` | `DesignerSerializationVisibility.Hidden` on 14 properties set only from code: the .NET 10 WinForms analyzer (WFO1000) fails the build without it |
+| `SuperPuttyInstaller/Product.wxs` | Upstream's .NET 10 files and runtime check, with the fork's `AllowSameVersionUpgrades`. Npgsql's 15 .NET Framework support libraries are gone (part of .NET 10); `System.Management.dll` added; only the win-x64 `WebView2Loader.dll` |
+| `SuperPuttyUnitTests` | Upstream's NUnit 3 project; run with `dotnet test` |
+
+**Checked:** `dotnet build SuperPutty.sln -c Debug` (app, `putty-embed.dll`, installer, tests): 0 errors. `dotnet test`: 7 passed, 8 skipped (they need an SCP server). The built app starts, restores the default layout, loads Sessions.xml, the private sessions and the button bars, and reads the Database sessions (Npgsql on .NET 10).
+
+**Not checked:** opening sessions (embedded PuTTY, external PuTTY, RDP, the built-in terminal, Highlighted Output), the Options dialog with the new checkbox in the light and dark themes, and installing the MSI. Manual test:
+
+1. Install the MSI on a machine with a 2.x install: the old one is replaced, and settings and sessions are kept.
+2. Open an SSH session with **Use embedded terminal** ticked, then unticked: the first runs inside SuperXPuTTY, the second in putty.exe. With it unticked, check reconnect, WAITFOR and Highlighted Output.
+3. Open an RDP session, a cmd tab with the built-in terminal on, and a VNC session; switch between tabs.
+4. Tools → Options → Advanced: the new checkbox sits under "Automatically check for updates" in both themes.
 
 ---
 *I used Grok/ChatGPT to learn C# and to generate some of this code, so it may not follow best practices. Feedback on the approach is very welcome.*

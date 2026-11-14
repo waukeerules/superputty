@@ -81,7 +81,7 @@ namespace SuperPutty
                     textBoxPscpLocation.Text = pscpExe;
                 }
             }
-            else if(!String.IsNullOrEmpty(Environment.GetEnvironmentVariable("ProgramFiles(x86)")))
+            else if (!String.IsNullOrEmpty(Environment.GetEnvironmentVariable("ProgramFiles(x86)")))
             {
                 if (File.Exists(Environment.GetEnvironmentVariable("ProgramFiles(x86)") + @"\PuTTY\putty.exe"))
                 {
@@ -107,7 +107,7 @@ namespace SuperPutty
                 {
                     textBoxPscpLocation.Text = Environment.GetEnvironmentVariable("ProgramFiles") + @"\PuTTY\pscp.exe";
                 }
-            }            
+            }
             else
             {
                 openFileDialog1.InitialDirectory = Application.StartupPath;
@@ -128,7 +128,7 @@ namespace SuperPutty
             {
                 this.textBoxMinttyLocation.Text = SuperPuTTY.Settings.MinttyExe;
             }
-            
+
             // super putty settings (sessions and layouts)
             if (String.IsNullOrEmpty(SuperPuTTY.Settings.SettingsFolder))
             {
@@ -148,7 +148,7 @@ namespace SuperPutty
             this.OrigSettingsFolder = SuperPuTTY.Settings.SettingsFolder;
 
             // tab text
-            foreach(String s in Enum.GetNames(typeof(frmSuperPutty.TabTextBehavior)))
+            foreach (String s in Enum.GetNames(typeof(frmSuperPutty.TabTextBehavior)))
             {
                 this.comboBoxTabText.Items.Add(s);
             }
@@ -197,7 +197,7 @@ namespace SuperPutty
             this.checkEnableKeyboardShortcuts.Checked = SuperPuTTY.Settings.EnableKeyboadShortcuts;
             this.btnFont.Font = SuperPuTTY.Settings.SessionsTreeFont;
             this.btnFont.Text = ToShortString(SuperPuTTY.Settings.SessionsTreeFont);
-            this.numericUpDownOpacity.Value = (decimal) SuperPuTTY.Settings.Opacity * 100;
+            this.numericUpDownOpacity.Value = (decimal)SuperPuTTY.Settings.Opacity * 100;
             this.checkQuickSelectorCaseSensitiveSearch.Checked = SuperPuTTY.Settings.QuickSelectorCaseSensitiveSearch;
             this.checkShowDocumentIcons.Checked = SuperPuTTY.Settings.ShowDocumentIcons;
             this.checkRestrictFloatingWindows.Checked = SuperPuTTY.Settings.DockingRestrictFloatingWindows;
@@ -224,6 +224,7 @@ namespace SuperPutty
             this.numericReconnectDelay.Value = Math.Max(this.numericReconnectDelay.Minimum, Math.Min(this.numericReconnectDelay.Maximum, SuperPuTTY.Settings.AutoReconnectDelaySeconds));
             this.numericReconnectAttempts.Value = Math.Max(this.numericReconnectAttempts.Minimum, Math.Min(this.numericReconnectAttempts.Maximum, SuperPuTTY.Settings.AutoReconnectAttempts));
             this.checkBoxCheckForUpdates.Checked = SuperPuTTY.Settings.AutoUpdateCheck;
+            this.checkBoxEmbeddedTerminal.Checked = SuperPuTTY.Settings.UseEmbeddedTerminal;
             this.textBoxHomeDirPrefix.Text = SuperPuTTY.Settings.PscpHomePrefix;
             this.textBoxRootDirPrefix.Text = SuperPuTTY.Settings.PscpRootHomePrefix;
             this.checkSessionTreeFoldersFirst.Checked = SuperPuTTY.Settings.SessiontreeShowFoldersFirst;
@@ -301,7 +302,7 @@ namespace SuperPutty
             {
                 return settingValue;
             }
-            
+
             if (pathInProgramFile.StartsWith("\\", StringComparison.CurrentCulture))
             {
                 if (!String.IsNullOrEmpty(Environment.GetEnvironmentVariable("ProgramFiles(x86)")))
@@ -361,7 +362,7 @@ namespace SuperPutty
 
             this.BeginInvoke(new MethodInvoker(delegate { this.textBoxPuttyLocation.Focus(); }));
         }
-       
+
         private void buttonOk_Click(object sender, EventArgs e)
         {
             List<String> errors = new List<string>();
@@ -417,14 +418,14 @@ namespace SuperPutty
 
             if (this.comboBoxLayouts.SelectedValue != null)
             {
-                SuperPuTTY.Settings.DefaultLayoutName = (string) comboBoxLayouts.SelectedValue;
+                SuperPuTTY.Settings.DefaultLayoutName = (string)comboBoxLayouts.SelectedValue;
             }
 
             if (!String.IsNullOrEmpty(textBoxPuttyLocation.Text) && File.Exists(textBoxPuttyLocation.Text))
             {
                 SuperPuTTY.Settings.PuttyExe = textBoxPuttyLocation.Text;
             }
-            else if (!PuttyEmbed.IsAvailable)
+            else if (!PuttyEmbed.IsEnabledFor(this.checkBoxEmbeddedTerminal.Checked))
             {
                 errors.Insert(0, "PuTTY is required to properly use this application.");
             }
@@ -439,14 +440,14 @@ namespace SuperPutty
             {
                 SuperPuTTY.Settings.SingleInstanceMode = this.checkSingleInstanceMode.Checked;
                 SuperPuTTY.Settings.RestrictContentToDocumentTabs = this.checkConstrainPuttyDocking.Checked;
-                SuperPuTTY.Settings.MultipleTabCloseConfirmation= this.checkConfirmTabClose.Checked;
+                SuperPuTTY.Settings.MultipleTabCloseConfirmation = this.checkConfirmTabClose.Checked;
                 SuperPuTTY.Settings.RestoreWindowLocation = this.checkRestoreWindow.Checked;
                 SuperPuTTY.Settings.ExitConfirmation = this.checkExitConfirmation.Checked;
                 SuperPuTTY.Settings.ExpandSessionsTreeOnStartup = this.checkExpandTree.Checked;
                 SuperPuTTY.Settings.EnableControlTabSwitching = this.checkEnableControlTabSwitching.Checked;
                 SuperPuTTY.Settings.EnableKeyboadShortcuts = this.checkEnableKeyboardShortcuts.Checked;
                 SuperPuTTY.Settings.MinimizeToTray = this.checkMinimizeToTray.Checked;
-                SuperPuTTY.Settings.TabTextBehavior = (string) this.comboBoxTabText.SelectedItem;
+                SuperPuTTY.Settings.TabTextBehavior = (string)this.comboBoxTabText.SelectedItem;
                 SuperPuTTY.Settings.TabSwitcher = (string)this.comboBoxTabSwitching.SelectedItem.GetType().FullName;
                 SuperPuTTY.Settings.SessionsTreeShowLines = this.checkSessionsTreeShowLines.Checked;
                 SuperPuTTY.Settings.SessionsTreeFont = this.btnFont.Font;
@@ -471,6 +472,7 @@ namespace SuperPutty
                 SuperPuTTY.Settings.AutoReconnectDelaySeconds = (int)this.numericReconnectDelay.Value;
                 SuperPuTTY.Settings.AutoReconnectAttempts = (int)this.numericReconnectAttempts.Value;
                 SuperPuTTY.Settings.AutoUpdateCheck = this.checkBoxCheckForUpdates.Checked;
+                SuperPuTTY.Settings.UseEmbeddedTerminal = this.checkBoxEmbeddedTerminal.Checked;
                 SuperPuTTY.Settings.PscpHomePrefix = this.textBoxHomeDirPrefix.Text;
                 SuperPuTTY.Settings.PscpRootHomePrefix = this.textBoxRootDirPrefix.Text;
                 SuperPuTTY.Settings.SessiontreeShowFoldersFirst = this.checkSessionTreeFoldersFirst.Checked;
@@ -497,7 +499,7 @@ namespace SuperPutty
                     SuperPuTTY.Settings.InterfaceTheme = (int)InterfaceTheme.DarkTheme;
                     warnThemeChange = true;
                 }
-                else if(optDarkBlueTheme.Checked && SuperPuTTY.Settings.InterfaceTheme != (int)InterfaceTheme.DarkBlueTheme)
+                else if (optDarkBlueTheme.Checked && SuperPuTTY.Settings.InterfaceTheme != (int)InterfaceTheme.DarkBlueTheme)
                 {
                     SuperPuTTY.Settings.InterfaceTheme = (int)InterfaceTheme.DarkBlueTheme;
                     warnThemeChange = true;
@@ -752,7 +754,7 @@ namespace SuperPutty
             {
                 if (!String.IsNullOrEmpty(openFileDialog1.FileName))
                     textBoxPuttyLocation.Text = openFileDialog1.FileName;
-            }            
+            }
         }
 
         private void buttonBrowsePscp_Click(object sender, EventArgs e)
@@ -855,7 +857,7 @@ namespace SuperPutty
         /// </summary>
         public static void PuttyCheck()
         {
-            bool puttyExeMissing = !PuttyEmbed.IsAvailable &&
+            bool puttyExeMissing = !PuttyEmbed.IsEnabled &&
                 (String.IsNullOrEmpty(SuperPuTTY.Settings.PuttyExe) || !File.Exists(SuperPuTTY.Settings.PuttyExe));
             if (SuperPuTTY.IsFirstRun || puttyExeMissing)
             {
@@ -868,7 +870,7 @@ namespace SuperPutty
                 }
             }
 
-            if (!PuttyEmbed.IsAvailable && String.IsNullOrEmpty(SuperPuTTY.Settings.PuttyExe))
+            if (!PuttyEmbed.IsEnabled && String.IsNullOrEmpty(SuperPuTTY.Settings.PuttyExe))
             {
                 Messenger.MessageBox("Cannot find the PuTTY executable. Install PuTTY or KiTTY, then choose its putty.exe or kitty.exe",
                     "PuTTY Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -885,7 +887,7 @@ namespace SuperPutty
 
         private void buttonBrowseLayoutsFolder_Click(object sender, EventArgs e)
         {
-            if (this.folderBrowserDialog.ShowDialog(this) == DialogResult.OK) 
+            if (this.folderBrowserDialog.ShowDialog(this) == DialogResult.OK)
             {
                 this.textBoxSettingsFolder.Text = this.folderBrowserDialog.SelectedPath;
             }
@@ -913,7 +915,7 @@ namespace SuperPutty
             Log.InfoFormat("Shortcuts grid click: row={0}, col={1}", e.RowIndex, e.ColumnIndex);
             DataGridViewColumn col = this.dataGridViewShortcuts.Columns[e.ColumnIndex];
             DataGridViewRow row = this.dataGridViewShortcuts.Rows[e.RowIndex];
-            KeyboardShortcut ks = (KeyboardShortcut) row.DataBoundItem;
+            KeyboardShortcut ks = (KeyboardShortcut)row.DataBoundItem;
 
             if (col == colEdit)
             {

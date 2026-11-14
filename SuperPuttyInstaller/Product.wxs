@@ -7,9 +7,13 @@
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/SilverGreen93/superputty/" />
     <Property Id="ARPNOREPAIR" Value="1" />
 
-    <!-- AllowSameVersionUpgrades: every build is versioned from the exe (2.1.1.0), so without it a newer build of the
-         same version installed alongside the old one and Windows Installer kept the old, same-versioned exe -->
+    <!-- AllowSameVersionUpgrades: without it a newer build of the same version installed alongside the old one
+         and Windows Installer kept the old, same-versioned exe -->
     <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+    <!-- SuperXPuTTY runs on the .NET 10 Desktop Runtime (x64), installed separately -->
+    <netfx:DotNetCompatibilityCheck Property="DOTNETDESKTOP10CHECK" RuntimeType="desktop" Platform="x64" Version="10.0.0" RollForward="latestMinor" />
+    <Launch Condition="Installed OR DOTNETDESKTOP10CHECK=&quot;0&quot;" Message="[ProductName] requires the .NET 10 Desktop Runtime (x64). Download it from https://dotnet.microsoft.com/download/dotnet/10.0 and run this setup again." />
       <Media Id="1" Cabinet="Cab1.cab" EmbedCab="yes" />
     
     <Feature Id="ProductFeature" Title="SuperXPuTTY" Level="1">
@@ -31,11 +35,11 @@
     </UI>
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch SuperXPuTTY" />    
     <Property Id="WixShellExecTarget" Value="[#ProductExe]" />
-    <CustomAction Id="LaunchApplication" DllEntry="WixShellExec" Impersonate="yes" BinaryRef="Wix4UtilCA_X86" />
+    <CustomAction Id="LaunchApplication" DllEntry="WixShellExec" Impersonate="yes" BinaryRef="Wix4UtilCA_X64" />
   </Package>
 
   <Fragment>
-      <StandardDirectory Id="ProgramFilesFolder">
+      <StandardDirectory Id="ProgramFiles64Folder">
         <Directory Id="INSTALLFOLDER" Name="SuperXPuTTY" />
       </StandardDirectory>
 
@@ -60,13 +64,33 @@
 
   <Fragment>
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <!-- .NET 10: SuperXPuTTY.exe is the native launcher, the code is in SuperXPuTTY.dll;
+           no ngen (.NET Framework only) -->
       <Component Id="ProductExe">
-        <File Id="ProductExe" Source="$(var.SuperPutty.TargetPath)">
-          <netfx:NativeImage Id="ngen_ProductExe" Platform="all" Priority="3" />
-        </File>
+        <File Id="ProductExe" Source="$(var.SuperPutty.TargetDir)SuperXPuTTY.exe" />
       </Component>
-      <Component Id="ProductExeConfig">
-        <File Id="___var.SuperPutty.TargetPath_.config" Source="$(var.SuperPutty.TargetPath).config" />
+      <Component Id="ProductDll">
+        <File Id="ProductDll" Source="$(var.SuperPutty.TargetDir)SuperXPuTTY.dll" />
+      </Component>
+      <Component Id="ProductDllConfig">
+        <File Id="ProductDllConfig" Source="$(var.SuperPutty.TargetDir)SuperXPuTTY.dll.config" />
+      </Component>
+      <Component Id="ProductRuntimeConfig">
+        <File Id="ProductRuntimeConfig" Source="$(var.SuperPutty.TargetDir)SuperXPuTTY.runtimeconfig.json" />
+      </Component>
+      <Component Id="ProductDeps">
+        <File Id="ProductDeps" Source="$(var.SuperPutty.TargetDir)SuperXPuTTY.deps.json" />
+      </Component>
+      <!-- embedded PuTTY, built by the SuperPutty project from the putty submodule;
+           without it SSH/Telnet/Rlogin/Raw/Serial sessions fall back to external PuTTY -->
+      <Component Id="ProductPuttyEmbed">
+        <File Id="ProductPuttyEmbedDll" Source="$(var.SuperPutty.TargetDir)putty-embed.dll" />
+      </Component>
+      <Component Id="ProductLibSystemWebAdapters">
+        <File Id="Microsoft.AspNetCore.SystemWebAdapters.dll" Source="$(var.SuperPutty.TargetDir)Microsoft.AspNetCore.SystemWebAdapters.dll" />
+      </Component>
+      <Component Id="ProductLibRuntimeCaching">
+        <File Id="System.Runtime.Caching.dll" Source="$(var.SuperPutty.TargetDir)System.Runtime.Caching.dll" />
       </Component>
       <Component Id="ProductLibLogging">
         <File Id="log4net.dll" Source="$(var.SuperPutty.TargetDir)\log4net.dll" />
@@ -85,60 +109,19 @@
       <Component Id="ProductLibJson">
         <File Id="Newtonsoft.Json.dll" Source="$(var.SuperPutty.TargetDir)\Newtonsoft.Json.dll" />
       </Component>
-      <!-- Database sessions: Npgsql and the libraries it needs on .NET Framework -->
+      <!-- Database sessions. The support libraries Npgsql needed on .NET Framework are part of .NET 10 -->
       <Component Id="ProductLibDb_Npgsql">
         <File Id="Npgsql.dll" Source="$(var.SuperPutty.TargetDir)\Npgsql.dll" />
       </Component>
-      <Component Id="ProductLibDb_Microsoft_Bcl_AsyncInterfaces">
-        <File Id="Microsoft.Bcl.AsyncInterfaces.dll" Source="$(var.SuperPutty.TargetDir)\Microsoft.Bcl.AsyncInterfaces.dll" />
-      </Component>
-      <Component Id="ProductLibDb_Microsoft_Bcl_HashCode">
-        <File Id="Microsoft.Bcl.HashCode.dll" Source="$(var.SuperPutty.TargetDir)\Microsoft.Bcl.HashCode.dll" />
-      </Component>
-      <Component Id="ProductLibDb_Microsoft_Extensions_DependencyInjection_Abstractions">
-        <File Id="Microsoft.Extensions.DependencyInjection.Abstractions.dll" Source="$(var.SuperPutty.TargetDir)\Microsoft.Extensions.DependencyInjection.Abstractions.dll" />
-      </Component>
-      <Component Id="ProductLibDb_Microsoft_Extensions_Logging_Abstractions">
-        <File Id="Microsoft.Extensions.Logging.Abstractions.dll" Source="$(var.SuperPutty.TargetDir)\Microsoft.Extensions.Logging.Abstractions.dll" />
-      </Component>
-      <Component Id="ProductLibDb_System_Buffers">
-        <File Id="System.Buffers.dll" Source="$(var.SuperPutty.TargetDir)\System.Buffers.dll" />
-      </Component>
-      <Component Id="ProductLibDb_System_Collections_Immutable">
-        <File Id="System.Collections.Immutable.dll" Source="$(var.SuperPutty.TargetDir)\System.Collections.Immutable.dll" />
-      </Component>
-      <Component Id="ProductLibDb_System_Diagnostics_DiagnosticSource">
-        <File Id="System.Diagnostics.DiagnosticSource.dll" Source="$(var.SuperPutty.TargetDir)\System.Diagnostics.DiagnosticSource.dll" />
-      </Component>
-      <Component Id="ProductLibDb_System_Memory">
-        <File Id="System.Memory.dll" Source="$(var.SuperPutty.TargetDir)\System.Memory.dll" />
-      </Component>
-      <Component Id="ProductLibDb_System_Numerics_Vectors">
-        <File Id="System.Numerics.Vectors.dll" Source="$(var.SuperPutty.TargetDir)\System.Numerics.Vectors.dll" />
-      </Component>
-      <Component Id="ProductLibDb_System_Runtime_CompilerServices_Unsafe">
-        <File Id="System.Runtime.CompilerServices.Unsafe.dll" Source="$(var.SuperPutty.TargetDir)\System.Runtime.CompilerServices.Unsafe.dll" />
-      </Component>
-      <Component Id="ProductLibDb_System_Text_Encodings_Web">
-        <File Id="System.Text.Encodings.Web.dll" Source="$(var.SuperPutty.TargetDir)\System.Text.Encodings.Web.dll" />
-      </Component>
-      <Component Id="ProductLibDb_System_Text_Json">
-        <File Id="System.Text.Json.dll" Source="$(var.SuperPutty.TargetDir)\System.Text.Json.dll" />
-      </Component>
-      <Component Id="ProductLibDb_System_Threading_Channels">
-        <File Id="System.Threading.Channels.dll" Source="$(var.SuperPutty.TargetDir)\System.Threading.Channels.dll" />
-      </Component>
-      <Component Id="ProductLibDb_System_Threading_Tasks_Extensions">
-        <File Id="System.Threading.Tasks.Extensions.dll" Source="$(var.SuperPutty.TargetDir)\System.Threading.Tasks.Extensions.dll" />
-      </Component>
-      <Component Id="ProductLibDb_System_ValueTuple">
-        <File Id="System.ValueTuple.dll" Source="$(var.SuperPutty.TargetDir)\System.ValueTuple.dll" />
+      <!-- finds the child process a launcher starts (ApplicationPanel.FindChildProcess) -->
+      <Component Id="ProductLibManagement">
+        <File Id="System.Management.dll" Source="$(var.SuperPutty.TargetDir)\System.Management.dll" />
       </Component>
     </ComponentGroup>
   </Fragment>
 
   <!-- Highlighted Output: the WebView2 control (the runtime itself comes with Windows) and the page it shows, from
-       web\ beside the exe. The exe is AnyCPU, so WebView2's native loader is needed for each architecture. -->
+       web\ beside the exe. The app is win-x64 only, so only that architecture's native loader is installed. -->
   <Fragment>
     <ComponentGroup Id="HighlightedOutputComponents" Directory="INSTALLFOLDER">
       <Component Id="ProductLibWebView2Core">
@@ -149,12 +132,6 @@
       </Component>
       <Component Id="WebView2Loader_x64" Subdirectory="runtimes\win-x64\native">
         <File Id="WebView2Loader_x64.dll" Source="$(var.SuperPutty.TargetDir)\runtimes\win-x64\native\WebView2Loader.dll" />
-      </Component>
-      <Component Id="WebView2Loader_x86" Subdirectory="runtimes\win-x86\native">
-        <File Id="WebView2Loader_x86.dll" Source="$(var.SuperPutty.TargetDir)\runtimes\win-x86\native\WebView2Loader.dll" />
-      </Component>
-      <Component Id="WebView2Loader_arm64" Subdirectory="runtimes\win-arm64\native">
-        <File Id="WebView2Loader_arm64.dll" Source="$(var.SuperPutty.TargetDir)\runtimes\win-arm64\native\WebView2Loader.dll" />
       </Component>
       <Files Subdirectory="web" Include="$(var.SuperPutty.TargetDir)\web\**" />
     </ComponentGroup>

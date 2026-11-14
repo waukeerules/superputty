@@ -201,6 +201,8 @@ namespace SuperPutty.DockPanelSuite
             get { return m_selectMenu; }
         }
 
+        // SuperPuTTY: runtime-only, so the .NET 10 WinForms analyzer (WFO1000) wants it kept out of designer code
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public int SelectMenuMargin
         {
             get { return _selectMenuMargin; }

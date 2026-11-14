@@ -4,5 +4,5 @@ before_build:
   - dotnet restore
 
 build_script:
-  - msbuild SuperPutty/SuperPutty.csproj /p:Configuration=Release
+  - dotnet build SuperPutty/SuperPutty.csproj -c Release -p:BuildPuttyEmbed=false
 

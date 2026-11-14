@@ -326,6 +326,7 @@ namespace SuperPutty
         /// The ID of the saved session being edited, for its local overrides (Data.SessionOverrides); null for a new
         /// session or a copy, which have none. Set by SessionTreeview before showing the dialog.
         /// </summary>
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public string OverridesSessionId { get; set; }
 
         /// <summary>The "Local overrides" button, beside Save; null when there's no saved session to override</summary>
@@ -441,6 +442,7 @@ namespace SuperPutty
         /// Database columns locked for this session (the row's locked_fields, comma-separated, e.g. "host,port"): their
         /// fields are shown but can't be changed. Set by SessionTreeview before showing the dialog for a database session.
         /// </summary>
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public string LockedFields { get; set; }
 
         /// <summary>
@@ -770,12 +772,14 @@ namespace SuperPutty
 
         #region Validation Logic
 
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public SessionNameValidationHandler SessionNameValidator { get; set; }
 
         /// <summary>
         /// Given the name typed, a free one in the session's folder: the same name if nobody has it, else with -1, -2...
         /// added. Set by SessionTreeview; when the name is taken, Save asks whether to use the free one.
         /// </summary>
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public Func<string, string> FreeSessionName { get; set; }
 
         private void textBoxSessionName_Validating(object sender, CancelEventArgs e)
