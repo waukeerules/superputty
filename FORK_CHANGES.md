@@ -2447,6 +2447,12 @@ With the settings folder on a network drive, losing the drive (a laptop off the 
 
 **Checked** with the test program: the copy is kept after a read; with the settings folder renamed away, the watcher switched to the copy at its next check, the root read "Saved sessions (offline, cached 1:00 PM)" with all 10,000 sessions, and a save didn't recreate the folder; renamed back, the next check read the real file again. **Not checked:** a real network drive going away, and the refusals' messages in the running app. Manual test: put the settings folder on a share, start SuperXPuTTY, then disconnect the share; within 30 s Saved sessions read "offline, cached ..."; open one; try to rename one (refused, with the reason); reconnect, and within 30 s they're back to normal.
 
+### Drawing held off while the tree is rebuilt or collapsed
+
+`SessionTreeview.LoadSessions` (the tree built again at start, for every search, and on a reload), `CollapseAll` and a folder's Collapse all now hold the tree's drawing off (`BeginUpdate`/`EndUpdate`) while they work. Expand all already did. Measured with all 10,000 sessions open: Collapse all 395 ms to 140 ms. Rebuilding a full tree stays near 390 ms: removing 10,000 native tree items costs that much with or without drawing. Searches take 60 to 330 ms, and Expand all of the 10,000 about 0.9 s.
+
+**Not done:** SuperXTerminal draws only the rows in view. The WinForms TreeView makes a native item for every node, so the fork keeps filling folders on demand instead.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

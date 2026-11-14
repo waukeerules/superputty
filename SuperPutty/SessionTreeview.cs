@@ -404,7 +404,26 @@ namespace SuperPutty
             get { return SuperPuTTY.Settings.UseSessionsXml ? this.nodeRoot : this.nodePrivate; }
         }
 
+        /// <summary>
+        /// Build the tree again from the sessions (at start, after a search or a reload), with its drawing held off
+        /// throughout: clearing a tree with thousands of open nodes and adding the roots back redrew it at every step,
+        /// which took most of a search's time with 10,000 sessions
+        /// </summary>
         void LoadSessions()
+        {
+            this.treeView1.BeginUpdate();
+            try
+            {
+                this.BuildTree();
+            }
+            finally
+            {
+                this.treeView1.EndUpdate();
+            }
+        }
+
+        /// <summary>The work of <see cref="LoadSessions"/>: empty the tree and put the roots and their top level back</summary>
+        void BuildTree()
         {
             treeView1.Nodes.Clear();
             this.nodeFavorites = null;
@@ -3400,9 +3419,18 @@ namespace SuperPutty
         /// </summary>
         void CollapseAll()
         {
-            this.treeView1.CollapseAll();
-            this.nodeRoot.Expand();
-            this.nodePrivate.Expand();
+            // drawing held off: collapsing thousands of open nodes one by one redrew the tree each time
+            this.treeView1.BeginUpdate();
+            try
+            {
+                this.treeView1.CollapseAll();
+                this.nodeRoot.Expand();
+                this.nodePrivate.Expand();
+            }
+            finally
+            {
+                this.treeView1.EndUpdate();
+            }
         }
 
         /// <summary>Switch between A to Z and Z to A; folders stay first if Options says so</summary>
@@ -4257,10 +4285,19 @@ namespace SuperPutty
             TreeNode node = this.treeView1.SelectedNode;
             if (node != null)
             {
-                node.Collapse();
-                if (node == this.nodeRoot)
+                // drawing held off while a folder with thousands of open nodes collapses, as in CollapseAll
+                this.treeView1.BeginUpdate();
+                try
                 {
-                    nodeRoot.Expand();
+                    node.Collapse();
+                    if (node == this.nodeRoot)
+                    {
+                        nodeRoot.Expand();
+                    }
+                }
+                finally
+                {
+                    this.treeView1.EndUpdate();
                 }
             }
         }
