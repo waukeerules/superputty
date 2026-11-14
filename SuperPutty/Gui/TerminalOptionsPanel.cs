@@ -12,7 +12,8 @@ namespace SuperPutty.Gui
     /// The built-in terminal's defaults on Tools -> Options -> Terminal (dlgFindPutty): highlighting rules, theme, font,
     /// font size, cursor, blinking, bell, copy on select, marking the selection's matches, showing a paste of several
     /// lines first, scrollback, keys, session log time stamps, the renderer, word delimiters, wrapping lines, whether
-    /// the built-in highlighting rules are used, the terminal's own colours over the theme's, and the anti-idle string. These are the same
+    /// the built-in highlighting rules are used, the terminal's own colours over the theme's, the anti-idle string and
+    /// line numbers. These are the same
     /// preferences each terminal's right-click menu changes (Utils.TerminalPreferences), so a change in either shows in
     /// the other and in every open terminal tab. Built in code: a label and a control per row.
     /// </summary>
@@ -71,6 +72,7 @@ namespace SuperPutty.Gui
 
         private readonly TextBox antiIdle = new TextBox { Width = 120 };
         private readonly NumericUpDown antiIdleSeconds = new NumericUpDown { Minimum = 1, Maximum = 86400, Increment = 30, Width = 90 };
+        private readonly CheckBox lineNumbers = new CheckBox { Text = "Line numbers", AutoSize = true };
         private readonly CheckBox wrap = new CheckBox { Text = "Wrap lines at the tab's width (off: 300 columns, panned sideways)", AutoSize = true };
 
         /// <summary>Lay out the rows; <see cref="LoadPreferences"/> fills them</summary>
@@ -111,6 +113,7 @@ namespace SuperPutty.Gui
             table.Controls.Add(this.copyOnSelect, 1, table.RowCount++);
             table.Controls.Add(this.markMatches, 1, table.RowCount++);
             table.Controls.Add(this.wrap, 1, table.RowCount++);
+            table.Controls.Add(this.lineNumbers, 1, table.RowCount++);
             this.Controls.Add(table);
         }
 
@@ -355,6 +358,7 @@ namespace SuperPutty.Gui
             Fill(this.renderer, new[] { C("Fast (WebGL, uses the graphics card)", "webgl"), C("Compatible (slower with a lot of output)", "dom") }, prefs["renderer"]);
             this.wordSeparators.Text = prefs["wordSeparators"];
             this.wrap.Checked = prefs["wrap"] != "false";
+            this.lineNumbers.Checked = prefs["lineNumbers"] == "true";
             this.antiIdle.Text = prefs["antiIdle"];
             int idleSeconds;
             this.antiIdleSeconds.Value = int.TryParse(prefs["antiIdleSeconds"], out idleSeconds) && idleSeconds > 0 ? Math.Min(idleSeconds, 86400) : AntiIdle.DefaultSeconds;
@@ -387,6 +391,7 @@ namespace SuperPutty.Gui
                 { "renderer", value(this.renderer) },
                 { "wordSeparators", TerminalPreferences.NormalizeWordSeparators(this.wordSeparators.Text) },
                 { "wrap", this.wrap.Checked ? "true" : "false" },
+                { "lineNumbers", this.lineNumbers.Checked ? "true" : "false" },
                 { "antiIdle", this.antiIdle.Text },
                 { "antiIdleSeconds", ((int)this.antiIdleSeconds.Value).ToString() },
                 { "colorBackground", this.colours["colorBackground"] },

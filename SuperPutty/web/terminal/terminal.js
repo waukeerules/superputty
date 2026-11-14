@@ -105,6 +105,15 @@
             return;
         }
         var element = document.getElementById('terminal');
+        // before measuring: the gutter's width follows the font, and measured before it changed the terminal would be
+        // sized twice for a new font (a theme's), plink told of a size in between
+        if (document.body.classList.contains('numbers')) {
+            var gutter = gutterWidthFor(gutterDigits, dimensions);
+            if (gutter !== gutterWidth) {
+                gutterWidth = gutter;
+                document.documentElement.style.setProperty('--gutter', gutter + 'px');
+            }
+        }
         // before measuring: the side-to-side scroll bar takes its height from the rows
         document.body.classList.toggle('nowrap', wide());
         // a hidden tab has no size yet; wait for the ResizeObserver rather than start the session at 2x1
@@ -232,6 +241,202 @@
     function applyWrap() {
         fit();
         followCursor();
+    }
+
+    // ---- line numbers ---------------------------------------------------------------------------------------------
+    // As SuperXTerminal's (its b8986c3, dc4226a, 9cb4022): Line Numbers in the menu and Options > Terminal, off by default
+
+    /** Rows between the counts kept for numbering, so a scroll up a long scrollback doesn't count it all again */
+    var NUMBER_STEP = 512;
+    /** numberCounts[k]: lines (not wrapped rows) above row k * NUMBER_STEP; kept only above the screen, where rows stay put */
+    var numberCounts = [0];
+    /**
+     * Lines dropped off the top of the scrollback since it began (or was cleared), so a line keeps its number. Counted
+     * whether or not Line Numbers is on, and from before the gutter is first drawn: output that fills the scrollback
+     * before then would otherwise leave the numbers starting again near 1
+     */
+    var droppedLines = 0;
+    /** The scrollback's rows (xterm.js's list) whose dropped lines are being counted */
+    var trimmedRows = null;
+    /** The buffer's rows the numbers were counted on, and its width: either changing counts again */
+    var numberedRows = null;
+    var numberedCols = 0;
+    var numberedLength = 0;
+    var numbersFrame = 0;
+    /** The gutter's width as last set, in pixels */
+    var gutterWidth = 0;
+    /** How many digits the gutter last had room for (the highest number's) */
+    var gutterDigits = 4;
+
+    /** The gutter's width for numbers of so many digits in the font's cells: room for 4 at least, so the terminal doesn't narrow at every tenfold */
+    function gutterWidthFor(digits, dimensions) {
+        return Math.ceil(Math.max(4, digits) * dimensions.css.cell.width) + 10;
+    }
+
+    /**
+     * Where commands began, oldest first: a line marker (which moves as the scrollback does) and the colour of the
+     * button that sent it ("" for a command typed, or a button without one). A line's number takes the colour of
+     * the last command started on or above it.
+     */
+    var commandMarks = [];
+    /** Commands remembered, at most: older ones' lines have long left the scrollback */
+    var MAX_COMMAND_MARKS = 2000;
+
+    /** A command starts on the cursor's line: from there the numbers are its button's colour, or the usual one */
+    function markCommand(color) {
+        if (term.buffer.active.type !== 'normal') { return; }
+        var good = /^#[0-9a-f]{3,8}$/i.test(color || '') ? color : '';
+        var last = commandMarks[commandMarks.length - 1];
+        // nothing coloured yet, and nothing to stop colouring
+        if (!good && (!last || !last.color)) { return; }
+        var marker = term.registerMarker(0);
+        if (!marker) { return; }
+        // a second command on the same line takes it over
+        if (last && !last.marker.isDisposed && last.marker.line === marker.line) {
+            last.marker.dispose();
+            commandMarks.pop();
+        }
+        commandMarks.push({ marker: marker, color: good });
+        if (commandMarks.length > MAX_COMMAND_MARKS) { commandMarks.shift().marker.dispose(); }
+        scheduleNumbers();
+    }
+
+    /** The colour of a row's number: the last command's started on or above it; "" for the usual */
+    function commandColour(row) {
+        for (var i = commandMarks.length - 1; i >= 0; i--) {
+            var marker = commandMarks[i].marker;
+            // a marker whose line left the scrollback is above every row
+            if (marker.isDisposed || marker.line <= row) { return commandMarks[i].color; }
+        }
+        return '';
+    }
+
+    /** Whether Line Numbers is on (off unless turned on) and the screen is the output's, not a full-screen program's */
+    function numbering() {
+        return loadPref('lineNumbers') === 'true' && term.buffer.active.type === 'normal';
+    }
+
+    /** The scrollback's rows (xterm.js's own list), to know when it's a new one and when it drops rows */
+    function normalRows() {
+        var core = term._core;
+        return core && core._bufferService && core._bufferService.buffers ? core._bufferService.buffers.normal.lines : null;
+    }
+
+    /**
+     * Count the lines a full scrollback drops (each new line drops the oldest), so the numbers don't shift. Called as
+     * the terminal opens and at every scroll, so a new list (after a reset) is watched from its first line on, long
+     * before it's full and drops any
+     */
+    function watchTrims() {
+        var rows = normalRows();
+        if (!rows || rows === trimmedRows) { return; }
+        trimmedRows = rows;
+        droppedLines = 0;
+        if (rows.onTrim) {
+            rows.onTrim(function (amount) {
+                if (rows !== trimmedRows) { return; }
+                droppedLines += amount;
+                numberCounts = [0];
+            });
+        }
+    }
+
+    /** Start counting again: the rows were reflowed (a new width), replaced (a reset) or cleared */
+    function recountNumbers() {
+        numberCounts = [0];
+        numberedRows = normalRows();
+        watchTrims();
+        numberedCols = term.cols;
+    }
+
+    /** Lines that start in rows [from, to) of the normal buffer: rows a long line wraps onto aren't lines */
+    function linesStarting(buffer, from, to) {
+        var n = 0;
+        for (var y = from; y < to; y++) {
+            var line = buffer.getLine(y);
+            if (line && !line.isWrapped) { n++; }
+        }
+        return n;
+    }
+
+    /** Lines above a row, counted from the kept counts on */
+    function linesAbove(buffer, row) {
+        var k = Math.floor(row / NUMBER_STEP);
+        // the counts are only kept for rows above the screen, which output doesn't change
+        var keep = Math.floor(buffer.baseY / NUMBER_STEP);
+        while (numberCounts.length <= Math.min(k, keep)) {
+            var j = numberCounts.length;
+            numberCounts.push(numberCounts[j - 1] + linesStarting(buffer, (j - 1) * NUMBER_STEP, j * NUMBER_STEP));
+        }
+        var start = Math.min(k, numberCounts.length - 1);
+        return numberCounts[start] + linesStarting(buffer, start * NUMBER_STEP, row);
+    }
+
+    /** Draw the numbers soon: once a frame however much output comes */
+    function scheduleNumbers() {
+        if (numbersFrame) { return; }
+        numbersFrame = window.requestAnimationFrame(function () {
+            numbersFrame = 0;
+            drawNumbers();
+        });
+    }
+
+    /**
+     * Number the rows that show: a line's first row gets its number, the rows it wraps onto and the empty ones under
+     * the cursor none. A full-screen program (less, vim, top) draws a picture rather than lines, so the gutter goes
+     * while it runs (less -N numbers its own), and comes back after it.
+     */
+    function drawNumbers() {
+        var on = numbering();
+        var gutter = document.getElementById('gutter');
+        if (!on) {
+            if (document.body.classList.contains('numbers')) {
+                document.body.classList.remove('numbers');
+                gutterWidth = 0;
+                fit();
+            }
+            return;
+        }
+        var buffer = term.buffer.active;
+        var dimensions = term._core && term._core._renderService && term._core._renderService.dimensions;
+        if (!dimensions || !dimensions.css.cell.height) { return; }
+        var rows = normalRows();
+        // fewer rows than before: the scrollback was cleared (Clear Scrollback, the clear command), so start at 1 again
+        if (rows && rows.length < numberedLength) { numberedRows = null; droppedLines = 0; }
+        if (rows !== numberedRows || term.cols !== numberedCols) {
+            recountNumbers();
+        }
+        numberedLength = rows ? rows.length : 0;
+        var last = buffer.baseY + buffer.cursorY;
+        var top = buffer.viewportY;
+        var first = droppedLines + linesAbove(buffer, top);
+        var text = [];
+        var coloured = false;
+        var n = first;
+        var widest = droppedLines + linesAbove(buffer, last) + 1;
+        for (var y = top; y < top + term.rows; y++) {
+            var line = buffer.getLine(y);
+            if (!line || y > last) { text.push(''); continue; }
+            if (line.isWrapped) { text.push(''); continue; }
+            n++;
+            var colour = commandMarks.length ? commandColour(y) : '';
+            // digits and a checked colour only
+            text.push(colour ? '<span style="color:' + colour + '">' + n + '</span>' : String(n));
+            coloured = coloured || !!colour;
+        }
+        gutterDigits = String(widest).length;
+        var width = gutterWidthFor(gutterDigits, dimensions);
+        var style = gutter.style;
+        style.fontFamily = term.options.fontFamily;
+        style.fontSize = term.options.fontSize + 'px';
+        style.lineHeight = dimensions.css.cell.height + 'px';
+        if (coloured) { gutter.innerHTML = text.join('\n'); } else { gutter.textContent = text.join('\n'); }
+        if (!document.body.classList.contains('numbers') || width !== gutterWidth) {
+            gutterWidth = width;
+            document.documentElement.style.setProperty('--gutter', width + 'px');
+            document.body.classList.add('numbers');
+            fit();
+        }
     }
 
     // ---- output, logging and highlighting -----------------------------------------------------------------------
@@ -964,6 +1169,7 @@
             { label: 'Copy on Select', checked: prefOn('copyOnSelect'), action: function () { togglePref('copyOnSelect'); } },
             { label: 'Mark Matches of Selection', checked: prefOn('markMatches'), action: function () { togglePref('markMatches'); markSelectionMatches(); } },
             { label: 'Wrap Lines', checked: wrapping(), action: function () { togglePref('wrap'); applyWrap(); } },
+            { label: 'Line Numbers', checked: loadPref('lineNumbers') === 'true', action: function () { savePref('lineNumbers', loadPref('lineNumbers') === 'true' ? 'false' : 'true'); drawNumbers(); } },
             '-',
             // typed through the tab (ctlPuttyPanel.SendKey), as SENDKEY types them; Other Key... asks there
             { label: 'Send Key', items: menuKeys.map(function (k) {
@@ -1123,6 +1329,7 @@
         term.options.theme = xtermTheme;
         applyFont();
         document.documentElement.style.setProperty('--bg', colors.background || '#000000');
+        document.documentElement.style.setProperty('--line-numbers', colors.lineNumbers || (theme.base === 'vs' ? '#8a8a8a' : '#6e7681'));
         // the menu and the find bar follow the theme: light ones for a light theme (Monaco's base "vs"), or for a
         // light background of the user's own
         document.documentElement.classList.toggle('light-theme', loadPref('colorBackground') ? !isDarkColour(colors.background) : theme.base === 'vs');
@@ -1307,6 +1514,7 @@
         applyTheme();
         applyCursor();
         applyWrap();
+        drawNumbers();
         markSelectionMatches();
     }
 
@@ -1451,6 +1659,8 @@
             case 'cursorColor': cursorColor = message.color || null; setFrame(message.frame); applyTheme(); break;
             // the built-in rule sets were turned off or on (Options > Terminal)
             case 'ruleSets': changeRuleSets(message.ruleSets); break;
+            // a button's command starts here: its lines are numbered in the button's colour
+            case 'commandColor': markCommand(message.color); break;
             case 'prefs': applyPrefs(message.prefs); break;
         }
     }
@@ -1540,6 +1750,8 @@
         term.attachCustomKeyEventHandler(onKey);
         term.onData(function (data) {
             typedAt = Date.now();
+            // a command typed: the lines from here aren't a button's
+            if (data.indexOf('\r') >= 0) { markCommand(''); }
             followCursor();
             post({ type: 'input', data: data });
         });
@@ -1550,9 +1762,12 @@
             cursorShowed = cursorShows();
         });
         // a full-screen program (alternate screen) gets the tab's own width, and the wide lines come back after it
-        term.buffer.onBufferChange(function () { fit(); followCursor(); });
+        term.buffer.onBufferChange(function () { fit(); followCursor(); scheduleNumbers(); });
+        term.onRender(scheduleNumbers);
         term.onResize(function (size) { if (sized) { post({ type: 'size', cols: size.cols, rows: size.rows }); } });
-        term.onScroll(function () { scheduleSettle(); });
+        // the dropped lines are counted from the start, not from the gutter's first drawing
+        watchTrims();
+        term.onScroll(function () { watchTrims(); scheduleSettle(); scheduleNumbers(); });
         term.onBell(ring);
         // links in the output open with Ctrl+click, as in Windows Terminal, so selecting text never opens a browser
         if (window.WebLinksAddon) {
@@ -1654,7 +1869,10 @@
             findCount: function () { return document.getElementById('findCount').textContent; },
             // the rule sets the tab's menu offers, by id, and the one colouring the output now ('' for none)
             ruleSetIds: function () { return ruleSets.map(function (set) { return set.id; }); },
-            currentRuleSet: function () { var set = currentSet(); return set ? set.id : ''; }
+            currentRuleSet: function () { var set = currentSet(); return set ? set.id : ''; },
+            // the gutter's numbers as drawn, one per row ('' for a wrapped or empty row), and their colours
+            numbers: function () { return document.getElementById('gutter').textContent.split('\n'); },
+            numberColours: function () { return Array.from(document.querySelectorAll('#gutter span')).map(function (s) { return s.textContent + ' ' + s.style.color; }); }
         };
         term.focus();
         post({ type: 'ready' });

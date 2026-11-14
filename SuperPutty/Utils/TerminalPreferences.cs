@@ -33,7 +33,7 @@ namespace SuperPutty.Utils
         /// colorBackground, colorForeground, colorSelection and colorCursor (the terminal's own colours over the theme's,
         /// as "#rrggbb"; "" for the theme's; a session's environment colour still wins for the cursor), antiIdle (typed
         /// into a remote session after antiIdleSeconds with nothing typed, as KiTTY writes it; "" for none; AntiIdle)
-        /// and antiIdleSeconds
+        /// and antiIdleSeconds, and lineNumbers ("true": a gutter numbers the output's lines; off by default)
         /// </summary>
         public static readonly IReadOnlyDictionary<string, string> Defaults = new Dictionary<string, string>
         {
@@ -60,6 +60,7 @@ namespace SuperPutty.Utils
             { "colorCursor", "" },
             { "antiIdle", "" },
             { "antiIdleSeconds", "180" },
+            { "lineNumbers", "false" },
         };
 
         /// <summary>

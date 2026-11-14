@@ -2679,6 +2679,15 @@ The rows added for word delimiters, colours, anti-idle and Wrap lines were wider
 
 **Checked:** the Options dialog's Terminal tab rendered in a test program in the dark and the light theme, scrolled to the new rows: everything fits and reads.
 
+## Built-in terminal: line numbers
+
+As SuperXTerminal (its b8986c3, dc4226a, 9cb4022): **Line Numbers**, in the terminal's menu and Tools → Options → Terminal, off by default. A gutter at the left numbers the output's lines: a wrapped line once, the empty rows under the cursor not at all, and the count goes on as a full scrollback drops its oldest lines (counted from when the terminal opens, so a scrollback filled before the numbers were turned on still numbers right). A full-screen program (less, vim, top) draws a picture rather than lines, so the gutter goes while it runs and comes back after. The numbers take the theme's `lineNumbers` colour.
+
+- **A button's command** and its output are numbered in the button's colour, from the line it starts on until the next command: another button's, or one typed (Enter) in the usual colour (`ButtonBarStrip.RunButton` → `TerminalControl.MarkCommand` → the page's `commandColor` message).
+- **Code:** `web/terminal/terminal.js` (`drawNumbers`, `scheduleNumbers`, `linesAbove`, `watchTrims`, `markCommand`; `fit` makes room for the gutter), `terminal.css` (`#gutter`, `body.numbers`), `index.html`, the `lineNumbers` preference and its Options checkbox.
+
+**Checked:** page tests: numbering with a wrapped line and empty rows; 200 lines through a 20-line scrollback before turning it on ends at 200 and 201; the alternate screen hides the gutter and it comes back; a button's colour on its command's lines, ending where a command is typed; off by default and in the menu. **Not checked:** in the running app, and a real button's colour reaching the page.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

@@ -547,8 +547,12 @@ namespace SuperPutty.Gui
             else
             {
                 List<CommandData> steps = SendStringParser.Parse(text, () => Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty);
+                Color color;
+                string colorText = TryParseColor(command.Color, out color) ? TerminalPreferences.ColourText(color) : string.Empty;
                 foreach (ctlPuttyPanel panel in targets)
                 {
+                    // a terminal tab numbers the command's lines in the button's colour (Line Numbers)
+                    panel.Terminal?.MarkCommand(colorText);
                     new Thread(() =>
                     {
                         foreach (CommandData step in steps)
