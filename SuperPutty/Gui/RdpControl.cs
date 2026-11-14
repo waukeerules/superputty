@@ -122,6 +122,15 @@ namespace SuperPutty.Gui
             get { return !this.ended; }
         }
 
+        /// <summary>Whether it's on its way: connecting until the server answers (<see cref="OnConnected"/>)</summary>
+        public bool IsConnecting
+        {
+            get { return !this.ended && this.connecting; }
+        }
+
+        /// <summary>Set from <see cref="Start"/> or a reconnect until the server answers or the session ends</summary>
+        private bool connecting;
+
         /// <summary>Whether an automatic reconnect is counting down (the tab menu's Stop Reconnecting)</summary>
         public bool ReconnectScheduled
         {
@@ -266,6 +275,8 @@ namespace SuperPutty.Gui
             // the display's scale, so at 150 % the remote's text isn't drawn at 100 %, tiny (as SuperXTerminal's and mstsc)
             this.ApplyScaleFactors();
 
+            this.connecting = true;
+            this.StateChanged?.Invoke(this, EventArgs.Empty);
             Log.InfoFormat("Connecting to {0}:{1} as '{2}' with a {3}x{4} desktop{5}", this.session.Host, this.session.Port, this.session.Username, size.Width, size.Height,
                 string.IsNullOrWhiteSpace(this.options.GatewayHost) ? "" : " through gateway " + this.options.GatewayHost);
             this.client.Connect();
@@ -292,6 +303,7 @@ namespace SuperPutty.Gui
                 this.reconnectAttempts = 0;
             }
             this.ended = false;
+            this.connecting = true;
             this.userDisconnected = false;
             this.ShowCover(automatic
                 ? string.Format("Reconnecting to {0} (try {1} of {2})...", this.session.SessionName, this.reconnectAttempts, Math.Max(1, SuperPuTTY.Settings.AutoReconnectAttempts))
@@ -632,6 +644,8 @@ namespace SuperPutty.Gui
         private void OnLoginComplete()
         {
             this.loggedIn = true;
+            // back in: a later drop starts its attempts, and their delays, afresh
+            this.reconnectAttempts = 0;
             this.HideCover();
             Log.InfoFormat("Logged in to {0}", this.session.Host);
             // the tab may have been resized while connecting
@@ -681,11 +695,13 @@ namespace SuperPutty.Gui
                 this.endReason = this.session.SessionName + ": " + description;
             }
             this.ended = true;
+            this.connecting = false;
             this.userDisconnected = false;
             switch (AfterEnd(clean, wasLoggedIn, this.reconnectAttempts, SuperPuTTY.Settings.AutoReconnect, SuperPuTTY.Settings.AutoReconnectAttempts))
             {
                 case EndAction.Reconnect:
-                    this.reconnectSecondsLeft = Math.Max(1, SuperPuTTY.Settings.AutoReconnectDelaySeconds);
+                    // twice as long each time, up to two minutes, as the terminal tabs (ConnectFailure.ReconnectDelay)
+                    this.reconnectSecondsLeft = ConnectFailure.ReconnectDelay(SuperPuTTY.Settings.AutoReconnectDelaySeconds, this.reconnectAttempts);
                     this.ShowReconnectCountdown();
                     this.reconnectTimer.Start();
                     SuperPuTTY.ReportStatus(this.endReason + ". Reconnecting in " + this.reconnectSecondsLeft + " s");
@@ -705,6 +721,9 @@ namespace SuperPutty.Gui
         private void OnConnected()
         {
             this.HideCover();
+            // the server answered: connected, not connecting (the tab's and tree's dot go green)
+            this.connecting = false;
+            this.StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>

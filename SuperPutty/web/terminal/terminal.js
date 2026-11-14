@@ -59,6 +59,11 @@
     var selectionMatches = [];  // marks ({marker, decoration}) on the other places the selected text appears
     var flushMarker = null;     // the marker flushDecorations adds its throwaway decoration on
     var sized = false;
+    var fitTimer = null;        // fits the terminal to its tab once the tab's size has stopped changing (fitWhenStill)
+    /** How long a tab's size is still before a terminal with a long scrollback is fitted to it */
+    var FIT_STILL_MS = 100;
+    /** Lines in the terminal, the screen's included, up to which it's fitted at once: wrapping so few again is nothing */
+    var FIT_NOW_LINES = 200;
 
     /** Send a message to TerminalControl (ignored when the page is opened in a plain browser to test it) */
     function post(message) {
@@ -113,6 +118,22 @@
             sized = true;
             post({ type: 'size', cols: term.cols, rows: term.rows });
         }
+    }
+
+    /**
+     * The tab's size changed (the window or a split dragged): fit to it, as SuperXTerminal does (its e91a4c4). At once
+     * while there is little above the screen; with more, once the size has been still for FIT_STILL_MS. A change of
+     * columns wraps every line kept again and moves each highlight with its line, a sixth of a second for 6,000 lines,
+     * at every step of a drag; and plink is resized as often, which makes its pseudo console draw the screen again each
+     * time. So the terminal keeps its size while the edge moves, and takes the new one when it stops.
+     */
+    function fitWhenStill() {
+        window.clearTimeout(fitTimer);
+        if (!sized || term.buffer.active.length < FIT_NOW_LINES) {
+            fit();
+            return;
+        }
+        fitTimer = window.setTimeout(fit, FIT_STILL_MS);
     }
 
     // ---- output, logging and highlighting -----------------------------------------------------------------------
@@ -1407,7 +1428,7 @@
         });
         bindFind();
 
-        new ResizeObserver(function () { fit(); }).observe(element);
+        new ResizeObserver(fitWhenStill).observe(element);
         if (host) {
             host.addEventListener('message', function (event) { onMessage(event.data); });
         }

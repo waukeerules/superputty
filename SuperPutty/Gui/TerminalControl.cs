@@ -144,6 +144,15 @@ namespace SuperPutty.Gui
         /// <summary>When plink was last started</summary>
         private DateTime startedAt;
 
+        /// <summary>The last of plink's output, for reading why it failed (ConnectFailure); guarded by itself</summary>
+        private readonly System.Collections.Generic.Queue<byte[]> recentOutput = new System.Collections.Generic.Queue<byte[]>();
+
+        /// <summary>How many bytes <see cref="recentOutput"/> holds</summary>
+        private int recentBytes;
+
+        /// <summary>How much of plink's last output is kept for <see cref="recentOutput"/></summary>
+        private const int RecentOutputBytes = 4096;
+
         /// <summary>Set once the control is closing, so plink ending isn't treated as a dropped session</summary>
         private bool closing;
 
@@ -213,6 +222,10 @@ namespace SuperPutty.Gui
             this.reconnectTimer.Tick += (s, e) => { this.reconnectTimer.Stop(); this.Reconnect(); };
             this.lineBreakTimer = new Timer();
             this.lineBreakTimer.Tick += (s, e) => { this.lineBreakTimer.Stop(); this.SendPending(); };
+            this.answeredTimer = new Timer { Interval = (int)ConnectionProgress.AnsweredAfter.TotalMilliseconds };
+            this.answeredTimer.Tick += (s, e) => this.OnAnswered();
+            // connecting from the start, not only once the page has loaded and plink runs
+            this.connecting = ConnectionProgress.IsTracked(session.Proto);
             TerminalPreferences.Changed += this.OnPreferencesChanged;
         }
 
@@ -221,6 +234,24 @@ namespace SuperPutty.Gui
         {
             get { return !this.disconnected; }
         }
+
+        /// <summary>
+        /// Whether plink is running but the far end hasn't answered yet: no text from it, or not still running a second
+        /// after (ConnectionProgress). Local shells and serial lines are never connecting.
+        /// </summary>
+        public bool IsConnecting
+        {
+            get { return !this.disconnected && this.connecting; }
+        }
+
+        /// <summary>Set when plink starts, until the far end answers (<see cref="answeredTimer"/>) or the session ends</summary>
+        private volatile bool connecting;
+
+        /// <summary>Set by the output thread when text first arrives while connecting</summary>
+        private volatile bool textSeen;
+
+        /// <summary>Fires a second after the first text: if plink is still running, the session is connected</summary>
+        private Timer answeredTimer;
 
         /// <summary>Whether an automatic reconnect is scheduled</summary>
         public bool ReconnectScheduled
@@ -749,6 +780,14 @@ namespace SuperPutty.Gui
                 Log.InfoFormat("Terminal: {0}", PuttyStartInfo.PlinkCommandLine(this.session, plink, false));
                 // in its own folder: a portable KiTTY's klink reads kitty.ini and the Sessions folder from the current
                 // directory, not from beside itself, so started anywhere else -load finds no profile (no username, ...)
+                this.connecting = ConnectionProgress.IsTracked(this.session.Proto);
+                this.textSeen = false;
+                this.answeredTimer.Stop();
+                lock (this.recentOutput)
+                {
+                    this.recentOutput.Clear();
+                    this.recentBytes = 0;
+                }
                 started.Start(PuttyStartInfo.PlinkCommandLine(this.session, plink, true), this.columns, this.rows, Path.GetDirectoryName(plink));
                 this.pty = started;
                 this.startedAt = DateTime.Now;
@@ -781,6 +820,7 @@ namespace SuperPutty.Gui
                 started.Start("\"" + shell + "\"", this.columns, this.rows, Directory.Exists(folder) ? folder : null);
                 this.pty = started;
                 this.startedAt = DateTime.Now;
+                this.connecting = false;
                 this.disconnected = false;
                 this.StateChanged?.Invoke(this, EventArgs.Empty);
             }
@@ -795,6 +835,20 @@ namespace SuperPutty.Gui
         /// <param name="bytes">The output</param>
         private void OnOutput(byte[] bytes)
         {
+            if (this.connecting && !this.textSeen && ConnectionProgress.HasText(bytes, bytes.Length))
+            {
+                this.textSeen = true;
+                this.BeginInvokeSafe(() => this.answeredTimer.Start());
+            }
+            lock (this.recentOutput)
+            {
+                this.recentOutput.Enqueue(bytes);
+                this.recentBytes += bytes.Length;
+                while (this.recentOutput.Count > 1 && this.recentBytes - this.recentOutput.Peek().Length >= RecentOutputBytes)
+                {
+                    this.recentBytes -= this.recentOutput.Dequeue().Length;
+                }
+            }
             lock (this.pending)
             {
                 if (this.pending.Length == 0)
@@ -943,7 +997,10 @@ namespace SuperPutty.Gui
 
         /// <summary>
         /// plink ended. A clean exit (the user logged out) closes the tab, as PuTTY's does; anything else keeps the tab
-        /// with its scrollback and offers to reconnect, automatically when Tools -> Options -> Advanced says so.
+        /// with its scrollback and offers to reconnect, automatically when Tools -> Options -> Advanced says so and
+        /// reconnecting can help: not after a refused login, an unknown host or a host key that wasn't accepted
+        /// (ConnectFailure, read from plink's last words, which also say what went wrong). Each automatic attempt waits
+        /// twice as long as the last, up to two minutes.
         /// </summary>
         /// <param name="ended">The pseudo console that ended (ignored if it's no longer the current one)</param>
         /// <param name="code">plink's exit code</param>
@@ -965,24 +1022,68 @@ namespace SuperPutty.Gui
             }
             this.SetDisconnected();
             int max = Math.Max(1, SuperPuTTY.Settings.AutoReconnectAttempts);
-            int delay = Math.Max(1, SuperPuTTY.Settings.AutoReconnectDelaySeconds);
-            if (SuperPuTTY.Settings.AutoReconnect && this.reconnectAttempts < max)
+            int delay = ConnectFailure.ReconnectDelay(SuperPuTTY.Settings.AutoReconnectDelaySeconds, this.reconnectAttempts);
+            ConnectFailure failure = ConnectFailure.Read(this.RecentText());
+            string why = failure.Describe(this.session.Host + " port " + this.session.Port);
+            if (why != null)
             {
-                this.Notice(string.Format("Session ended. Reconnecting in {0} s ({1} of {2}); press Enter to reconnect now.", delay, this.reconnectAttempts + 1, max), false);
+                Log.InfoFormat("{0} failed: {1}", this.session.SessionId, failure.Kind);
+            }
+            if (!failure.Reconnects)
+            {
+                this.Notice(why + " Press Enter to try again.", true);
+            }
+            else if (SuperPuTTY.Settings.AutoReconnect && this.reconnectAttempts < max)
+            {
+                this.Notice(string.Format("{0}Session ended. Reconnecting in {1} s ({2} of {3}); press Enter to reconnect now.",
+                    why != null ? why + " " : "", delay, this.reconnectAttempts + 1, max), false);
                 this.reconnectTimer.Interval = delay * 1000;
                 this.reconnectTimer.Start();
             }
             else
             {
-                this.Notice("Session ended. Press Enter to reconnect.", false);
+                this.Notice((why != null ? why + " " : "") + "Session ended. Press Enter to reconnect.", false);
             }
             SuperPuTTY.ReportStatus($"{this.session.SessionName} disconnected");
             this.StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// A second after the far end's first text: still running, so it's connected (the tab's and tree's dot go
+        /// green); a connection that failed has ended by now and is shown as dropped instead
+        /// </summary>
+        private void OnAnswered()
+        {
+            this.answeredTimer.Stop();
+            if (!this.connecting || this.pty == null || this.disconnected)
+                return;
+            this.connecting = false;
+            this.StateChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>plink's last output as plain text, for <see cref="ConnectFailure.Read"/></summary>
+        /// <returns>The text; empty if there was none</returns>
+        private string RecentText()
+        {
+            byte[] all;
+            lock (this.recentOutput)
+            {
+                all = new byte[this.recentBytes];
+                int at = 0;
+                foreach (byte[] part in this.recentOutput)
+                {
+                    Buffer.BlockCopy(part, 0, all, at, part.Length);
+                    at += part.Length;
+                }
+            }
+            return ConnectionProgress.PlainText(all, all.Length);
+        }
+
         /// <summary>Mark the session as down</summary>
         private void SetDisconnected()
         {
+            this.connecting = false;
+            this.answeredTimer.Stop();
             this.disconnected = true;
             this.StateChanged?.Invoke(this, EventArgs.Empty);
         }

@@ -189,6 +189,13 @@ namespace SuperPutty
                     return terminal;
                 };
             }
+            if (ConnectionProgress.IsTracked(this.Session.Proto)
+                && (this.AppPanel.EmbeddedApplicationFactory != null || this.m_puttyStartInfo.SessionLogPath != null))
+            {
+                // yellow until the far end answers (CheckConnection, or the terminal's and RDP control's StateChanged)
+                this.connection = ConnectionState.Connecting;
+                this.reconnectSentAt = DateTime.Now;
+            }
             this.AppPanel.ApplicationWorkingDirectory = this.m_puttyStartInfo.WorkingDir;
             this.AppPanel.ApplicationCloseWithDestroy = this.Session.Proto == ConnectionProtocol.Mintty ? false : true;
             this.AppPanel.Location = new System.Drawing.Point(0, 0);
@@ -704,13 +711,14 @@ namespace SuperPutty
         }
 
         /// <summary>
-        /// Show the tab's icon by priority: the script spinner, then the disconnected badge, then an activity badge, then
-        /// a silence badge, then the tab's own icon
+        /// Show the tab's icon by priority: the script spinner, then the disconnected badge, then the connecting badge,
+        /// then an activity badge, then a silence badge, then the tab's own icon
         /// </summary>
         private void UpdateTabIcon()
         {
             System.Drawing.Icon badge = this.scriptRunning ? Spinner.CurrentIcon()
-                : this.connection != ConnectionState.Connected ? TabBadges.Disconnected
+                : this.connection == ConnectionState.Disconnected ? TabBadges.Disconnected
+                : this.IsConnecting ? TabBadges.Connecting
                 : this.outputAlert == OutputAlert.Activity ? TabBadges.Activity
                 : this.outputAlert == OutputAlert.Silence ? TabBadges.Silence
                 : null;
@@ -858,8 +866,10 @@ namespace SuperPutty
             Connected,
             /// <summary>Dropped or ended; the tab shows the disconnected badge</summary>
             Disconnected,
-            /// <summary>Restart Session was sent; waiting for the session to print something</summary>
-            Reconnecting
+            /// <summary>Restart Session was sent; waiting for the far end to answer (shown as connecting)</summary>
+            Reconnecting,
+            /// <summary>Just opened; waiting for the far end to answer (ConnectionProgress)</summary>
+            Connecting
         }
 
         /// <summary>The session's state; see <see cref="CheckConnection"/></summary>
@@ -871,11 +881,14 @@ namespace SuperPutty
         /// <summary>When the next reconnect is due; DateTime.MinValue when none is scheduled</summary>
         private DateTime nextReconnectAt = DateTime.MinValue;
 
-        /// <summary>When Restart Session was last sent</summary>
+        /// <summary>When Restart Session was last sent, or the tab opened</summary>
         private DateTime reconnectSentAt;
 
-        /// <summary>The session log's length when Restart Session was sent; more output means the session is back</summary>
+        /// <summary>The session log's length when Restart Session was sent; text after it means the far end answered</summary>
         private long logLengthAtReconnect;
+
+        /// <summary>When text from the far end was first seen while connecting; null if none yet</summary>
+        private DateTime? textSeenAt;
 
         /// <summary>
         /// Whether PuTTY has shown the session as inactive since it dropped. Until it has, an active title just means
@@ -889,13 +902,22 @@ namespace SuperPutty
         /// <summary>How often, while reconnecting, Restart Session is sent again in case PuTTY wasn't ready for it</summary>
         private const int ResendRestartSeconds = 5;
 
-        /// <summary>How long a reconnected session may print nothing before it's taken to be back anyway</summary>
-        private const int QuietReconnectSeconds = 15;
+        /// <summary>
+        /// How long a connecting session may print nothing before it's taken to be connected anyway: longer than
+        /// Windows takes to give up on a host that doesn't answer (about 21 s), so that doesn't flash green first
+        /// </summary>
+        private const int QuietConnectedSeconds = 30;
 
-        /// <summary>Whether the session has dropped or ended and isn't back yet</summary>
+        /// <summary>Whether the session has dropped or ended and isn't back yet (reconnecting included)</summary>
         public bool IsDisconnected
         {
-            get { return this.connection != ConnectionState.Connected; }
+            get { return this.connection == ConnectionState.Disconnected || this.connection == ConnectionState.Reconnecting; }
+        }
+
+        /// <summary>Whether the session is connecting or reconnecting and the far end hasn't answered yet (a yellow dot)</summary>
+        public bool IsConnecting
+        {
+            get { return this.connection == ConnectionState.Connecting || this.connection == ConnectionState.Reconnecting; }
         }
 
         /// <summary>
@@ -918,13 +940,12 @@ namespace SuperPutty
             bool inactive = PuttyWindow.IsInactive(window);
             bool autoReconnect = SuperPuTTY.Settings.AutoReconnect;
             int maxAttempts = Math.Max(1, SuperPuTTY.Settings.AutoReconnectAttempts);
-            int delay = Math.Max(1, SuperPuTTY.Settings.AutoReconnectDelaySeconds);
 
             if (box != IntPtr.Zero && box != this.handledErrorBox)
             {
                 // the connection dropped, or a reconnect failed
                 this.handledErrorBox = box;
-                bool dropped = this.connection == ConnectionState.Connected;
+                bool dropped = this.connection == ConnectionState.Connected || this.connection == ConnectionState.Connecting;
                 this.SetConnection(ConnectionState.Disconnected);
                 if (dropped)
                 {
@@ -936,7 +957,19 @@ namespace SuperPutty
                     }
                 }
 
-                if (!autoReconnect)
+                // why it failed, from the box and the end of the session log: a refused login, an unknown host or a
+                // host key that wasn't accepted isn't retried by itself (a wrong password retried can lock the account)
+                ConnectFailure failure = ConnectFailure.Read(this.RecentLogText() + "\n" + error);
+                string why = failure.Describe(this.Session.Host + " port " + this.Session.Port);
+                int delay = ConnectFailure.ReconnectDelay(SuperPuTTY.Settings.AutoReconnectDelaySeconds, this.reconnectAttempts);
+                if (!failure.Reconnects)
+                {
+                    // PuTTY's own box stays up with its message; Reconnect in the tab menu closes it
+                    this.nextReconnectAt = DateTime.MinValue;
+                    Log.InfoFormat("Session {0} failed: {1}; not reconnecting by itself", this.Text, failure.Kind);
+                    SuperPuTTY.ReportStatus($"{this.Text}: {why} Right-click the tab -> Reconnect to try again");
+                }
+                else if (!autoReconnect)
                 {
                     // PuTTY's own box stays up; Reconnect in the tab menu closes it
                     SuperPuTTY.ReportStatus($"{this.Text} disconnected: {error}");
@@ -964,11 +997,16 @@ namespace SuperPutty
             switch (this.connection)
             {
                 case ConnectionState.Connected:
+                case ConnectionState.Connecting:
                     if (inactive)
                     {
                         // ended without an error, e.g. a non-zero exit status: not a drop, so don't reconnect
                         this.SetConnection(ConnectionState.Disconnected);
                         SuperPuTTY.ReportStatus($"{this.Text} ended. Right-click the tab -> Reconnect to start it again");
+                    }
+                    else if (this.connection == ConnectionState.Connecting && this.FarEndAnswered())
+                    {
+                        this.SetConnection(ConnectionState.Connected);
                     }
                     break;
 
@@ -996,8 +1034,7 @@ namespace SuperPutty
                             this.SendRestart();
                         }
                     }
-                    else if (SessionLog.LengthOf(this.SessionLogPath) > this.logLengthAtReconnect
-                        || (DateTime.Now - this.reconnectSentAt).TotalSeconds >= QuietReconnectSeconds)
+                    else if (this.FarEndAnswered())
                     {
                         this.reconnectAttempts = 0;
                         this.SetConnection(ConnectionState.Connected);
@@ -1006,6 +1043,44 @@ namespace SuperPutty
                     }
                     break;
             }
+        }
+
+        /// <summary>
+        /// Whether a connecting or reconnecting PuTTY session's far end has answered: text in the session log since the
+        /// (re)start, seen at an earlier check and the session still running now (ConnectionProgress); or nothing for
+        /// <see cref="QuietConnectedSeconds"/>, for a session that prints nothing until spoken to
+        /// </summary>
+        /// <returns>true to show it as connected</returns>
+        private bool FarEndAnswered()
+        {
+            DateTime now = DateTime.Now;
+            if (ConnectionProgress.IsAnswered(this.textSeenAt, now))
+                return true;
+            if (!this.textSeenAt.HasValue)
+            {
+                long length = SessionLog.LengthOf(this.SessionLogPath);
+                // -logoverwrite starts the log again on Restart Session
+                long from = length < this.logLengthAtReconnect ? 0 : this.logLengthAtReconnect;
+                if (length > from)
+                {
+                    byte[] output = SessionLog.ReadBytesFrom(this.SessionLogPath, from, 64 * 1024);
+                    if (ConnectionProgress.HasText(output, output?.Length ?? 0))
+                    {
+                        this.textSeenAt = now;
+                    }
+                }
+            }
+            return (now - this.reconnectSentAt).TotalSeconds >= QuietConnectedSeconds;
+        }
+
+        /// <summary>The end of the session log since the last (re)start as plain text, for ConnectFailure.Read</summary>
+        /// <returns>The text; empty if there's none</returns>
+        private string RecentLogText()
+        {
+            long length = SessionLog.LengthOf(this.SessionLogPath);
+            long from = Math.Max(length < this.logLengthAtReconnect ? 0 : this.logLengthAtReconnect, length - 4096);
+            byte[] output = length > from ? SessionLog.ReadBytesFrom(this.SessionLogPath, from, 4096) : null;
+            return ConnectionProgress.PlainText(output, output?.Length ?? 0);
         }
 
         /// <summary>Reconnect now, from the tab menu: close PuTTY's error box if it's up, then restart the session</summary>
@@ -1058,6 +1133,7 @@ namespace SuperPutty
             if (this.connection != ConnectionState.Reconnecting)
             {
                 this.logLengthAtReconnect = SessionLog.LengthOf(this.SessionLogPath);
+                this.textSeenAt = null;
                 this.SetConnection(ConnectionState.Reconnecting);
             }
             this.reconnectSentAt = DateTime.Now;
@@ -1658,7 +1734,8 @@ namespace SuperPutty
         private void OnRdpStateChanged(object sender, EventArgs e)
         {
             RdpControl rdp = (RdpControl)sender;
-            this.SetConnection(rdp.IsConnected ? ConnectionState.Connected : ConnectionState.Disconnected);
+            this.SetConnection(!rdp.IsConnected ? ConnectionState.Disconnected
+                : rdp.IsConnecting ? ConnectionState.Connecting : ConnectionState.Connected);
         }
 
         /// <summary>The built-in terminal's session dropped, is reconnecting or came back: show it on the tab and in the tree</summary>
@@ -1667,7 +1744,8 @@ namespace SuperPutty
         private void OnTerminalStateChanged(object sender, EventArgs e)
         {
             TerminalControl terminal = (TerminalControl)sender;
-            this.SetConnection(terminal.IsConnected ? ConnectionState.Connected : ConnectionState.Disconnected);
+            this.SetConnection(!terminal.IsConnected ? ConnectionState.Disconnected
+                : terminal.IsConnecting ? ConnectionState.Connecting : ConnectionState.Connected);
         }
 
         internal void SendPuttyCommand(uint command)

@@ -3534,7 +3534,7 @@ namespace SuperPutty
         }
 
         /// <summary>
-        /// Work out which sessions have a tab open, and whether any of each one's tabs is connected, then give every
+        /// Work out which sessions have a tab open, and how the best of each one's tabs is doing, then give every
         /// session node and Favorites/Recent entry the matching icon
         /// </summary>
         void RefreshOpenStates()
@@ -3546,13 +3546,12 @@ namespace SuperPutty
                 {
                     if (panel.IsDisposed || panel.Session == null || panel.Session.SessionId == null)
                         continue;
-                    IconLibrary.OpenState state = panel.IsDisconnected ? IconLibrary.OpenState.Disconnected : IconLibrary.OpenState.Connected;
+                    IconLibrary.OpenState state = panel.IsConnecting ? IconLibrary.OpenState.Connecting
+                        : panel.IsDisconnected ? IconLibrary.OpenState.Disconnected : IconLibrary.OpenState.Connected;
                     IconLibrary.OpenState existing;
-                    // one connected tab is enough for the session to show as connected
-                    if (!states.TryGetValue(panel.Session.SessionId, out existing) || state == IconLibrary.OpenState.Connected)
-                    {
-                        states[panel.Session.SessionId] = state;
-                    }
+                    // a session open in several tabs shows the best of them
+                    states[panel.Session.SessionId] = states.TryGetValue(panel.Session.SessionId, out existing)
+                        ? IconLibrary.Better(existing, state) : state;
                 }
             }
             this.openStates = states;
