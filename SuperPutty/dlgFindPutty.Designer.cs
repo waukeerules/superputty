@@ -2313,7 +2313,7 @@
             this.labelReconnectEvery.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.labelReconnectEvery.Name = "labelReconnectEvery";
             this.labelReconnectEvery.TabIndex = 1;
-            this.labelReconnectEvery.Text = "PuTTY tabs: try every";
+            this.labelReconnectEvery.Text = "Tabs: first try after";
             //
             // numericReconnectDelay
             //
@@ -2324,6 +2324,7 @@
             this.numericReconnectDelay.Name = "numericReconnectDelay";
             this.numericReconnectDelay.Size = new System.Drawing.Size(80, 27);
             this.numericReconnectDelay.TabIndex = 2;
+            this.toolTip.SetToolTip(this.numericReconnectDelay, "Each later try waits twice as long, up to 2 minutes. A refused login, an unknown host or a rejected host key isn't retried by itself.");
             this.numericReconnectDelay.Value = new decimal(new int[] { 10, 0, 0, 0 });
             //
             // labelReconnectUpTo
