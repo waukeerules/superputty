@@ -2628,6 +2628,21 @@ As SuperXTerminal (its e1352fb): **Wrap Lines**, in the terminal's right-click m
 
 **Checked:** page tests: off, a 200-character line stays on one row and the terminal is 300 columns with the scroll bar showing; Shift+wheel pans and typing at a prompt brings the view back; the alternate screen gets the tab's width and 300 comes back after it; turning it on again fits the tab; the item is in the menu. **Not checked:** WebGL drawing while panned, a touchpad's sideways swipe, and the Options checkbox in the running app.
 
+## Highlighting: the built-in rules can be turned off
+
+As SuperXTerminal (its a701db1): the rule sets that come with SuperXPuTTY (Cisco, Junos, Generic) load before the team's and the user's own, and Auto picks the first whose detect matches the output, so someone with their own rules for the same devices had the built-in set chosen over theirs. Tools → Options → Terminal has **Built-in highlighting rules**, ticked unless turned off (the `builtInRules` terminal preference). Unticked:
+
+- only the rule sets in the shared and the user's highlighting folders are offered and picked: in Options, Edit Session, folder settings, bulk edit and the terminal's own menu;
+- a set of the user's with a built-in's id still replaces it, and counts as theirs;
+- a set of theirs that includes a built-in one still gets its rules: the built-in sets go to the page marked `hidden`, which `web/shared/rules.js` compiles for includes but neither lists nor picks (`OutputHighlighting.MergeRuleSets`, `Offered`);
+- the themes stay;
+- open built-in terminal tabs are told at once (a new `ruleSets` message from `TerminalControl`): a tab on Auto picks again from the output already on screen and colours it again;
+- Highlighting rules in Options goes back to Auto if it named a set no longer offered.
+
+A session, folder or tab that names a built-in set colours nothing while they're off; saved sessions aren't rewritten. The Highlighted Output panel takes the setting when it next opens or reloads.
+
+**Checked:** unit tests (`SuperPuttyUnitTests/OutputHighlightingTests.cs`): all offered when on; hidden and not offered when off; a user's set with a built-in id offered as theirs. Page tests: an open tab on Auto coloured by Cisco loses its pick and colours when they're turned off and gets both back when turned on; a user's set including Generic still colours an address with them off (both fail without the change). **Not checked:** the Options box and the other drop-downs in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

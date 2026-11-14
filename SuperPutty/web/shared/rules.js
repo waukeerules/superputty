@@ -13,7 +13,9 @@
 
     /**
      * Compile rule sets. A set may "include" others (their rules come first); a bad regex is skipped and reported
-     * rather than stopping the others.
+     * rather than stopping the others. A set marked "hidden" (the built-in sets while they're turned off in Options >
+     * Terminal, OutputHighlighting.MergeRuleSets) can still be included, but isn't among the sets returned: it's not
+     * listed, picked or detected.
      * @returns {{sets: Array, problems: Array<string>}}
      */
     function compile(raw) {
@@ -48,7 +50,7 @@
             return result;
         }
 
-        var sets = (raw || []).filter(function (set) { return set && set.id; }).map(function (set) {
+        var sets = (raw || []).filter(function (set) { return set && set.id && !set.hidden; }).map(function (set) {
             return {
                 id: set.id,
                 name: set.name || set.id,

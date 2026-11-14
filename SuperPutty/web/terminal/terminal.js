@@ -11,7 +11,7 @@
  * a line is sent to TerminalControl ("log") once the cursor has left it, and the cursor's line is sent as "current",
  * so SPSL's WAITFOR can match a prompt before Enter is pressed.
  *
- * Messages from TerminalControl: config, data, notice, paste, focus, action, cursorColor. To it: ready, size, input,
+ * Messages from TerminalControl: config, data, notice, paste, focus, action, cursorColor, ruleSets. To it: ready, size, input,
  * ack, log, copy, pasteRequest (every paste, so TerminalControl can ask first; with "text" for one not from the
  * clipboard), document, bell, tab, openInPutty, openLink (a link Ctrl+clicked), pref, cleared (the screen was cleared
  * here, so the pseudo console's own copy of it is cleared too and a resize can't bring the text back).
@@ -1367,6 +1367,25 @@
         }
     }
 
+    /**
+     * The rule sets changed while the tab is open (the built-in ones turned off or on in Options > Terminal, as
+     * SuperXTerminal's a701db1): what's on screen is coloured again by the sets there are now. Auto picks again from the
+     * output already here, newest line first, rather than wait for the next line; a set chosen by name that has gone
+     * colours nothing. Rules skipped were said when the tab opened, and aren't said again.
+     */
+    function changeRuleSets(raw) {
+        ruleSets = SpRules.compile(raw || []).sets;
+        autoSet = null;
+        if (chosenRules() === 'auto') {
+            var buffer = term.buffer.active;
+            var lines = readLines(0, buffer.baseY + buffer.cursorY + 1);
+            for (var i = lines.length - 1; i >= 0 && !autoSet; i--) {
+                autoSet = SpRules.detect(ruleSets, lines[i]);
+            }
+        }
+        highlight(true);
+    }
+
     /** Show a message from SuperPuTTY in the terminal, on its own line, in red (errors) or cyan */
     function notice(text, kind) {
         var colour = kind === 'error' ? '1;31' : '36';
@@ -1400,6 +1419,8 @@
             case 'focus': term.focus(); break;
             case 'action': runAction(message.name); break;
             case 'cursorColor': cursorColor = message.color || null; setFrame(message.frame); applyTheme(); break;
+            // the built-in rule sets were turned off or on (Options > Terminal)
+            case 'ruleSets': changeRuleSets(message.ruleSets); break;
             case 'prefs': applyPrefs(message.prefs); break;
         }
     }
@@ -1600,7 +1621,10 @@
                 (find.current ? find.current.mark : []).forEach(function (m) { out.push(placeOf(m.decoration)); });
                 return out;
             },
-            findCount: function () { return document.getElementById('findCount').textContent; }
+            findCount: function () { return document.getElementById('findCount').textContent; },
+            // the rule sets the tab's menu offers, by id, and the one colouring the output now ('' for none)
+            ruleSetIds: function () { return ruleSets.map(function (set) { return set.id; }); },
+            currentRuleSet: function () { var set = currentSet(); return set ? set.id : ''; }
         };
         term.focus();
         post({ type: 'ready' });

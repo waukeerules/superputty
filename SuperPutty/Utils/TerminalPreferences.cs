@@ -28,7 +28,8 @@ namespace SuperPutty.Utils
         /// time stamps in the session log; "0" for none), renderer ("webgl", or "dom" for xterm.js's slower one) and
         /// wordSeparators (the characters a double-clicked word ends at besides a space, which always is one; xterm.js's
         /// own by default, "" for none but the space) and wrap ("false": lines aren't wrapped at the tab's width; the
-        /// terminal is 300 columns wide and the view pans along them)
+        /// terminal is 300 columns wide and the view pans along them) and builtInRules ("false": the highlighting rule
+        /// sets that come with SuperXPuTTY aren't offered or picked; OutputHighlighting.MergeRuleSets)
         /// </summary>
         public static readonly IReadOnlyDictionary<string, string> Defaults = new Dictionary<string, string>
         {
@@ -48,6 +49,7 @@ namespace SuperPutty.Utils
             { "renderer", "webgl" },
             { "wordSeparators", DefaultWordSeparators },
             { "wrap", "true" },
+            { "builtInRules", "true" },
         };
 
         /// <summary>
