@@ -252,9 +252,63 @@ namespace SuperPutty.Data
             get { return FilePath ?? System.IO.Path.Combine(SuperPuTTY.UserSettingsFolder, FileName); }
         }
 
-        /// <summary>Write the lists and tell the Sessions tree</summary>
+        /// <summary>How many <see cref="Batch"/> scopes are open; while any is, saves wait for the last to close</summary>
+        private static int batchDepth;
+
+        /// <summary>Whether a save was put off by an open <see cref="Batch"/></summary>
+        private static bool batchPending;
+
+        /// <summary>
+        /// Put off saving (this file and SessionOverrides.json) until the scope is disposed, then save each once if
+        /// anything changed. Used around moves and deletes of many sessions, where every session renamed or forgotten
+        /// would otherwise write the files again. Scopes nest.
+        /// </summary>
+        /// <returns>The scope; dispose it to save</returns>
+        public static IDisposable Batch()
+        {
+            batchDepth++;
+            IDisposable overrides = SessionOverrides.Batch();
+            return new BatchScope(() =>
+            {
+                overrides.Dispose();
+                if (--batchDepth == 0 && batchPending)
+                {
+                    batchPending = false;
+                    SaveAndNotify();
+                }
+            });
+        }
+
+        /// <summary>Runs an action once when disposed: the end of a <see cref="Batch"/></summary>
+        internal sealed class BatchScope : IDisposable
+        {
+            /// <summary>What to run; null once it has run</summary>
+            private Action end;
+
+            /// <summary>Create the scope</summary>
+            /// <param name="end">What to run when it's disposed</param>
+            public BatchScope(Action end)
+            {
+                this.end = end;
+            }
+
+            /// <summary>Run the action, the first time only</summary>
+            public void Dispose()
+            {
+                Action run = this.end;
+                this.end = null;
+                run?.Invoke();
+            }
+        }
+
+        /// <summary>Write the lists and tell the Sessions tree, or note that it's due when a <see cref="Batch"/> is open</summary>
         private static void SaveAndNotify()
         {
+            if (batchDepth > 0)
+            {
+                batchPending = true;
+                return;
+            }
             Save();
             Changed?.Invoke(null, EventArgs.Empty);
         }

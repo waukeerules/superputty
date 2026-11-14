@@ -2378,6 +2378,42 @@ They act on the entry's session (`SelectedSession`), not the node's Tag, which f
 
 **Checked:** it compiles. **Not checked in the running app.** Manual test: right-click a Recent entry and a Favorites entry; the menu has File transfer (pscp) below Connect, plus WinSCP and FileZilla if they're set in Options. Each opens the transfer for that session. Clear pscp's path in Options: the item is greyed.
 
+## Session performance with 10,000+ sessions
+
+SuperXTerminal was made fast with 10,000-session files; this brings the same work here. Measured with a test program that runs SuperXPuTTY's own code (a Debug build) on a 10,000-session Sessions.xml (100 sites x 4 folders x 25 sessions), in a settings folder of its own, on Windows 11.
+
+| | Before | After |
+|---|---|---|
+| Read Sessions.xml at start | 1.3 s | 0.15 s |
+| Import 10,000 sessions into a folder | 7.4 s | 0.35 s |
+| Search at 20,000 sessions | 550 ms | 90 ms |
+| Drag a folder of 100 sessions | 69 ms | 23 ms |
+| Move 50 folders (5,000 sessions) one by one | 3.7 s | 2.0 s |
+
+### Fix: a lookup by an ID that isn't there searched every session
+
+**Symptom:** importing thousands of sessions held the window for seconds (7.4 s for 10,000), and so did reading a large Sessions.xml.
+
+**Cause:** `SuperPuTTY.GetSessionById`, on an ID it didn't find, searched the whole session list, and rebuilt its index if it found it there: a workaround for the index going stale when a session's ID changed in the tree. Every new session checks that its ID is free, so adding n sessions cost n x n. The index was a `SortedList`, whose inserts shift the whole array, and every added session wrote a log line.
+
+**Fix:**
+- The index is a `Dictionary` and follows ID changes itself: `SuperPuTTY.TrackSessionId`, added to every session, moves its entry when its `SessionId` changes, so a lookup never searches the list. `GetAllSessions` still returns the sessions in ID order.
+- `SuperPuTTY.AddSessions` adds many at once: the Sessions tree hears one Reset instead of one change per session, and the log gets one line. `ImportSessions` uses it, finding free IDs from the index.
+- `SuperPuTTY.RemoveSessions` removes many at once, and `ReplaceDatabaseSessions` rebuilds the list instead of searching it once per session leaving.
+
+### Moving a folder of many sessions
+
+**Cause:** each session moved got its new ID, and the tree's change handler then took the session out of the session list and added it back, and looked its node up by ID three times; and Favorites, Recent and the local overrides were each written to disk once for every session in them.
+
+**Fix:**
+- The list keeps the session; only the index's key changes (above).
+- `SessionTreeview.UpdateSessionId`, which the move calls with the node in hand, sets the tooltip and passes the rename to Favorites and Recent itself, and `SessionPropertyChanged` stands aside while it does (`updatingSessionIds`).
+- `SessionShortcuts.Batch()` (with `SessionOverrides.Batch()`) puts off writing SessionShortcuts.json and SessionOverrides.json until the end of a move, Move to, Copy to, folder rename or remove, or delete, then writes each once. These operations are thin wrappers (`MoveNode`, `Transfer`, ...) round the work, now named `...Unbatched`.
+
+**What's left:** most of a folder move is now WinForms creating the tree's native items, about 0.3 ms each.
+
+**Checked** with the test program on both builds: after moving folders, every session is found by its own ID, the old ID is gone, a favourite inside a moved folder follows it, the tree finds the node by its new ID, and the saved Sessions.xml has 10,000 sessions with unique IDs including the moved ones. **Not checked in the running app.** Manual test: import a 10,000-session Sessions.xml (File > Import); drag a big folder into another; make a session in it a favourite first, and see that the favourite still opens.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

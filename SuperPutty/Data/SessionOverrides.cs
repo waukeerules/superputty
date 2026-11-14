@@ -196,9 +196,38 @@ namespace SuperPutty.Data
             get { return FilePath ?? System.IO.Path.Combine(SuperPuTTY.UserSettingsFolder, FileName); }
         }
 
-        /// <summary>Write the overrides and tell the Sessions tree</summary>
+        /// <summary>How many <see cref="Batch"/> scopes are open; while any is, saves wait for the last to close</summary>
+        private static int batchDepth;
+
+        /// <summary>Whether a save was put off by an open <see cref="Batch"/></summary>
+        private static bool batchPending;
+
+        /// <summary>
+        /// Put off saving until the scope is disposed, then save once if anything changed: a move of many sessions
+        /// renames each one's overrides. Opened by SessionShortcuts.Batch, which batches this file with its own. Scopes nest.
+        /// </summary>
+        /// <returns>The scope; dispose it to save</returns>
+        public static IDisposable Batch()
+        {
+            batchDepth++;
+            return new SessionShortcuts.BatchScope(() =>
+            {
+                if (--batchDepth == 0 && batchPending)
+                {
+                    batchPending = false;
+                    SaveAndNotify();
+                }
+            });
+        }
+
+        /// <summary>Write the overrides and tell the Sessions tree, or note that it's due when a <see cref="Batch"/> is open</summary>
         private static void SaveAndNotify()
         {
+            if (batchDepth > 0)
+            {
+                batchPending = true;
+                return;
+            }
             string path = Path;
             try
             {

@@ -76,8 +76,11 @@ namespace SuperPutty
         }
 
         private DockPanel m_DockPanel;
-        private bool isRenamingNode;
         TreeNode nodeRoot;
+
+        /// <summary>Set while <see cref="UpdateSessionId(TreeNode, SessionData)"/> gives a session its new ID, so
+        /// <see cref="SessionPropertyChanged"/> leaves the work to it</summary>
+        bool updatingSessionIds;
         ImageList imgIcons = new ImageList();
         Func<SessionData, bool> filter;
 
@@ -465,7 +468,8 @@ namespace SuperPutty
 
         public void SessionPropertyChanged(SessionData Session, String PropertyName)
         {
-            if (Session == null)
+            // UpdateSessionId does this handler's work itself while it renumbers a moved folder's sessions
+            if (Session == null || this.updatingSessionIds)
                 return;
 
             if (PropertyName == "Color")
@@ -528,16 +532,8 @@ namespace SuperPutty
                         return;
                 }
 
-                try
-                {
-                    this.isRenamingNode = true;
-                    SuperPuTTY.RemoveSession(Session.OldSessionId);
-                    SuperPuTTY.AddSession(Session);
-                }
-                finally
-                {
-                    this.isRenamingNode = false;
-                }
+                // SuperPuTTY's index follows the new ID by itself (TrackSessionId); taking each session out of the list
+                // and adding it back made moving a folder of thousands take seconds
                 // a renamed or moved favourite stays a favourite
                 SessionShortcuts.Rename(Session.OldSessionId, Session.SessionId);
                 this.MarkIndexDirty();
@@ -568,10 +564,6 @@ namespace SuperPutty
         void Sessions_ListChanged(object sender, ListChangedEventArgs e)
         {
             this.MarkIndexDirty();
-            if (isRenamingNode)
-            {
-                return;
-            }
             BindingList<SessionData> sessions = (BindingList<SessionData>) sender;
             if (e.ListChangedType == ListChangedType.ItemAdded)
             {
@@ -1059,7 +1051,21 @@ namespace SuperPutty
             }
         }
 
+        /// <summary>
+        /// Rename a session or folder (every session under a renamed folder gets a new ID), saving Favorites, Recent and the local overrides once at the end rather than once per
+        /// session renamed or forgotten (SessionShortcuts.Batch); the work is renameToolStripMenuItem_ClickUnbatched
+        /// </summary>
+        /// <param name="sender">The menu item</param>
+        /// <param name="e">Not used</param>
         private void renameToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (SessionShortcuts.Batch())
+            {
+                this.renameToolStripMenuItem_ClickUnbatched(sender, e);
+            }
+        }
+
+        private void renameToolStripMenuItem_ClickUnbatched(object sender, EventArgs e)
         {
             TreeNode node = this.treeView1.SelectedNode;
             if (node != null)
@@ -1129,7 +1135,21 @@ namespace SuperPutty
             }
         }
 
+        /// <summary>
+        /// Remove a folder and the sessions in it, saving Favorites, Recent and the local overrides once at the end rather than once per
+        /// session renamed or forgotten (SessionShortcuts.Batch); the work is removeFolderToolStripMenuItem_ClickUnbatched
+        /// </summary>
+        /// <param name="sender">The menu item</param>
+        /// <param name="e">Not used</param>
         private void removeFolderToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (SessionShortcuts.Batch())
+            {
+                this.removeFolderToolStripMenuItem_ClickUnbatched(sender, e);
+            }
+        }
+
+        private void removeFolderToolStripMenuItem_ClickUnbatched(object sender, EventArgs e)
         {
             TreeNode node = this.treeView1.SelectedNode;
             if (node != null)
@@ -1659,6 +1679,22 @@ namespace SuperPutty
         }
 
         /// <summary>
+        /// Copy or move a session or folder into another root, saving Favorites, Recent and the local overrides once at the end rather than once per
+        /// session renamed or forgotten (SessionShortcuts.Batch); the work is TransferUnbatched
+        /// </summary>
+        /// <param name="payload">The session or folder</param>
+        /// <param name="kind">The root to copy or move into</param>
+        /// <param name="targetFolder">The folder path there, "" for the top</param>
+        /// <param name="move">Remove the originals once copied</param>
+        void Transfer(TreeNode payload, RootKind kind, string targetFolder, bool move)
+        {
+            using (SessionShortcuts.Batch())
+            {
+                this.TransferUnbatched(payload, kind, targetFolder, move);
+            }
+        }
+
+        /// <summary>
         /// Copy or move a session, or a folder with everything under it, into a folder of another root, keeping the
         /// subfolders. Into Database sessions they're inserted as one batch; out of it they're added to Sessions.xml or
         /// PrivateSessions.xml, and for a move then deleted from the table as one batch. Sessions whose name is
@@ -1668,7 +1704,7 @@ namespace SuperPutty
         /// <param name="kind">The root to copy or move into</param>
         /// <param name="targetFolder">The folder path there, "" for the top</param>
         /// <param name="move">Remove the originals once copied</param>
-        void Transfer(TreeNode payload, RootKind kind, string targetFolder, bool move)
+        void TransferUnbatched(TreeNode payload, RootKind kind, string targetFolder, bool move)
         {
             this.FillSubtree(payload);
             List<SessionData> sessions = new List<SessionData>();
@@ -2595,11 +2631,24 @@ namespace SuperPutty
         }
 
         /// <summary>
+        /// Delete the selected sessions, saving Favorites, Recent and the local overrides once at the end rather than once per
+        /// session renamed or forgotten (SessionShortcuts.Batch); the work is DeleteSessionsUnbatched
+        /// </summary>
+        /// <param name="nodes">The session nodes</param>
+        void DeleteSessions(List<TreeNode> nodes)
+        {
+            using (SessionShortcuts.Batch())
+            {
+                this.DeleteSessionsUnbatched(nodes);
+            }
+        }
+
+        /// <summary>
         /// Delete several sessions after one question. Database sessions go to the table in one batch; those locked, or
         /// in a table that can't be written, are left and listed.
         /// </summary>
         /// <param name="nodes">The session nodes</param>
-        void DeleteSessions(List<TreeNode> nodes)
+        void DeleteSessionsUnbatched(List<TreeNode> nodes)
         {
             List<TreeNode> deletable = nodes.Where(n => !DatabaseLocked(n) && !((SessionData)n.Tag).DatabaseLocked).ToList();
             List<string> problems = nodes.Except(deletable).Select(n => ((SessionData)n.Tag).SessionName + ": locked in the database").ToList();
@@ -3150,11 +3199,24 @@ namespace SuperPutty
         }
 
         /// <summary>
+        /// Move a session or folder between Saved and Private sessions, saving Favorites, Recent and the local overrides once at the end rather than once per
+        /// session renamed or forgotten (SessionShortcuts.Batch); the work is MoveToOtherRootUnbatched
+        /// </summary>
+        /// <param name="node">The session or folder</param>
+        void MoveToOtherRoot(TreeNode node)
+        {
+            using (SessionShortcuts.Batch())
+            {
+                this.MoveToOtherRootUnbatched(node);
+            }
+        }
+
+        /// <summary>
         /// Move a session or folder between Saved sessions and Private sessions, into the same folder path, creating
         /// folders as needed; then save both files
         /// </summary>
         /// <param name="node">The session or folder</param>
-        void MoveToOtherRoot(TreeNode node)
+        void MoveToOtherRootUnbatched(TreeNode node)
         {
             if (node == null || node.Parent == null || IsQuickNode(node) || IsDatabaseNode(node))
                 return;
@@ -3177,13 +3239,28 @@ namespace SuperPutty
         }
 
         /// <summary>
+        /// Move a session or folder into another folder, saving Favorites, Recent and the local overrides once at the end rather than once per
+        /// session renamed or forgotten (SessionShortcuts.Batch); the work is MoveNodeUnbatched
+        /// </summary>
+        /// <param name="nodePayload">The session or folder</param>
+        /// <param name="target">The folder or root to move it into</param>
+        /// <returns>What the move returns: the moved node, or null if it didn't move</returns>
+        TreeNode MoveNode(TreeNode nodePayload, TreeNode target)
+        {
+            using (SessionShortcuts.Batch())
+            {
+                return this.MoveNodeUnbatched(nodePayload, target);
+            }
+        }
+
+        /// <summary>
         /// Move a session or folder node into a folder, in either root: its sessions get IDs for their new place,
         /// and become private or shared to match the root. Doesn't save.
         /// </summary>
         /// <param name="nodePayload">The session or folder to move</param>
         /// <param name="target">The folder or root to move it into</param>
         /// <returns>The node in its new place, or null if a session there would have the same ID as one elsewhere</returns>
-        TreeNode MoveNode(TreeNode nodePayload, TreeNode target)
+        TreeNode MoveNodeUnbatched(TreeNode nodePayload, TreeNode target)
         {
             // the move walks the nodes (copying them, giving sessions new IDs), so every level has to be there
             this.FillSubtree(nodePayload);
@@ -3519,11 +3596,24 @@ namespace SuperPutty
             }
             parentNodeNames.Reverse();
             String sessionId = String.Join(SessionIdDelim, parentNodeNames.ToArray());
-            //Log.InfoFormat("sessionId={0}", sessionId);
-            //session.SessionId = sessionId;
-            if (session != null) session.SessionId = sessionId;
-            //SuperPuTTY.SaveSessions();
-            //session.SaveToRegistry();
+            if (session == null || session.SessionId == sessionId)
+                return;
+            // the node is known here, so what SessionPropertyChanged would do for a new ID is done directly: it looks
+            // the node up by ID three times, which for a folder of thousands of sessions moved added up to seconds
+            string oldId = session.SessionId;
+            this.updatingSessionIds = true;
+            try
+            {
+                session.SessionId = sessionId;
+            }
+            finally
+            {
+                this.updatingSessionIds = false;
+            }
+            addedNode.ToolTipText = SessionToolTip(session);
+            // a renamed or moved favourite stays a favourite, and its local overrides follow it
+            SessionShortcuts.Rename(oldId, sessionId);
+            this.MarkIndexDirty();
         }
 
         /// <summary>The folder a session ID belongs in, under a root, creating folders that don't exist yet</summary>

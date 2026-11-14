@@ -34,7 +34,10 @@ namespace SuperPutty
         public static event Action<string> StatusEvent;
 
         static BindingList<LayoutData> layouts = new BindingList<LayoutData>();
-        static SortedList<string, SessionData> sessionsMap = new SortedList<string, SessionData>();
+        // a hash index rather than a SortedList: SortedList's inserts and removes shift the whole array, and with
+        // thousands of sessions an import or folder move did thousands of them. It follows SessionId changes itself
+        // (TrackSessionId), so a lookup never has to search the list
+        static readonly Dictionary<string, SessionData> sessionsMap = new Dictionary<string, SessionData>(StringComparer.Ordinal);
         static BindingList<SessionData> sessionsList = new BindingList<SessionData>();
         static bool? isFirstRun;
 
@@ -467,10 +470,55 @@ namespace SuperPutty
             {
                 sessionsMap.Remove(sessionId);
                 sessionsList.Remove(session);
+                session.OnPropertyChanged -= TrackSessionId;
                 Log.InfoFormat($"Removed Session, id={session}, success=true");
                 return true;
-            }            
+            }
             return false;
+        }
+
+        /// <summary>
+        /// Remove many sessions at once, e.g. a selection or folder being deleted: the list is rebuilt once instead of
+        /// searched once per session, and announced to the Sessions tree as one Reset rather than one change each.
+        /// Callers that remove the tree nodes themselves can pass <paramref name="announce"/> false.
+        /// </summary>
+        /// <param name="sessionIds">The sessions' IDs; ones not found are skipped</param>
+        /// <param name="announce">Raise a Reset on <see cref="Sessions"/> afterwards</param>
+        /// <returns>How many were removed</returns>
+        public static int RemoveSessions(IEnumerable<string> sessionIds, bool announce)
+        {
+            HashSet<SessionData> gone = new HashSet<SessionData>();
+            foreach (string id in sessionIds)
+            {
+                SessionData session = GetSessionById(id);
+                if (session != null && gone.Add(session))
+                {
+                    sessionsMap.Remove(id);
+                    session.OnPropertyChanged -= TrackSessionId;
+                }
+            }
+            if (gone.Count == 0)
+                return 0;
+            List<SessionData> kept = sessionsList.Where(s => !gone.Contains(s)).ToList();
+            sessionsList.RaiseListChangedEvents = false;
+            try
+            {
+                sessionsList.Clear();
+                foreach (SessionData session in kept)
+                {
+                    sessionsList.Add(session);
+                }
+            }
+            finally
+            {
+                sessionsList.RaiseListChangedEvents = true;
+            }
+            if (announce)
+            {
+                sessionsList.ResetBindings();
+            }
+            Log.InfoFormat($"Removed {gone.Count} sessions");
+            return gone.Count;
         }
 
         /// <summary>Get a Session by its <seealso cref="SessionData.SessionId"/></summary>
@@ -481,27 +529,37 @@ namespace SuperPutty
             SessionData session = null;
             if (sessionId != null)
             {
-                if (!sessionsMap.TryGetValue(sessionId, out session))
-                {
-                    // no hit by id...so try the list
-                    // @TODO: Revisit...this is a work around the sessionId changing in tree
-                    foreach (SessionData sd in sessionsList)
-                    {
-                        if (sd.SessionId == sessionId)
-                        {
-                            session = sd;
-                            // reindex list
-                            sessionsMap.Clear();
-                            foreach (SessionData s in sessionsList)
-                            {
-                                sessionsMap[s.SessionId] = s;
-                            }
-                            break;
-                        }
-                    }
-                }
+                // the index follows ID changes (TrackSessionId), so a miss means there's no such session; it used to
+                // search the whole list on every miss, which made adding thousands of new sessions take seconds
+                sessionsMap.TryGetValue(sessionId, out session);
             }
             return session;
+        }
+
+        /// <summary>
+        /// Keep the index in step when a session's ID changes (a rename or a move to another folder), so lookups by
+        /// the new ID find it without searching the list. Added to every session in <see cref="AddSession"/>. Only
+        /// the session indexed under its old ID moves: a clone made for editing has the same handler but isn't it.
+        /// </summary>
+        /// <param name="session">The session that changed</param>
+        /// <param name="propertyName">The property; only "SessionId" matters here</param>
+        private static void TrackSessionId(SessionData session, string propertyName)
+        {
+            SessionData indexed;
+            if (propertyName != "SessionId" || session.OldSessionId == null
+                || !sessionsMap.TryGetValue(session.OldSessionId, out indexed) || indexed != session)
+                return;
+            if (session.SessionId != null && sessionsMap.TryGetValue(session.SessionId, out indexed) && indexed != session)
+            {
+                // the callers check for a clash first; if one gets through, the session stays findable by its old ID
+                Log.WarnFormat($"Session {session.OldSessionId} renamed to {session.SessionId}, which is taken; left under its old ID");
+                return;
+            }
+            sessionsMap.Remove(session.OldSessionId);
+            if (session.SessionId != null)
+            {
+                sessionsMap[session.SessionId] = session;
+            }
         }
 
         /// <summary>Add a new session to the in-application session database</summary>
@@ -518,6 +576,8 @@ namespace SuperPutty
                     Log.InfoFormat($"Added Session, id={session.SessionId}");
                 }
                 sessionsMap.Add(session.SessionId, session);
+                session.OnPropertyChanged -= TrackSessionId;
+                session.OnPropertyChanged += TrackSessionId;
                 sessionsList.Add(session);
                 success = true;
             }
@@ -526,6 +586,35 @@ namespace SuperPutty
                 Log.InfoFormat($"Failed to Add Session, id={session.SessionId}.  Session already exists");
             }
             return success;
+        }
+
+        /// <summary>
+        /// Add many sessions at once (an import): the Sessions tree hears one Reset at the end instead of one change
+        /// per session, and the log gets one line, not one per session. Sessions whose ID is taken are skipped.
+        /// </summary>
+        /// <param name="sessions">The sessions</param>
+        /// <returns>How many were added</returns>
+        public static int AddSessions(IEnumerable<SessionData> sessions)
+        {
+            int added = 0;
+            bool wasLoading = loadingSessions;
+            loadingSessions = true;
+            sessionsList.RaiseListChangedEvents = false;
+            try
+            {
+                foreach (SessionData session in sessions)
+                {
+                    if (AddSession(session))
+                        added++;
+                }
+            }
+            finally
+            {
+                sessionsList.RaiseListChangedEvents = true;
+                loadingSessions = wasLoading;
+            }
+            sessionsList.ResetBindings();
+            return added;
         }
 
         /// <summary>True while <see cref="LoadSessions"/> adds the sessions it read, so they aren't logged one by one</summary>
@@ -545,16 +634,32 @@ namespace SuperPutty
             sessionsList.RaiseListChangedEvents = false;
             try
             {
-                foreach (SessionData old in sessionsList.Where(s => s.IsDatabase).ToList())
+                // the list is rebuilt rather than searched once for each session leaving it
+                List<SessionData> kept = new List<SessionData>();
+                foreach (SessionData old in sessionsList)
                 {
-                    sessionsMap.Remove(old.SessionId);
-                    sessionsList.Remove(old);
+                    if (old.IsDatabase)
+                    {
+                        sessionsMap.Remove(old.SessionId);
+                        old.OnPropertyChanged -= TrackSessionId;
+                    }
+                    else
+                    {
+                        kept.Add(old);
+                    }
+                }
+                sessionsList.Clear();
+                foreach (SessionData session in kept)
+                {
+                    sessionsList.Add(session);
                 }
                 foreach (SessionData session in sessions)
                 {
                     if (session.SessionId != null && !sessionsMap.ContainsKey(session.SessionId))
                     {
                         sessionsMap.Add(session.SessionId, session);
+                        session.OnPropertyChanged -= TrackSessionId;
+                        session.OnPropertyChanged += TrackSessionId;
                         sessionsList.Add(session);
                     }
                 }
@@ -570,7 +675,10 @@ namespace SuperPutty
         /// <returns>A List of <seealso cref="SessionData"/> objects</returns>
         public static List<SessionData> GetAllSessions()
         {
-            return sessionsMap.Values.ToList();
+            // in ID order, as the SortedList the index used to be gave them
+            List<SessionData> all = sessionsMap.Values.ToList();
+            all.Sort((a, b) => Comparer<string>.Default.Compare(a.SessionId, b.SessionId));
+            return all;
         }
 
         /// <summary>Retrieve a <seealso cref="SessionData"/> object and open a new putty window</summary>
@@ -862,17 +970,27 @@ namespace SuperPutty
         /// <param name="folder">The destination folder name</param>
         public static void ImportSessions(List<SessionData> sessions, string folder)
         {
+            // the IDs taken so far by this import too, since the sessions are added together at the end
+            HashSet<string> taken = new HashSet<string>(StringComparer.Ordinal);
             foreach (SessionData session in sessions)
             {
                 // pre-pend session id with the provided folder to put them; the ID ends in the file's SessionName, so a
                 // name like "sw1 - C9300 - 10.10.10.10" whose ID is "sw1" keeps the whole name
                 string name = SessionData.NameForNewId(session);
-                session.SessionId = MakeUniqueSessionId(SessionData.CombineSessionIds(folder, SessionData.CombineSessionIds(SessionData.GetSessionParentId(session.SessionId), name)));
+                string wanted = SessionData.CombineSessionIds(folder, SessionData.CombineSessionIds(SessionData.GetSessionParentId(session.SessionId), name));
+                string id = wanted;
+                for (int i = 1; i < 1000 && (taken.Contains(id) || GetSessionById(id) != null); i++)
+                {
+                    id = string.Format("{0}-{1}", wanted, i);
+                }
+                taken.Add(id);
+                session.SessionId = id;
                 session.SessionName = SessionData.GetSessionNameFromId(session.SessionId);
                 // with Saved sessions turned off they'd be lost; Private sessions keep them
                 session.IsPrivate = session.IsPrivate || !Settings.UseSessionsXml;
-                AddSession(session);
             }
+            // one Reset for the tree and one log line, not one each per session
+            AddSessions(sessions);
             Log.InfoFormat($"Imported {sessions.Count} sessions into {folder}");
 
             SaveSessions();
