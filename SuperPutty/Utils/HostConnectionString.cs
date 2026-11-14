@@ -34,8 +34,25 @@ namespace SuperPutty.Utils
 
             // Firefox addes a '/'...
             hostPort = hostPort.TrimEnd('/');
+            // "user@host": its own login, as quick connect's list of hosts takes it (QuickHosts)
+            int at = hostPort.LastIndexOf('@');
+            if (at > 0)
+            {
+                User = hostPort.Substring(0, at);
+                hostPort = hostPort.Substring(at + 1);
+            }
             int idxPort = hostPort.IndexOf(":");
-            if (idxPort != -1)
+            if (hostPort.StartsWith("[") && hostPort.IndexOf(']') > 0)
+            {
+                // "[fe80::1]:22": an IPv6 address in brackets, whose colons aren't a port's
+                int close = hostPort.IndexOf(']');
+                Host = hostPort.Substring(1, close - 1);
+                if (hostPort.Length > close + 2 && hostPort[close + 1] == ':' && int.TryParse(hostPort.Substring(close + 2), out int v6Port))
+                {
+                    Port = v6Port;
+                }
+            }
+            else if (idxPort != -1)
             {
                 // localhost:2020
                 if (int.TryParse(hostPort.Substring(idxPort + 1), out int port))
@@ -85,6 +102,9 @@ namespace SuperPutty.Utils
 
         public ConnectionProtocol? Protocol { get; set; }
         public string Host { get; set; }
+
+        /// <summary>The login given before the host ("admin@10.0.0.7"); null when none was</summary>
+        public string User { get; set; }
         public int? Port { get; set; }
     }
 }
