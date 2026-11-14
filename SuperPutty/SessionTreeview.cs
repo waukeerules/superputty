@@ -4856,6 +4856,8 @@ namespace SuperPutty
                 case Keys.Enter:
                     if (SuperPuTTY.Settings.FilterSessionsOnChange)
                     {
+                        // a search still waiting for typing to pause runs now
+                        this.RunPendingSearch();
                         treeView1.Focus();
                     }
                     else
@@ -4891,6 +4893,9 @@ namespace SuperPutty
         private void ApplySearch(string txt)
         {
             Log.InfoFormat("Applying Search: txt={0}.", txt);
+            // a search run some other way (Enter, the search button, a toggle) makes the one waiting on typing unneeded
+            this.searchTypingTimer?.Stop();
+            this.lastSearch = txt;
 
             // define filter
             SearchFilter searchFilter = new SearchFilter(SuperPuTTY.Settings.SessionsSearchMode, txt, GetSearchFieldsSetting());
@@ -5184,9 +5189,45 @@ namespace SuperPutty
             ExternalApplications.openFileZilla(session); 
         }
 
+        /// <summary>How long the search box waits after the last keystroke before searching, in milliseconds</summary>
+        const int SearchTypingDelay = 250;
+
+        /// <summary>Runs the search once typing pauses (<see cref="SearchTypingDelay"/>); made on first use</summary>
+        Timer searchTypingTimer;
+
+        /// <summary>The text last searched for, so the same search isn't run twice (e.g. the delayed one after Enter)</summary>
+        string lastSearch;
+
+        /// <summary>
+        /// Filter as you type (Options: filter while typing), once typing pauses rather than at every keystroke: each
+        /// search builds the tree again, which with thousands of sessions made typing lag. Emptying the box shows
+        /// everything at once, without the wait.
+        /// </summary>
+        /// <param name="sender">The search box</param>
+        /// <param name="e">Not used</param>
         private void txtSearch_TextChanged(object sender, EventArgs e)
         {
-            if (SuperPuTTY.Settings.FilterSessionsOnChange)
+            if (!SuperPuTTY.Settings.FilterSessionsOnChange)
+                return;
+            if (this.searchTypingTimer == null)
+            {
+                this.searchTypingTimer = new Timer { Interval = SearchTypingDelay };
+                this.searchTypingTimer.Tick += (s, a) => this.RunPendingSearch();
+            }
+            this.searchTypingTimer.Stop();
+            if (string.IsNullOrEmpty(this.txtSearch.Text))
+            {
+                this.RunPendingSearch();
+                return;
+            }
+            this.searchTypingTimer.Start();
+        }
+
+        /// <summary>Run the search the box is waiting to run now (typing paused, Enter, or the box emptied), if it's new</summary>
+        void RunPendingSearch()
+        {
+            this.searchTypingTimer?.Stop();
+            if (this.txtSearch.Text != this.lastSearch)
             {
                 this.ApplySearch(this.txtSearch.Text);
             }

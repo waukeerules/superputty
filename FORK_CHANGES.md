@@ -2467,6 +2467,7 @@ The search mode and fields were only in Tools > Options. Now, as in SuperXTermin
 - **Default fields:** session name, folder, host, username and notes, as SuperXTerminal's (`DefaultSearchFields`; the setting's default was All). A user who chose fields keeps them.
 - **A bad regular expression matches nothing** and the box turns reddish, its tooltip saying why ("Not a regular expression: ..."). It used to show every session.
 - Each toggle is saved at once and searches again.
+- **Filter while typing waits for a pause** (250 ms after the last keystroke, `SearchTypingDelay`). Every search builds the tree again, so with thousands of sessions searching at every keystroke made typing lag; typing "core-sw-001" quickly now runs one search instead of eleven. Emptying the box, Enter and the search button act at once, and the same text isn't searched twice. SuperXTerminal searches at every keystroke, as its tree is fast enough.
 
 **Checked** with the test program on the 10,000-session file: "CORE-SW-001" finds 25 ignoring case and none matching case; "^CORE-sw-00[12]" as a regex finds 50 ignoring case and none matching case; "([" finds none and gives the reason; the Icon field finds sessions by icon; the bar was rendered with the toggles in order. **Not checked in the running app:** the look in the light and dark themes, and Search in...'s list. Manual test: type "core", click Aa, .* and each field in Search in..., and see the tree follow; type "([" with .* on; check both themes.
 
