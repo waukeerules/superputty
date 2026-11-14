@@ -19,7 +19,7 @@ namespace SuperPutty.Utils
 
         /// <summary>
         /// The preferences and their defaults: ruleSet ("auto", "none" or a rule set's id), theme (a theme's name;
-        /// empty for PuTTY's), fontFamily (empty for the theme's, "profile" for the PuTTY profile's, or a font's name),
+        /// empty for PuTTY's; "@look" for Light or Dark as SuperXPuTTY's own theme is), fontFamily (empty for the theme's, "profile" for the PuTTY profile's, or a font's name),
         /// fontSize (in pixels; "0" for the theme's or profile's), cursorShape and cursorBlink and bell ("profile" for the
         /// PuTTY profile's, or block/underline/bar, on/off, visual/sound/none), copyOnSelect and markMatches ("true" or
         /// "false"), pasteLines (show a paste of this many lines or more to check before it's typed; "0" never does),

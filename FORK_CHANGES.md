@@ -2651,6 +2651,12 @@ As SuperXTerminal (its e2422fe, 0792983): Tools → Options → Terminal → **C
 
 **Checked:** unit test of the colour format and the defaults. Page tests: own colours replace the PuTTY theme's for the background, text, selection and cursor, and a light background turns the menu light; an environment colour beats the own cursor colour, and an empty one goes back to the theme's. The Options panel rendered in a test program: the row fits on one line. **Not checked:** the colour picker and the dark theme's look of the row in the running app.
 
+## Built-in terminal: a theme that follows SuperXPuTTY's look
+
+As SuperXTerminal (its 6fc09e7): a terminal theme choice that follows the app, the Light theme while SuperXPuTTY is light (Light or Classic) and Dark while it's dark (Dark or Dark Blue). It's in Tools → Options → Terminal → Theme ("Follow SuperXPuTTY's look") and the terminal's own menu (Theme → Follow SuperXPuTTY's Look), stored as `@look`, which no theme file can be named. SuperXPuTTY's own theme changes after a restart, so the page learns it when the tab opens (`config`'s `dark`); SuperXTerminal's live "look" message isn't needed.
+
+**Checked:** page tests: with `@look`, a dark app draws the Dark theme and a light one the Light theme with the light menu; the theme menu offers it, ticked. **Not checked:** in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

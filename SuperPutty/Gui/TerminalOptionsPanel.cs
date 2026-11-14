@@ -280,7 +280,7 @@ namespace SuperPutty.Gui
 
             this.builtInRules.Checked = prefs["builtInRules"] != "false";
             this.FillRuleSets(prefs["ruleSet"]);
-            Fill(this.theme, new[] { C("PuTTY (default)", "") }
+            Fill(this.theme, new[] { C("PuTTY (default)", ""), C("Follow SuperXPuTTY's look (Light or Dark)", "@look") }
                 .Concat(themes.Select(t => (string)t["name"]).Where(n => n != "PuTTY").Select(n => C(n, n))), prefs["theme"]);
             Fill(this.fontFamily, new[] { C("From the theme", ""), C("From the PuTTY profile", "profile") }
                 .Concat(TerminalControl.MonospaceFonts().Select(f => C(f, f))), prefs["fontFamily"]);

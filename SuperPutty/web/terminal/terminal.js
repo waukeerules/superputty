@@ -908,9 +908,11 @@
                 return { label: set.name, checked: tabRules === set.id, action: function () { chooseRules(set.id); } };
             }))
             .concat([{ label: 'None', checked: tabRules === 'none', action: function () { chooseRules('none'); } }]);
-        var themeItems = themes.map(function (t) {
-            return { label: t.name, checked: theme && theme.name === t.name, action: function () { savePref('theme', t.name); applyTheme(); } };
-        });
+        var following = loadPref('theme') === FOLLOW_LOOK;
+        var themeItems = [{ label: "Follow SuperXPuTTY's Look", checked: following, action: function () { savePref('theme', FOLLOW_LOOK); applyTheme(); } }, '-']
+            .concat(themes.map(function (t) {
+                return { label: t.name, checked: !following && theme && theme.name === t.name, action: function () { savePref('theme', t.name); applyTheme(); } };
+            }));
         var chosenFamily = loadPref('fontFamily') || '';
         var setFamily = function (value) { return function () { savePref('fontFamily', value); applyFont(); }; };
         var fontItems = [
@@ -1099,6 +1101,8 @@
     /** Apply the chosen theme (PuTTY's colours by default): terminal colours, font and the highlighting colours */
     function applyTheme() {
         var wanted = loadPref('theme');
+        // Follow SuperXPuTTY's Look (as SuperXTerminal's "@look", its 6fc09e7): the Light or Dark theme as the app is
+        if (wanted === FOLLOW_LOOK) { wanted = darkDefault ? 'Dark' : 'Light'; }
         theme = themes.filter(function (t) { return t.name === wanted; })[0]
             || themes.filter(function (t) { return t.name === 'PuTTY'; })[0]
             || themes.filter(function (t) { return (t.base === 'vs-dark') === darkDefault; })[0]
@@ -1125,6 +1129,9 @@
         window.setTimeout(fit, 0);
         highlight(true);
     }
+
+    /** The theme preference that follows SuperXPuTTY's light or dark look (a theme file can't be named so) */
+    var FOLLOW_LOOK = '@look';
 
     /**
      * The theme's colours with the user's own background, text, selection and cursor colours over them (Options >
