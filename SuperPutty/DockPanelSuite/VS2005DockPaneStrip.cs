@@ -693,6 +693,9 @@ namespace SuperPutty.DockPanelSuite
             }
 
             DrawTabStrip(e.Graphics);
+            // SuperPuTTY: the tab icons, environment colours, state dots and pulse, drawn in this same buffered paint
+            // so they never flash (they used to be drawn on the screen after it)
+            SuperPutty.Gui.TabIcons.PaintOver(this, e.Graphics);
         }
 
         protected override void OnRefreshChanges()
