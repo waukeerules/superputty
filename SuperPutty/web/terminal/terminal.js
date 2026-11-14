@@ -1113,8 +1113,9 @@
                 return { label: set.name, checked: tabRules === set.id, action: function () { chooseRules(set.id); } };
             }))
             .concat([{ label: 'None', checked: tabRules === 'none', action: function () { chooseRules('none'); } }]);
-        var following = loadPref('theme') === FOLLOW_LOOK;
-        var themeItems = [{ label: "Follow SuperXPuTTY's Look", checked: following, action: function () { savePref('theme', FOLLOW_LOOK); applyTheme(); } }, '-']
+        var following = loadPref('theme') === FOLLOW_LOOK || loadPref('theme') === FROM_PROFILE;
+        var themeItems = [{ label: "Follow SuperXPuTTY's Look", checked: loadPref('theme') === FOLLOW_LOOK, action: function () { savePref('theme', FOLLOW_LOOK); applyTheme(); } },
+            { label: 'From the PuTTY Profile', checked: loadPref('theme') === FROM_PROFILE, action: function () { savePref('theme', FROM_PROFILE); applyTheme(); } }, '-']
             .concat(themes.map(function (t) {
                 return { label: t.name, checked: !following && theme && theme.name === t.name, action: function () { savePref('theme', t.name); applyTheme(); } };
             }));
@@ -1309,12 +1310,15 @@
         var wanted = loadPref('theme');
         // Follow SuperXPuTTY's Look (as SuperXTerminal's "@look", its 6fc09e7): the Light or Dark theme as the app is
         if (wanted === FOLLOW_LOOK) { wanted = darkDefault ? 'Dark' : 'Light'; }
+        // From the PuTTY Profile: the PuTTY theme with the profile's own colours (Window > Colours) over it
+        var fromProfile = wanted === FROM_PROFILE;
+        if (fromProfile) { wanted = 'PuTTY'; }
         theme = themes.filter(function (t) { return t.name === wanted; })[0]
             || themes.filter(function (t) { return t.name === 'PuTTY'; })[0]
             || themes.filter(function (t) { return (t.base === 'vs-dark') === darkDefault; })[0]
             || themes[0] || null;
         if (!theme) { return; }
-        var colors = ownColours(theme.colors || {});
+        var colors = ownColours(fromProfile ? profileColours(theme.colors || {}) : theme.colors || {});
         var names = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white',
             'brightBlack', 'brightRed', 'brightGreen', 'brightYellow', 'brightBlue', 'brightMagenta', 'brightCyan', 'brightWhite'];
         var xtermTheme = {
@@ -1322,7 +1326,7 @@
             foreground: colors.foreground,
             // the session's environment colour (red for production) when it has one, as on its tab
             cursor: cursorColor || colors.cursor || colors.foreground,
-            cursorAccent: colors.background,
+            cursorAccent: colors.cursorAccent || colors.background,
             selectionBackground: colors.selection
         };
         (colors.ansi || []).slice(0, 16).forEach(function (c, i) { xtermTheme[names[i]] = c; });
@@ -1339,6 +1343,26 @@
 
     /** The theme preference that follows SuperXPuTTY's light or dark look (a theme file can't be named so) */
     var FOLLOW_LOOK = '@look';
+
+    /** The theme preference that takes the session's PuTTY profile's colours (Window > Colours) */
+    var FROM_PROFILE = '@profile';
+
+    /** The session's PuTTY profile's colours, from TerminalControl's config; null when the profile has none */
+    var colorsFromProfile = null;
+
+    /** The theme's colours with the PuTTY profile's over them: text, background, cursor and the 16 ANSI colours */
+    function profileColours(colors) {
+        var own = {};
+        Object.keys(colors).forEach(function (k) { own[k] = colors[k]; });
+        if (!colorsFromProfile) { return own; }
+        ['foreground', 'background', 'cursor', 'cursorAccent'].forEach(function (k) {
+            if (colorsFromProfile[k]) { own[k] = colorsFromProfile[k]; }
+        });
+        var ansi = (colors.ansi || []).slice();
+        (colorsFromProfile.ansi || []).forEach(function (c, i) { if (c) { ansi[i] = c; } });
+        own.ansi = ansi;
+        return own;
+    }
 
     /**
      * The theme's colours with the user's own background, text, selection and cursor colours over them (Options >
@@ -1578,6 +1602,7 @@
         darkDefault = !!config.dark;
         prefs = config.prefs || {};
         if (config.profileFont) { profileFont = config.profileFont; }
+        colorsFromProfile = config.profileColours || null;
         installedFonts = config.fonts || [];
         bellFromProfile = config.bell || 'visual';
         if (config.bellOverload) { bellOverload = config.bellOverload; }

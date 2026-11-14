@@ -2694,6 +2694,14 @@ As SuperXTerminal (its f7c0902): a built-in terminal tab going through a jump ho
 
 **Checked:** unit tests (`SuperPuttyUnitTests/JumpHostNoticeTests.cs`): user@host as given, a session's name with its address and port, no user. In a test program, a built-in terminal tab through a jump host: its log starts with the line. **Not checked:** a jump host from a folder or an override in the running app.
 
+## Built-in terminal: colours from the PuTTY profile
+
+SuperXTerminal's profiles have their own terminal colours (its 0d81eaf, 760b6f2), so production sessions can share a red background through their profile. SuperXPuTTY's built-in terminal uses PuTTY profiles, which already have colours (Window → Colours), so the theme can now be **From the PuTTY profile** (Tools → Options → Terminal → Theme, and the terminal's Theme menu; stored as `@profile`): the PuTTY theme with the session's profile's text, background, cursor and 16 ANSI colours over it. PuTTY saves 22 colours as "R,G,B" (`Colour0` text, `Colour2` background, `Colour4`/`Colour5` the cursor's text and colour, then each ANSI colour and its bold one from `Colour6` to `Colour21`); one not set is the PuTTY theme's. Your own colours (Options → Terminal → Colours) still go over them, and a session's environment colour over the cursor.
+
+- **Code:** `TerminalControl.ColoursFromProfile` / `ParseProfileColours` (sent in `config` as `profileColours`), `profileColours` in `web/terminal/terminal.js`.
+
+**Checked:** unit tests (`SuperPuttyUnitTests/ProfileColoursTests.cs`): PuTTY's values read into text, background, cursor and the ANSI colours in xterm.js's order; none or unreadable values give none. The registry's format on this computer (`Colour0=187,187,187`) matches. Page tests: the profile's colours over the PuTTY theme, one not set from the theme; own colours still win; the menu offers it. **Not checked:** in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
