@@ -2384,11 +2384,15 @@ SuperXTerminal was made fast with 10,000-session files; this brings the same wor
 
 | | Before | After |
 |---|---|---|
-| Read Sessions.xml at start | 1.3 s | 0.15 s |
-| Import 10,000 sessions into a folder | 7.4 s | 0.35 s |
-| Search at 20,000 sessions | 550 ms | 90 ms |
-| Drag a folder of 100 sessions | 69 ms | 23 ms |
+| Read Sessions.xml at start | 1.3 s | 0.15-0.24 s |
+| Import 10,000 sessions into a folder | 7.4 s | 0.35-0.47 s |
+| Search at 20,000 sessions | 550 ms | 50-90 ms |
+| Drag a folder of 100 sessions | 69 ms | 22 ms |
 | Move 50 folders (5,000 sessions) one by one | 3.7 s | 2.0 s |
+| Move 100 folders (10,000 sessions) selected together | one at a time only | 1.2 s, one save |
+| Collapse all, with everything open | 395 ms | 140 ms |
+
+The sections below say what each change is. Each is its own commit, so they can be offered upstream one at a time.
 
 ### Fix: a lookup by an ID that isn't there searched every session
 
