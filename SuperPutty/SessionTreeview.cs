@@ -214,6 +214,7 @@ namespace SuperPutty
             this.AddOverridesMenuItem();
             SessionOverrides.Changed += this.SessionOverrides_Changed;
             this.BuildToolbar();
+            this.BuildSearchToggles();
             this.ApplySettings();
 
             // populate sessions in the treeview from the registry
@@ -371,8 +372,273 @@ namespace SuperPutty
             this.panelSearch.Height = height + this.panelSearch.Padding.Vertical;
             this.ApplyToolbarIcons();
             this.txtSearch.Location = new Point(0, this.panelSearch.Padding.Top);
-            this.txtSearch.Width = this.panelSearch.ClientSize.Width - this.btnSearch.Width - this.btnClear.Width - this.panelSearch.Padding.Right - 1;
+            this.SizeSearchToggles(height);
+            this.txtSearch.Width = this.panelSearch.ClientSize.Width - this.btnSearch.Width - this.btnClear.Width
+                - this.SearchToggleButtons().Sum(b => b.Width) - this.panelSearch.Padding.Right - 1;
         }
+
+        /// <summary>The search bar's Aa (match case) toggle</summary>
+        Button btnMatchCase;
+
+        /// <summary>The search bar's .* (regular expression) toggle</summary>
+        Button btnRegex;
+
+        /// <summary>The search bar's Search in... button, showing how the fields differ from the defaults ("+2")</summary>
+        Button btnSearchIn;
+
+        /// <summary>Search in...'s list of fields, under its button</summary>
+        ContextMenuStrip searchInMenu;
+
+        /// <summary>The search box's own tooltip, saying why a regular expression doesn't work</summary>
+        ToolTip searchToolTip;
+
+        /// <summary>The three toggles, in the order they sit right of the search box</summary>
+        /// <returns>Aa, .* and Search in...</returns>
+        IEnumerable<Button> SearchToggleButtons()
+        {
+            return new[] { this.btnMatchCase, this.btnRegex, this.btnSearchIn }.Where(b => b != null);
+        }
+
+        /// <summary>
+        /// Put Aa, .* and Search in... between the search box and its search and clear buttons, as SuperXTerminal's
+        /// search bar has them: match case and a regular expression toggled with a click, and the fields searched
+        /// ticked in a list, with All fields and Defaults. They change Settings.SessionsSearchMode and
+        /// SessionsSearchFields (also in Tools > Options), are saved at once and search again.
+        /// </summary>
+        void BuildSearchToggles()
+        {
+            this.searchToolTip = new ToolTip();
+            Func<string, string, Button> toggle = (text, tip) =>
+            {
+                Button button = new Button
+                {
+                    Text = text,
+                    Dock = DockStyle.Right,
+                    FlatStyle = FlatStyle.Flat,
+                    Margin = new Padding(0),
+                    TabStop = false,
+                    UseVisualStyleBackColor = false
+                };
+                button.FlatAppearance.BorderSize = 0;
+                this.searchToolTip.SetToolTip(button, tip);
+                return button;
+            };
+            this.btnMatchCase = toggle("Aa", "Match case");
+            this.btnRegex = toggle(".*", "Regular expression");
+            this.btnSearchIn = toggle("\u22EF", "Search in");
+            this.btnMatchCase.Click += (s, e) => this.SetSearchMode(!this.SearchMatchCase(), this.SearchIsRegex());
+            this.btnRegex.Click += (s, e) => this.SetSearchMode(this.SearchMatchCase(), !this.SearchIsRegex());
+            this.btnSearchIn.Click += (s, e) => this.ShowSearchIn();
+            // docked right: the front-most control is docked last, so it sits innermost, beside the search box;
+            // the toggles go between the box and its clear and search buttons, Aa first
+            this.panelSearch.Controls.Add(this.btnSearchIn);
+            this.panelSearch.Controls.Add(this.btnRegex);
+            this.panelSearch.Controls.Add(this.btnMatchCase);
+            this.btnSearchIn.BringToFront();
+            this.btnRegex.BringToFront();
+            this.btnMatchCase.BringToFront();
+            this.ShowSearchToggles();
+        }
+
+        /// <summary>Size the toggles to the search box's height, and their font to the box's</summary>
+        /// <param name="height">The search box's height</param>
+        void SizeSearchToggles(int height)
+        {
+            foreach (Button button in this.SearchToggleButtons())
+            {
+                button.Font = new Font("Segoe UI", Math.Max(7f, IconLibrary.TabFontSize - 1f), button == this.btnMatchCase ? FontStyle.Regular : FontStyle.Bold);
+                button.AutoSize = false;
+                int width = TextRenderer.MeasureText(button.Text, button.Font).Width + 6;
+                button.Size = new Size(Math.Max(height, width), height);
+            }
+        }
+
+        /// <summary>Aa is on: the search matches case</summary>
+        /// <returns>true when it does</returns>
+        bool SearchMatchCase()
+        {
+            SearchMode mode = SearchModeSetting();
+            return mode == SearchMode.CaseSensitive || mode == SearchMode.Regex;
+        }
+
+        /// <summary>.* is on: the search text is a regular expression</summary>
+        /// <returns>true when it is</returns>
+        bool SearchIsRegex()
+        {
+            SearchMode mode = SearchModeSetting();
+            return mode == SearchMode.Regex || mode == SearchMode.RegexIgnoreCase;
+        }
+
+        /// <summary>Set Aa and .*, save it, and search again with them</summary>
+        /// <param name="matchCase">Match case</param>
+        /// <param name="regex">A regular expression</param>
+        void SetSearchMode(bool matchCase, bool regex)
+        {
+            SuperPuTTY.Settings.SessionsSearchMode = ModeFor(matchCase, regex).ToString();
+            SuperPuTTY.Settings.Save();
+            this.SearchAgain();
+        }
+
+        /// <summary>Set the fields searched, save them, and search again</summary>
+        /// <param name="fields">The fields; the last one ticked stays, so the search always looks somewhere</param>
+        void SetSearchFields(SearchFields fields)
+        {
+            if (fields == SearchFields.None)
+                return;
+            SuperPuTTY.Settings.SessionsSearchFields = fields.ToString();
+            SuperPuTTY.Settings.Save();
+            this.SearchAgain();
+        }
+
+        /// <summary>Show the toggles as set and, when there's text, search again with them</summary>
+        void SearchAgain()
+        {
+            this.ShowSearchToggles();
+            if (!string.IsNullOrEmpty(this.txtSearch.Text))
+            {
+                this.ApplySearch(this.txtSearch.Text);
+            }
+        }
+
+        /// <summary>
+        /// Colour the toggles that are on (as SuperXTerminal's pressed buttons), label Search in... with how the fields
+        /// differ from the defaults, "+2", "-1" or nothing, and give it the fields as its tooltip
+        /// </summary>
+        void ShowSearchToggles()
+        {
+            if (this.btnMatchCase == null)
+                return;
+            SearchFields fields = GetSearchFieldsSetting();
+            int added = SearchFieldLabels.Count(f => fields.HasFlag(f.Key) && !DefaultSearchFields.HasFlag(f.Key));
+            int dropped = SearchFieldLabels.Count(f => !fields.HasFlag(f.Key) && DefaultSearchFields.HasFlag(f.Key));
+            string badge = string.Join(" ", new[] { added > 0 ? "+" + added : null, dropped > 0 ? "-" + dropped : null }.Where(x => x != null));
+            this.btnSearchIn.Text = "\u22EF" + (badge.Length > 0 ? " " + badge : string.Empty);
+            this.searchToolTip.SetToolTip(this.btnSearchIn, "Search in: " + string.Join(", ", SearchFieldLabels.Where(f => fields.HasFlag(f.Key)).Select(f => f.Value)));
+            bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
+            Color on = dark ? Color.FromArgb(0x26, 0x4F, 0x78) : Color.FromArgb(0xCC, 0xE4, 0xF7);
+            foreach (KeyValuePair<Button, bool> button in new[]
+            {
+                new KeyValuePair<Button, bool>(this.btnMatchCase, this.SearchMatchCase()),
+                new KeyValuePair<Button, bool>(this.btnRegex, this.SearchIsRegex()),
+                new KeyValuePair<Button, bool>(this.btnSearchIn, badge.Length > 0)
+            })
+            {
+                button.Key.BackColor = button.Value ? on : this.txtSearch.BackColor;
+                button.Key.ForeColor = this.txtSearch.ForeColor;
+                button.Key.FlatAppearance.MouseOverBackColor = on;
+            }
+            if (this.txtSearch.Height > 0)
+            {
+                this.SizeSearchToggles(this.txtSearch.Height);
+                this.txtSearch.Width = this.panelSearch.ClientSize.Width - this.btnSearch.Width - this.btnClear.Width
+                    - this.SearchToggleButtons().Sum(b => b.Width) - this.panelSearch.Padding.Right - 1;
+            }
+        }
+
+        /// <summary>
+        /// Open Search in...: "Search in", a box for each field (the last one ticked can't be unticked), then All fields
+        /// and Defaults. The list stays open while boxes are ticked.
+        /// </summary>
+        void ShowSearchIn()
+        {
+            if (this.searchInMenu == null)
+            {
+                this.searchInMenu = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = true };
+                // ticking a box doesn't close the list
+                this.searchInMenu.Closing += (s, e) => e.Cancel = e.CloseReason == ToolStripDropDownCloseReason.ItemClicked
+                    && this.searchInMenu.Tag as string == "keep";
+            }
+            ContextMenuStrip menu = this.searchInMenu;
+            menu.Items.Clear();
+            menu.Renderer = this.contextMenuStripFolder.Renderer;
+            menu.BackColor = this.contextMenuStripFolder.BackColor;
+            menu.ForeColor = this.contextMenuStripFolder.ForeColor;
+            SearchFields fields = GetSearchFieldsSetting();
+            menu.Items.Add(new ToolStripLabel("Search in") { ForeColor = SystemColors.GrayText });
+            foreach (KeyValuePair<SearchFields, string> field in SearchFieldLabels)
+            {
+                SearchFields flag = field.Key;
+                ToolStripMenuItem item = new ToolStripMenuItem(field.Value) { Checked = fields.HasFlag(flag) };
+                item.Enabled = !(item.Checked && SearchFieldLabels.Count(f => fields.HasFlag(f.Key)) == 1);
+                item.Click += (s, e) =>
+                {
+                    menu.Tag = "keep";
+                    SearchFields current = GetSearchFieldsSetting();
+                    this.SetSearchFields(current.HasFlag(flag) ? current & ~flag : current | flag);
+                    this.ShowSearchInItems();
+                };
+                menu.Items.Add(item);
+            }
+            menu.Items.Add(new ToolStripSeparator());
+            ToolStripMenuItem all = new ToolStripMenuItem("All fields", null, (s, e) => { menu.Tag = "keep"; this.SetSearchFields(SearchFields.All); this.ShowSearchInItems(); });
+            ToolStripMenuItem defaults = new ToolStripMenuItem("Defaults", null, (s, e) => { menu.Tag = "keep"; this.SetSearchFields(DefaultSearchFields); this.ShowSearchInItems(); });
+            menu.Items.Add(all);
+            menu.Items.Add(defaults);
+            this.ShowSearchInItems();
+            menu.Tag = null;
+            menu.Show(this.btnSearchIn, new Point(0, this.btnSearchIn.Height));
+        }
+
+        /// <summary>Tick Search in...'s boxes as set, and grey what wouldn't change anything</summary>
+        void ShowSearchInItems()
+        {
+            if (this.searchInMenu == null)
+                return;
+            SearchFields fields = GetSearchFieldsSetting();
+            int count = SearchFieldLabels.Count(f => fields.HasFlag(f.Key));
+            int i = 0;
+            foreach (ToolStripItem item in this.searchInMenu.Items)
+            {
+                ToolStripMenuItem box = item as ToolStripMenuItem;
+                if (box == null)
+                    continue;
+                if (i < SearchFieldLabels.Length)
+                {
+                    box.Checked = fields.HasFlag(SearchFieldLabels[i].Key);
+                    box.Enabled = !(box.Checked && count == 1);
+                }
+                else if (box.Text == "All fields")
+                {
+                    box.Enabled = fields != SearchFields.All;
+                }
+                else
+                {
+                    box.Enabled = fields != DefaultSearchFields;
+                }
+                i++;
+            }
+        }
+
+        /// <summary>
+        /// Show on the search box why its text isn't a regular expression (a reddish box and a tooltip), or nothing when
+        /// it's fine, as SuperXTerminal's search does
+        /// </summary>
+        /// <param name="problem">Why, or null</param>
+        void ShowSearchProblem(string problem)
+        {
+            if (this.searchToolTip == null)
+                return;
+            bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
+            if (problem != null)
+            {
+                if (this.searchBoxBackColor == null)
+                    this.searchBoxBackColor = this.txtSearch.BackColor;
+                this.txtSearch.BackColor = dark ? Color.FromArgb(0x5A, 0x1D, 0x1D) : Color.FromArgb(0xFF, 0xE0, 0xE0);
+                this.searchToolTip.SetToolTip(this.txtSearch, "Not a regular expression: " + problem);
+                this.searchToolTip.SetToolTip(this.btnRegex, "Not a regular expression: " + problem);
+            }
+            else
+            {
+                if (this.searchBoxBackColor != null)
+                    this.txtSearch.BackColor = this.searchBoxBackColor.Value;
+                this.searchBoxBackColor = null;
+                this.searchToolTip.SetToolTip(this.txtSearch, null);
+                this.searchToolTip.SetToolTip(this.btnRegex, "Regular expression");
+            }
+        }
+
+        /// <summary>The search box's own colour while it's shown reddish for a bad regular expression</summary>
+        Color? searchBoxBackColor;
 
         protected override void OnClosed(EventArgs e)
         {
@@ -4629,6 +4895,7 @@ namespace SuperPutty
             // define filter
             SearchFilter searchFilter = new SearchFilter(SuperPuTTY.Settings.SessionsSearchMode, txt, GetSearchFieldsSetting());
             this.filter = searchFilter.IsMatch;
+            this.ShowSearchProblem(searchFilter.Problem);
 
             // reload
             this.LoadSessions();
@@ -4646,7 +4913,26 @@ namespace SuperPutty
 
         public enum SearchMode
         {
-            CaseSensitive, CaseInSensitive, Regex
+            CaseSensitive, CaseInSensitive, Regex,
+            /// <summary>A regular expression ignoring case: the search bar's .* with Aa off, as SuperXTerminal's</summary>
+            RegexIgnoreCase
+        }
+
+        /// <summary>The search mode for the search bar's two toggles, Aa (match case) and .* (regular expression)</summary>
+        /// <param name="matchCase">Aa is on</param>
+        /// <param name="regex">.* is on</param>
+        /// <returns>The mode, as stored in Settings.SessionsSearchMode</returns>
+        public static SearchMode ModeFor(bool matchCase, bool regex)
+        {
+            return regex ? (matchCase ? SearchMode.Regex : SearchMode.RegexIgnoreCase)
+                : matchCase ? SearchMode.CaseSensitive : SearchMode.CaseInSensitive;
+        }
+
+        /// <summary>The search mode in Settings.SessionsSearchMode; ignoring case when it isn't one</summary>
+        /// <returns>The mode</returns>
+        public static SearchMode SearchModeSetting()
+        {
+            return FormUtils.SafeParseEnum(SuperPuTTY.Settings.SessionsSearchMode ?? string.Empty, true, SearchMode.CaseInSensitive);
         }
 
         /// <summary>
@@ -4679,9 +4965,14 @@ namespace SuperPutty
             Notes = 256,
             /// <summary>The SPSL script file path</summary>
             SpslScript = 512,
+            /// <summary>The session's icon: its name ("switch") and title ("Switch"), as SuperXTerminal searches it</summary>
+            Icon = 1024,
             /// <summary>Every field</summary>
-            All = Name | Folder | Host | Username | Port | Protocol | PuttyProfile | ExtraArgs | Notes | SpslScript
+            All = Name | Folder | Host | Username | Port | Protocol | PuttyProfile | ExtraArgs | Notes | SpslScript | Icon
         }
+
+        /// <summary>The fields searched unless the user picks others (Search in... > Defaults), as SuperXTerminal's</summary>
+        public static readonly SearchFields DefaultSearchFields = SearchFields.Name | SearchFields.Folder | SearchFields.Host | SearchFields.Username | SearchFields.Notes;
 
         /// <summary>Each searchable field and its label, in the order shown in Tools -> Options</summary>
         public static readonly KeyValuePair<SearchFields, string>[] SearchFieldLabels =
@@ -4695,15 +4986,16 @@ namespace SuperPutty
             new KeyValuePair<SearchFields, string>(SearchFields.PuttyProfile, "PuTTY session profile"),
             new KeyValuePair<SearchFields, string>(SearchFields.ExtraArgs, "Extra arguments"),
             new KeyValuePair<SearchFields, string>(SearchFields.Notes, "Notes"),
-            new KeyValuePair<SearchFields, string>(SearchFields.SpslScript, "SPSL script file")
+            new KeyValuePair<SearchFields, string>(SearchFields.SpslScript, "SPSL script file"),
+            new KeyValuePair<SearchFields, string>(SearchFields.Icon, "Icon")
         };
 
-        /// <summary>The fields to search, from Settings.SessionsSearchFields; all fields if the setting is empty or invalid</summary>
+        /// <summary>The fields to search, from Settings.SessionsSearchFields; the defaults if the setting is empty or invalid</summary>
         /// <returns>The fields to search; never <see cref="SearchFields.None"/></returns>
         public static SearchFields GetSearchFieldsSetting()
         {
-            SearchFields fields = FormUtils.SafeParseEnum(SuperPuTTY.Settings.SessionsSearchFields ?? string.Empty, true, SearchFields.All);
-            return fields == SearchFields.None ? SearchFields.All : fields;
+            SearchFields fields = FormUtils.SafeParseEnum(SuperPuTTY.Settings.SessionsSearchFields ?? string.Empty, true, DefaultSearchFields);
+            return fields == SearchFields.None ? DefaultSearchFields : fields;
         }
 
         /// <summary>Decides whether a session matches the search box text, in the chosen <see cref="SearchMode"/> and <see cref="SearchFields"/></summary>
@@ -4718,26 +5010,34 @@ namespace SuperPutty
                 this.Mode = FormUtils.SafeParseEnum(mode, true, SearchMode.CaseSensitive);
                 this.Filter = filter;
                 this.Fields = fields;
-                if (this.Mode == SearchMode.Regex)
+                if ((this.Mode == SearchMode.Regex || this.Mode == SearchMode.RegexIgnoreCase) && !string.IsNullOrEmpty(filter))
                 {
                     try
                     {
-                        this.Regex = new Regex(filter);
+                        this.Regex = new Regex(filter, this.Mode == SearchMode.RegexIgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
                     }
-                    catch (Exception ex)
+                    catch (ArgumentException ex)
                     {
-                        Log.Error("Could not parse pattern: " + filter, ex);
+                        // shown by the search box; the search then matches nothing, as SuperXTerminal's
+                        this.Problem = ex.Message;
                     }
                 }
             }
+
+            /// <summary>Why the text isn't a regular expression, when .* is on and it isn't one; null otherwise</summary>
+            public string Problem { get; private set; }
             /// <summary>Whether any of the chosen fields of <paramref name="s"/> matches the search text</summary>
             /// <param name="s">The session to test</param>
-            /// <returns>true if the session should be shown; always true for empty text or an invalid regex</returns>
+            /// <returns>true if the session should be shown: always for empty text, never for an invalid regex</returns>
             public bool IsMatch(SessionData s)
             {
-                if (string.IsNullOrEmpty(this.Filter) || (this.Mode == SearchMode.Regex && this.Regex == null))
+                if (string.IsNullOrEmpty(this.Filter))
                 {
                     return true;
+                }
+                if (this.Problem != null)
+                {
+                    return false;
                 }
                 return GetSearchValues(s, this.Fields).Any(this.IsMatch);
             }
@@ -4752,6 +5052,7 @@ namespace SuperPutty
                     case SearchMode.CaseInSensitive:
                         return value.IndexOf(this.Filter, StringComparison.OrdinalIgnoreCase) >= 0;
                     case SearchMode.Regex:
+                    case SearchMode.RegexIgnoreCase:
                         return this.Regex.IsMatch(value);
                     default:
                         return value.Contains(this.Filter);
@@ -4782,6 +5083,12 @@ namespace SuperPutty
                     if (own != null) values.Add(own.Note);
                 }
                 if (fields.HasFlag(SearchFields.SpslScript)) values.Add(s.SPSLFileName);
+                if (fields.HasFlag(SearchFields.Icon) && !string.IsNullOrEmpty(s.ImageKey))
+                {
+                    // its name and title ("switch Switch"), without the colour
+                    string name = IconLibrary.NameOf(s.ImageKey);
+                    values.Add(name + " " + IconLibrary.TitleOf(name));
+                }
                 return values.Where(v => !string.IsNullOrEmpty(v));
             }
 

@@ -276,7 +276,7 @@
       <Value Profile="(Default)" />
     </Setting>
     <Setting Name="SessionsSearchFields" Provider="SuperPutty.Utils.PortableSettingsProvider" Type="System.String" Scope="User">
-      <Value Profile="(Default)">All</Value>
+      <Value Profile="(Default)">Name, Folder, Host, Username, Notes</Value>
     </Setting>
     <Setting Name="RdpUseEmbeddedClient" Provider="SuperPutty.Utils.PortableSettingsProvider" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>

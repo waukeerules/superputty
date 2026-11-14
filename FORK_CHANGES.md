@@ -2453,6 +2453,19 @@ With the settings folder on a network drive, losing the drive (a laptop off the 
 
 **Not done:** SuperXTerminal draws only the rows in view. The WinForms TreeView makes a native item for every node, so the fork keeps filling folders on demand instead.
 
+## Search bar: match case, regular expressions and Search in..., as in SuperXTerminal
+
+The search mode and fields were only in Tools > Options. Now, as in SuperXTerminal, they're beside the search box: **Aa** (match case), **.*** (regular expression) and **⋯** (Search in...), between the box and its search and clear buttons. A toggle that's on is shaded.
+
+- **Aa and .* are independent:** a regular expression can ignore case. That's a new search mode, `RegexIgnoreCase`; the setting stays `SessionsSearchMode` (`SessionTreeview.ModeFor`), so Options still shows it.
+- **Search in...** lists the fields with a box each (the last one ticked can't be unticked), then **All fields** and **Defaults**; ticking doesn't close the list. Its button shows how the fields differ from the defaults, "+2" or "-1", and lists them in its tooltip.
+- **New field: Icon**, the icon's name and title ("switch Switch"), as SuperXTerminal searches it.
+- **Default fields:** session name, folder, host, username and notes, as SuperXTerminal's (`DefaultSearchFields`; the setting's default was All). A user who chose fields keeps them.
+- **A bad regular expression matches nothing** and the box turns reddish, its tooltip saying why ("Not a regular expression: ..."). It used to show every session.
+- Each toggle is saved at once and searches again.
+
+**Checked** with the test program on the 10,000-session file: "CORE-SW-001" finds 25 ignoring case and none matching case; "^CORE-sw-00[12]" as a regex finds 50 ignoring case and none matching case; "([" finds none and gives the reason; the Icon field finds sessions by icon; the bar was rendered with the toggles in order. **Not checked in the running app:** the look in the light and dark themes, and Search in...'s list. Manual test: type "core", click Aa, .* and each field in Search in..., and see the tree follow; type "([" with .* on; check both themes.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
