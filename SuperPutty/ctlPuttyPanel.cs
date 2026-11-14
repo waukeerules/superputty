@@ -1260,15 +1260,15 @@ namespace SuperPutty
         {
             if (SuperPuTTY.PuTTYAppName == "PuTTY Plus")
             {
-                Process.Start("https://github.com/SilverGreen93/putty");
+                SuperPutty.Utils.ShellOpen.Start("https://github.com/SilverGreen93/putty");
             }
             else if (SuperPuTTY.PuTTYAppName == "KiTTY")
             {
-                Process.Start("https://www.9bis.net/kitty/index.html");
+                SuperPutty.Utils.ShellOpen.Start("https://www.9bis.net/kitty/index.html");
             }
             else if (SuperPuTTY.PuTTYAppName == "PuTTY")
             {
-                Process.Start("http://www.chiark.greenend.org.uk/~sgtatham/putty/");
+                SuperPutty.Utils.ShellOpen.Start("http://www.chiark.greenend.org.uk/~sgtatham/putty/");
             }
             else
             {

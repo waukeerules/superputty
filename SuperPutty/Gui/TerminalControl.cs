@@ -504,7 +504,7 @@ namespace SuperPutty.Gui
             }
             try
             {
-                System.Diagnostics.Process.Start(new Uri(uri).AbsoluteUri);
+                SuperPutty.Utils.ShellOpen.Start(new Uri(uri).AbsoluteUri);
             }
             catch (Exception ex) when (ex is System.ComponentModel.Win32Exception || ex is InvalidOperationException)
             {

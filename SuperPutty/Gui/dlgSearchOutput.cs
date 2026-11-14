@@ -155,7 +155,7 @@ namespace SuperPutty.Gui
         {
             try
             {
-                Process.Start(this.panel.SessionLogPath);
+                SuperPutty.Utils.ShellOpen.Start(this.panel.SessionLogPath);
             }
             catch (Exception ex)
             {

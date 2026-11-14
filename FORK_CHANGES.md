@@ -2321,5 +2321,15 @@ Upstream's 38 commits up to `43e7353` move SuperXPuTTY from .NET Framework 4.8 t
 3. Open an RDP session, a cmd tab with the built-in terminal on, and a VNC session; switch between tabs.
 4. Tools → Options → Advanced: the new checkbox sits under "Automatically check for updates" in both themes.
 
+## Fix: links, Help and "new instance" did nothing on .NET 10
+
+**Symptom:** on the .NET 10 build, clicking a link (About, the download links in Options, PuTTY's website in the tab menu, the update check's release page, a link in the built-in terminal), opening Help, Edit sessions externally or a session log failed with "The system cannot find the file specified". Opening a layout or session in a new instance did nothing.
+
+**Cause:** two .NET Framework defaults changed. `Process.Start("https://...")` relied on `UseShellExecute` being true, and on .NET 10 it's false, so Windows looked for a program by that name. `Assembly.GetExecutingAssembly().Location` is now `SuperXPuTTY.dll`, which can't be started; the exe is only a launcher.
+
+**Fix:** new `Utils/ShellOpen.cs` (`ShellOpen.Start`, with `UseShellExecute = true`), used by the 18 calls that open a link or document in `AboutBox.cs`, `ctlPuttyPanel.cs`, `dlgFindPutty.cs`, `frmSuperPutty.cs`, `Gui/dlgSearchOutput.cs` and `Gui/TerminalControl.cs`. `SuperPuTTY.LoadLayoutInNewInstance` and `LoadSessionInNewInstance` start `Application.ExecutablePath`. Both problems are in upstream too.
+
+**Checked:** it builds. **Not checked in the UI.** Manual test: click the link in Help → About; Help → Documentation; a layout's "Load in new instance"; File → Edit sessions externally.
+
 ---
 *I used Grok/ChatGPT to learn C# and to generate some of this code, so it may not follow best practices. Feedback on the approach is very welcome.*

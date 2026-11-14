@@ -115,13 +115,13 @@ namespace SuperPutty
 
         private void richTextBox1_LinkClicked(object sender, LinkClickedEventArgs e)
         {
-            Process.Start(e.LinkText);
+            SuperPutty.Utils.ShellOpen.Start(e.LinkText);
         }
 
         private void linkLabelCompany2_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
             LinkLabel link = (LinkLabel)sender;
-            Process.Start(link.Text);
+            SuperPutty.Utils.ShellOpen.Start(link.Text);
         }
     }
 }

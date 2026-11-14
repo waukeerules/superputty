@@ -766,7 +766,7 @@ namespace SuperPutty
             }
             try
             {
-                Process.Start(fileName);
+                SuperPutty.Utils.ShellOpen.Start(fileName);
             }
             catch (Win32Exception)
             {
@@ -1273,14 +1273,14 @@ namespace SuperPutty
         {
             if (File.Exists(Application.StartupPath + @"\superputty.chm"))
             {
-                Process.Start(Application.StartupPath + @"\superputty.chm");
+                SuperPutty.Utils.ShellOpen.Start(Application.StartupPath + @"\superputty.chm");
             }
             else
             {
                 DialogResult result = Messenger.MessageBox("Local documentation could not be found. Would you like to view the documentation online instead?", "Documentation Not Found", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (result == DialogResult.Yes)
                 {
-                    Process.Start("https://github.com/SilverGreen93/superputty/wiki/Documentation");
+                    SuperPutty.Utils.ShellOpen.Start("https://github.com/SilverGreen93/superputty/wiki/Documentation");
                 }
             }
         }
@@ -2262,7 +2262,7 @@ namespace SuperPutty
                                 MessageBoxButtons.YesNo,
                                 MsgIcon.Question) == DialogResult.Yes)
                             {
-                                Process.Start(latest.release_url);
+                                SuperPutty.Utils.ShellOpen.Start(latest.release_url);
                             }
                         }
                         else
@@ -2352,7 +2352,7 @@ namespace SuperPutty
                                 MessageBoxButtons.YesNo,
                                 MsgIcon.Question) == DialogResult.Yes)
                             {
-                                Process.Start(latest.release_url);
+                                SuperPutty.Utils.ShellOpen.Start(latest.release_url);
                             }
                         }
                         else
