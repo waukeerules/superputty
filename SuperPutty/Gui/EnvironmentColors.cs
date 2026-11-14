@@ -48,16 +48,16 @@ namespace SuperPutty.Gui
         /// <summary>The rules a new install starts with: production red, staging and UAT orange</summary>
         public const string DefaultRules = "Prod=#C62828;Production=#C62828;Staging=#EF6C00;UAT=#EF6C00";
 
-        /// <summary>The colours offered in the Colour menus, with what they're usually for</summary>
-        public static readonly KeyValuePair<string, string>[] Presets =
-        {
-            new KeyValuePair<string, string>("Red (production)", "#C62828"),
-            new KeyValuePair<string, string>("Orange (staging)", "#EF6C00"),
-            new KeyValuePair<string, string>("Yellow", "#F9A825"),
-            new KeyValuePair<string, string>("Green (lab)", "#2E7D32"),
-            new KeyValuePair<string, string>("Blue", "#1565C0"),
-            new KeyValuePair<string, string>("Purple", "#6A1B9A")
-        };
+        /// <summary>
+        /// The colours offered in the Colour menus and the Environment colours window, with what they're usually for:
+        /// IconLibrary.Palette's ten, as SuperXTerminal's palette, so both apps offer the same colours. They were six,
+        /// with a blue and purple of their own (#1565C0, #6A1B9A); those set before still show as they were.
+        /// </summary>
+        public static readonly KeyValuePair<string, string>[] Presets = new[] { "Red", "Orange", "Yellow", "Green", "Blue", "Purple", "Pink", "Teal", "Grey", "Black" }
+            .Select(name => new KeyValuePair<string, string>(
+                name == "Red" ? "Red (production)" : name == "Orange" ? "Orange (staging)" : name == "Green" ? "Green (lab)" : name,
+                Format(IconLibrary.Palette.First(p => p.Key == name).Value)))
+            .ToArray();
 
         /// <summary>Raised when a colour may have changed: a rule, a folder's or a session's</summary>
         public static event EventHandler Changed;
