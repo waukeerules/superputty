@@ -710,6 +710,10 @@ namespace SuperPutty
                 // the table is read-only for this connection or login, or can't be reached
                 return;
             }
+            // Saved sessions shown from the offline copy can't be changed: a new one in them, or an edit of one
+            if (existingSession != null ? !existingSession.IsPrivate && !existingSession.IsDatabase && SuperPuTTY.RefuseIfSavedOffline()
+                : this.RefuseOffline(treeView1.SelectedNode))
+                return;
 
             bool isFolderNode = IsFolderNode(treeView1.SelectedNode);
 
@@ -938,6 +942,8 @@ namespace SuperPutty
                 this.DeleteSessions(selected);
                 return;
             }
+            if (this.RefuseOffline(treeView1.SelectedNode))
+                return;
             SessionData session = (SessionData)treeView1.SelectedNode.Tag;
             if (DatabaseLocked(treeView1.SelectedNode) || session.DatabaseLocked)
             {
@@ -1016,6 +1022,8 @@ namespace SuperPutty
         private void newFolderToolStripMenuItem_Click(object sender, EventArgs e)
         {
             TreeNode node = this.treeView1.SelectedNode;
+            if (this.RefuseOffline(node))
+                return;
             // a database folder not opened yet is filled first, or the new folder would go when it's opened
             this.EnsureFolderFilled(node);
             if (node != null)
@@ -1061,6 +1069,8 @@ namespace SuperPutty
         {
             using (SessionShortcuts.Batch())
             {
+                if (this.RefuseOffline(this.treeView1.SelectedNode))
+                    return;
                 this.renameToolStripMenuItem_ClickUnbatched(sender, e);
             }
         }
@@ -1145,6 +1155,8 @@ namespace SuperPutty
         {
             using (SessionShortcuts.Batch())
             {
+                if (this.RefuseOffline(this.treeView1.SelectedNode))
+                    return;
                 this.removeFolderToolStripMenuItem_ClickUnbatched(sender, e);
             }
         }
@@ -1322,6 +1334,8 @@ namespace SuperPutty
         /// <param name="color">"#RRGGBB", or "" for none</param>
         void SetSessionColor(SessionData session, string color)
         {
+            if (!session.IsPrivate && !session.IsDatabase && SuperPuTTY.RefuseIfSavedOffline())
+                return;
             if (session.IsDatabase)
             {
                 if (!DatabaseSessions.HasColorColumn)
@@ -1696,6 +1710,8 @@ namespace SuperPutty
         {
             using (SessionShortcuts.Batch())
             {
+                if ((kind == RootKind.Shared || (move && KindOf(payload) == RootKind.Shared)) && SuperPuTTY.RefuseIfSavedOffline())
+                    return;
                 this.TransferUnbatched(payload, kind, targetFolder, move);
             }
         }
@@ -2340,6 +2356,19 @@ namespace SuperPutty
             if (kind == RootKind.Database)
                 return;
             string text = CountedName(index, string.Empty, RootName(kind));
+            if (kind == RootKind.Shared && SuperPuTTY.SavedSessionsOffline)
+            {
+                // shown from the copy kept on this computer while the settings folder can't be reached, as SuperXTerminal
+                DateTime? at = SuperPuTTY.SavedSessionsCachedAt;
+                text = RootName(kind) + (at == null ? " (offline)"
+                    : " (offline, cached " + (at.Value.Date == DateTime.Today ? at.Value.ToString("t") : at.Value.ToString("g")) + ")");
+                root.ToolTipText = "The settings folder (" + SuperPuTTY.Settings.SettingsFolder + ") can't be reached. These are the copy kept on this computer: "
+                    + "they open as usual but can't be changed until the folder is back.";
+            }
+            else if (kind == RootKind.Shared && !string.IsNullOrEmpty(root.ToolTipText))
+            {
+                root.ToolTipText = string.Empty;
+            }
             if (root.Text != text)
                 root.Text = text;
         }
@@ -2538,6 +2567,17 @@ namespace SuperPutty
                 this.SetMultiSelection(null);
                 this.selectionAnchor = e.Node;
             }
+        }
+
+        /// <summary>
+        /// Refuse a change that touches Saved sessions while they're shown from the offline copy
+        /// (SuperPuTTY.RefuseIfSavedOffline, which says why)
+        /// </summary>
+        /// <param name="nodes">The nodes the change touches: what moves, is deleted or changed, and where it goes</param>
+        /// <returns>true if the change must not go ahead</returns>
+        bool RefuseOffline(params TreeNode[] nodes)
+        {
+            return nodes.Any(n => n != null && !IsQuickNode(n) && KindOf(n) == RootKind.Shared) && SuperPuTTY.RefuseIfSavedOffline();
         }
 
         /// <summary>Whether a node can join a multiple selection: a session or folder in Saved, Private or Database sessions</summary>
@@ -2768,6 +2808,8 @@ namespace SuperPutty
         /// <param name="target">The folder or root to move them into</param>
         void MoveItems(List<TreeNode> folders, List<TreeNode> sessions, TreeNode target)
         {
+            if (this.RefuseOffline(folders.Concat(sessions).Concat(new[] { target }).ToArray()))
+                return;
             List<string> problems = new List<string>();
             int moved = 0;
             bool database = IsDatabaseNode(target);
@@ -2863,6 +2905,8 @@ namespace SuperPutty
         /// <param name="target">The folder or root in the other root</param>
         void CopyItems(List<TreeNode> folders, List<TreeNode> sessions, TreeNode target)
         {
+            if (this.RefuseOffline(target))
+                return;
             using (SuperPuTTY.BatchSaves())
             using (SessionShortcuts.Batch())
             {
@@ -2883,6 +2927,8 @@ namespace SuperPutty
         /// <param name="sessions">The selected sessions not in those folders</param>
         void DeleteItems(List<TreeNode> folders, List<TreeNode> sessions)
         {
+            if (this.RefuseOffline(folders.Concat(sessions).ToArray()))
+                return;
             List<SessionData> inFolders = this.SessionsIn(folders, new List<TreeNode>());
             List<string> what = new List<string>();
             if (folders.Count > 0)
@@ -3074,6 +3120,8 @@ namespace SuperPutty
         {
             using (SessionShortcuts.Batch())
             {
+                if (this.RefuseOffline(nodes.ToArray()))
+                    return;
                 this.DeleteSessionsUnbatched(nodes);
             }
         }
@@ -3642,6 +3690,8 @@ namespace SuperPutty
         {
             using (SessionShortcuts.Batch())
             {
+                if (this.RefuseOffline(node))
+                    return;
                 this.MoveToOtherRootUnbatched(node);
             }
         }
@@ -3684,6 +3734,8 @@ namespace SuperPutty
         {
             using (SessionShortcuts.Batch())
             {
+                if (this.RefuseOffline(nodePayload, target))
+                    return null;
                 return this.MoveNodeUnbatched(nodePayload, target);
             }
         }

@@ -328,15 +328,29 @@ namespace SuperPutty
             List<SessionData> privateSessions = null;
             try
             {
+                SavedSessionsOffline = false;
+                SavedSessionsCachedAt = null;
                 if (!Settings.UseSessionsXml)
                 {
                     // turned off in Options (e.g. for Database sessions only): the file is neither read nor written
                     Log.Info("Saved sessions (Sessions.xml) are turned off; not reading it");
                     sessions = new List<SessionData>();
                 }
+                else if (!string.IsNullOrEmpty(Settings.SettingsFolder) && !Directory.Exists(Settings.SettingsFolder))
+                {
+                    // the settings folder can't be reached (a network drive away): show the copy kept of it, read-only,
+                    // rather than no Saved sessions at all, which is when they're needed to get back on
+                    DateTime? cachedAt;
+                    SavedSessionsCache.TryLoad(Settings.SettingsFolder, out sessions, out cachedAt);
+                    SavedSessionsOffline = true;
+                    SavedSessionsCachedAt = cachedAt;
+                    Log.WarnFormat($"Settings folder {Settings.SettingsFolder} can't be reached; showing the copy of Saved sessions kept on this computer ({sessions.Count} sessions, cached {cachedAt})");
+                }
                 else if (File.Exists(fileName))
                 {
                     sessions = SessionData.LoadSessionsFromFile(fileName);
+                    // a good read: keep a copy for when the folder can't be reached
+                    SavedSessionsCache.Keep(Settings.SettingsFolder, fileName, Path.Combine(Settings.SettingsFolder, "Folders.xml"));
                 }
                 else
                 {
@@ -368,7 +382,8 @@ namespace SuperPutty
             {
                 SessionsFileWatcher.Stop();
             }
-            // folder colours, beside Sessions.xml and PrivateSessions.xml
+            // folder colours, beside Sessions.xml and PrivateSessions.xml; offline, from the copy of Folders.xml
+            FolderSettings.SharedCopy = SavedSessionsOffline ? SavedSessionsCache.FoldersCopy(Settings.SettingsFolder) ?? string.Empty : null;
             FolderSettings.Load();
             if (sessions == null && privateSessions == null)
             {
@@ -450,8 +465,15 @@ namespace SuperPutty
             Log.InfoFormat("Saving all sessions");
             // sessions from the Postgres table live there (and in its local cache), never in these files
             List<SessionData> all = GetAllSessions().Where(s => !s.IsDatabase).ToList();
+            if (Settings.UseSessionsXml && SavedSessionsOffline)
+            {
+                // shown from the copy while the settings folder is away: never written over the real file, which may
+                // have changed meanwhile (the tree refuses changes to them, RefuseIfSavedOffline; this is the backstop)
+                Log.Warn("Saved sessions are offline (the settings folder can't be reached); Sessions.xml not saved");
+                ReportStatus("Saved sessions are offline: Sessions.xml wasn't saved");
+            }
             // turned off in Options: Sessions.xml is left as it is (another copy, or upstream, may still use it)
-            if (Settings.UseSessionsXml)
+            else if (Settings.UseSessionsXml)
             {
                 SessionData.SaveSessionsToFile(all.Where(s => !s.IsPrivate).ToList(), SessionsFileName);
                 // our own save: not a change to reload
@@ -462,6 +484,32 @@ namespace SuperPutty
             {
                 SessionData.SaveSessionsToFile(privateSessions, PrivateSessionsFileName);
             }
+        }
+
+        /// <summary>
+        /// Whether Saved sessions are the copy kept on this computer (SavedSessionsCache) because the settings folder
+        /// couldn't be reached at the last read. They open as usual but can't be changed; the next read after the
+        /// folder is back (SessionsFileWatcher notices) reads the real files again.
+        /// </summary>
+        public static bool SavedSessionsOffline { get; private set; }
+
+        /// <summary>When the copy shown while <see cref="SavedSessionsOffline"/> was taken (local time); null when there's none</summary>
+        public static DateTime? SavedSessionsCachedAt { get; private set; }
+
+        /// <summary>
+        /// Refuse a change to Saved sessions while they're offline, saying why, as SuperXTerminal does: a save would
+        /// write the copy over a Sessions.xml that may have changed while it was away. Called by the Sessions tree
+        /// before it changes, moves or deletes Saved sessions, and by imports into them.
+        /// </summary>
+        /// <returns>true if the change must not go ahead</returns>
+        public static bool RefuseIfSavedOffline()
+        {
+            if (!SavedSessionsOffline || !Settings.UseSessionsXml)
+                return false;
+            Messenger.MessageBox("The settings folder (" + Settings.SettingsFolder + ") can't be reached, so Saved sessions can't be changed now.\n\n" +
+                "They're shown from the copy kept on this computer" + (SavedSessionsCachedAt.HasValue ? " (" + SavedSessionsCachedAt.Value.ToString("g") + ")" : "") +
+                " and open as usual. Private sessions can still be changed.", "Saved sessions are offline", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return true;
         }
 
         /// <summary>How many <see cref="BatchSaves"/> scopes are open</summary>
@@ -1001,6 +1049,9 @@ namespace SuperPutty
         /// <param name="folder">The destination folder name</param>
         public static void ImportSessions(List<SessionData> sessions, string folder)
         {
+            // into Saved sessions while they're the offline copy: refused, as any change to them is
+            if (sessions.Any(s => !s.IsPrivate) && RefuseIfSavedOffline())
+                return;
             // the IDs taken so far by this import too, since the sessions are added together at the end
             HashSet<string> taken = new HashSet<string>(StringComparer.Ordinal);
             foreach (SessionData session in sessions)

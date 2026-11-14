@@ -2435,6 +2435,18 @@ As in SuperXTerminal, **Ctrl+click** and **Shift+click** select folders as well 
 
 **Checked** with the test program: the 100 folders of the 10,000-session file, selected and moved into a new folder, took 1.2 s (0.8 s with the folders already open) with one save; the saved file has all 10,000 sessions under the new folder with unique IDs, and every session is found by its ID. **Not checked in the running app:** the menu, dragging, Delete, and Database sessions. Manual test: Ctrl+click two folders and a session, right-click one of them, try each item; drag the selection onto another folder; drag it into Private sessions (a copy); press Delete.
 
+### Saved sessions while the settings folder can't be reached
+
+With the settings folder on a network drive, losing the drive (a laptop off the network, a VPN that dropped) lost Saved sessions: Sessions.xml couldn't be read, so they left the tree, when they're what's needed to get back on. As in SuperXTerminal:
+
+- **A copy is kept** (new `Data/SavedSessionsCache.cs`): after every good read of Sessions.xml, it and Folders.xml are copied beside the user's settings (`SavedSessions.cache.xml`, `SavedFolders.cache.xml`, and which folder and when in `SavedSessions.cache.json`), each only when it differs from the copy.
+- **While the folder is away** (`SuperPuTTY.LoadSessions` finds it missing), Saved sessions are that copy and the root reads "Saved sessions (offline, cached 09:41)", with the date when it's from another day. They open as usual. The copy belongs to its folder: another folder chosen, and away, shows "Saved sessions (offline)" and nothing.
+- **They can't be changed** while offline (`SuperPuTTY.RefuseIfSavedOffline`, `SessionTreeview.RefuseOffline`): new, edit, rename, colour, move, delete, Move to and Copy to, new folder, folder settings' save and imports into them are refused, saying why. `SaveSessions` doesn't write Sessions.xml then either, as a backstop: the copy must never be written over a Sessions.xml that may have changed meanwhile. Private sessions are unaffected.
+- **Coming back:** `SessionsFileWatcher` notices the folder go and come back at its next check (30 s) and reads the files again.
+- **The watcher's check no longer runs on the window's thread.** Looking at a file on a drive that's gone away can take many seconds, and the 30-second check froze the window for that long; it now runs in the background and its result is acted on in the window's thread.
+
+**Checked** with the test program: the copy is kept after a read; with the settings folder renamed away, the watcher switched to the copy at its next check, the root read "Saved sessions (offline, cached 1:00 PM)" with all 10,000 sessions, and a save didn't recreate the folder; renamed back, the next check read the real file again. **Not checked:** a real network drive going away, and the refusals' messages in the running app. Manual test: put the settings folder on a share, start SuperXPuTTY, then disconnect the share; within 30 s Saved sessions read "offline, cached ..."; open one; try to rename one (refused, with the reason); reconnect, and within 30 s they're back to normal.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

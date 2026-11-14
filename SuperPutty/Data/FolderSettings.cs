@@ -106,6 +106,13 @@ namespace SuperPutty.Data
         /// <summary>Folders.xml's path; set it to use another (tests)</summary>
         public static string SharedFileName { get; set; }
 
+        /// <summary>
+        /// While Saved sessions are offline (SuperPuTTY.SavedSessionsOffline), the copy of Folders.xml to read instead
+        /// of the unreachable one, "" when there's no copy; null otherwise. Set by SuperPuTTY.LoadSessions. Shared
+        /// folder settings aren't saved while it's set.
+        /// </summary>
+        public static string SharedCopy { get; set; }
+
         /// <summary>PrivateFolders.xml's path; set it to use another (tests)</summary>
         public static string PrivateFileName { get; set; }
 
@@ -140,7 +147,8 @@ namespace SuperPutty.Data
                     // Saved sessions are turned off, so Folders.xml (theirs) isn't read either
                     continue;
                 }
-                foreach (FolderSetting setting in ReadFile(FileFor(store)))
+                string file = store == Store.Shared && SharedCopy != null ? SharedCopy : FileFor(store);
+                foreach (FolderSetting setting in file.Length == 0 ? new List<FolderSetting>() : ReadFile(file))
                 {
                     if (!string.IsNullOrEmpty(setting.Path) && !setting.IsEmpty)
                         stores[store][Clean(setting.Path)] = setting;
@@ -174,6 +182,12 @@ namespace SuperPutty.Data
         /// <param name="store">Shared or Private</param>
         private static void Save(Store store)
         {
+            if (store == Store.Shared && SharedCopy != null)
+            {
+                // offline: the real Folders.xml can't be reached, and the copy is only ever written from a read of it
+                Log.Warn("Saved sessions are offline; Folders.xml not saved");
+                return;
+            }
             string file = FileFor(store);
             List<FolderSetting> list = stores[store].Values.OrderBy(f => f.Path, StringComparer.OrdinalIgnoreCase).ToList();
             if (list.Count == 0 && !File.Exists(file))

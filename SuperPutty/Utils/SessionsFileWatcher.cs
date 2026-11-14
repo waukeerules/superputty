@@ -2,6 +2,9 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Threading;
+using System.Threading.Tasks;
+using Timer = System.Windows.Forms.Timer;
 using System.Windows.Forms;
 using log4net;
 
@@ -96,9 +99,17 @@ namespace SuperPutty.Utils
             }
         }
 
+        /// <summary>The UI thread's context, where a check's result is acted on</summary>
+        private static SynchronizationContext ui;
+
+        /// <summary>Set while a check of the file runs in the background, so checks don't pile up on a slow share</summary>
+        private static volatile bool checking;
+
         /// <summary>Start the once-a-second check on the UI thread</summary>
         private static void StartTimer()
         {
+            // the checks' results are acted on here, on the UI thread; a WinForms context made here if there isn't one yet
+            ui = SynchronizationContext.Current as WindowsFormsSynchronizationContext ?? new WindowsFormsSynchronizationContext();
             timer = new Timer { Interval = 1000 };
             timer.Tick += (s, e) => Tick();
             timer.Start();
@@ -160,13 +171,34 @@ namespace SuperPutty.Utils
             }
         }
 
+        /// <summary>What a background check found</summary>
+        private sealed class CheckResult
+        {
+            /// <summary>Nothing to do: the file's time and size are as known</summary>
+            public bool Unchanged;
+
+            /// <summary>Whether the file exists</summary>
+            public bool Exists;
+
+            /// <summary>Its last write time (UTC), when it exists</summary>
+            public DateTime WriteTime;
+
+            /// <summary>Its size, or -1</summary>
+            public long Length = -1;
+
+            /// <summary>Its contents' hash; null if it's missing or couldn't be read</summary>
+            public string Hash;
+        }
+
         /// <summary>
-        /// Once a second: if the watcher flagged a change, or every <see cref="PollEveryTicks"/> seconds the file's
-        /// time or size differ, hash the file and reload the sessions if its contents changed
+        /// Once a second: if the watcher flagged a change, or every <see cref="PollEveryTicks"/> seconds, check the
+        /// file in the background (<see cref="Check"/>) and act on what it finds back on this thread (<see cref="Apply"/>).
+        /// The check used to run here, on the UI thread, where a network drive that had gone away could freeze the
+        /// window for many seconds every poll.
         /// </summary>
         private static void Tick()
         {
-            if (path == null || !SuperPuTTY.Settings.ReloadSessionsWhenChanged)
+            if (path == null || !SuperPuTTY.Settings.ReloadSessionsWhenChanged || checking)
                 return;
             bool poll = ++ticks >= PollEveryTicks;
             if (!changed && !poll)
@@ -177,30 +209,84 @@ namespace SuperPutty.Utils
                 return;
             }
             if (poll)
-            {
                 ticks = 0;
-                FileInfo info = new FileInfo(path);
-                long length = info.Exists ? info.Length : -1;
-                if (!changed && length == knownLength && (!info.Exists || info.LastWriteTimeUtc == knownWriteTime))
-                    return;
-            }
+            bool flagged = changed;
             changed = false;
-            string hash = Hash(path);
-            if (hash == null && File.Exists(path))
+            string file = path;
+            long length = knownLength;
+            DateTime writeTime = knownWriteTime;
+            SynchronizationContext context = ui;
+            checking = true;
+            Task.Run(() => Check(file, flagged, length, writeTime)).ContinueWith(task =>
+            {
+                CheckResult result = task.Status == TaskStatus.RanToCompletion ? task.Result : null;
+                Action apply = () =>
+                {
+                    checking = false;
+                    if (result != null)
+                        Apply(file, result);
+                };
+                context.Post(_ => apply(), null);
+            });
+        }
+
+        /// <summary>
+        /// Look at the file, off the UI thread: its time and size, and when those differ from what's known (or the
+        /// watcher flagged it), its hash
+        /// </summary>
+        /// <param name="file">The file</param>
+        /// <param name="flagged">The watcher saw a change</param>
+        /// <param name="knownSize">The size last known</param>
+        /// <param name="knownTime">The write time last known</param>
+        /// <returns>What it found</returns>
+        private static CheckResult Check(string file, bool flagged, long knownSize, DateTime knownTime)
+        {
+            CheckResult result = new CheckResult();
+            try
+            {
+                FileInfo info = new FileInfo(file);
+                result.Exists = info.Exists;
+                result.Length = info.Exists ? info.Length : -1;
+                result.WriteTime = info.Exists ? info.LastWriteTimeUtc : DateTime.MinValue;
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("Could not look at " + file, ex);
+            }
+            if (!flagged && result.Length == knownSize && (!result.Exists || result.WriteTime == knownTime))
+            {
+                result.Unchanged = true;
+                return result;
+            }
+            result.Hash = Hash(file);
+            return result;
+        }
+
+        /// <summary>Act on a check, on the UI thread: reload the sessions if the file's contents changed</summary>
+        /// <param name="file">The file checked; nothing is done if another is watched by now</param>
+        /// <param name="result">What the check found</param>
+        private static void Apply(string file, CheckResult result)
+        {
+            if (result.Unchanged || !string.Equals(file, path, StringComparison.OrdinalIgnoreCase))
+                return;
+            if (result.Hash == null && result.Exists)
             {
                 // being written: look again next second
                 changed = true;
                 return;
             }
-            if (hash == knownHash)
+            if (result.Hash == knownHash)
             {
                 // touched or rewritten, but the same sessions
-                Remember();
+                knownWriteTime = result.WriteTime;
+                knownLength = result.Length;
                 return;
             }
-            Log.InfoFormat("{0} was changed outside SuperPuTTY; reloading the sessions", path);
+            Log.InfoFormat("{0} was changed outside SuperPuTTY (or its folder went away or came back); reloading the sessions", path);
             SuperPuTTY.LoadSessions();
-            SuperPuTTY.ReportStatus("Sessions.xml was changed outside SuperXPuTTY; sessions reloaded");
+            SuperPuTTY.ReportStatus(SuperPuTTY.SavedSessionsOffline
+                ? "The settings folder can't be reached; Saved sessions are shown from the copy on this computer"
+                : "Sessions.xml was changed outside SuperXPuTTY; sessions reloaded");
             Reloaded?.Invoke(null, EventArgs.Empty);
         }
 
