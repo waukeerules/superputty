@@ -1184,10 +1184,12 @@
     function onKey(e) {
         if (e.type !== 'keydown') { return true; }
         var key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-        if (e.shiftKey && !e.ctrlKey && key === 'Insert') { paste(); return false; }
+        // Shift+Insert and Ctrl+Shift+V stop the browser's own paste too: it also becomes a pasteRequest (the page turns
+        // the browser's paste into one), and with WebView2 allowed to read the clipboard the line went in twice
+        if (e.shiftKey && !e.ctrlKey && key === 'Insert') { e.preventDefault(); paste(); return false; }
         if (e.ctrlKey && !e.shiftKey && key === 'Insert') { copy(); return false; }
         if (e.ctrlKey && e.shiftKey && key === 'c') { copy(); return false; }
-        if (e.ctrlKey && e.shiftKey && key === 'v') { paste(); return false; }
+        if (e.ctrlKey && e.shiftKey && key === 'v') { e.preventDefault(); paste(); return false; }
         if (e.ctrlKey && e.shiftKey && key === 'f') { openFind(); return false; }
         var sequence = profileKey(e);
         if (sequence !== null) {

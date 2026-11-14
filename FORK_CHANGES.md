@@ -2498,6 +2498,14 @@ SuperXPuTTY's terminal page (`web/terminal/terminal.js`) and SuperXTerminal's st
 
 **Checked:** find after Chinese text, find across a wrap (both rows, "1 of 1"), an address split by a wrap coloured on both rows, and a highlight after an emoji and an accent: all pass, and all four fail on the code before.
 
+### Fix: Shift+Insert and Ctrl+Shift+V pasted twice
+
+**Symptom:** pasting with Shift+Insert or Ctrl+Shift+V could put the text in twice ("FastEthernet0/5FastEthernet0/5").
+
+**Cause:** both keys asked TerminalControl to paste, but didn't stop the browser's own paste, which the page also turns into a paste request.
+
+**Fix** (SuperXTerminal 221d083): the keys stop the browser's paste (`preventDefault`). **Checked:** each key sends one paste request; two before.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
