@@ -2799,6 +2799,22 @@ Symptom: with Line Numbers on, a button bar button with an icon (e.g. a blue Doc
 
 **Checked:** unit tests (`SuperPuttyUnitTests/ButtonColourTests.cs`): an icon's chosen colour, an icon's own (switch green, document blue), the icon over a circle colour, the circle without an icon, none. **Not checked:** in the running app.
 
+## Manage Button Bars
+
+As SuperXTerminal (its 334a0a2, 05e8376): the button bar's right-click menu changes one button at a time on the bar shown, so moving a button to another bar meant making it again, and a bar imported under a name already taken ("Cisco (2)") left two near copies to sort out by hand. **Manage Button Bars...** in that menu lists every bar (with how many buttons) and the chosen bar's buttons (with their icon or circle, what they send, and a note):
+
+- **Buttons:** tick them to **Move to** or **Copy to** another bar (or drag them onto a bar, Alt to copy), **Duplicate** them (each copy beside its button as Label-1, -2..., ticked), **Edit...** (or double-click), **Delete**, and put them in order (the arrows, or drag one). A button the same as one before it is marked **Duplicate** (**Remove Duplicates** takes those off); buttons sharing a label with another command are marked **Same label**. A button already on the bar it goes to isn't added twice.
+- **Bars:** **New...**, **Rename...**, **Copy** (as Name-1), **Merge into**, **Tab Icons...**, **Delete**, and their order (the arrows, or drag one). A bar named like an import's copy gets a hint to merge it; merging keeps the buttons the other bar hasn't got and joins the tab icons.
+- Nothing is written until **Save**, which writes ButtonBars.xml once and shows the bar chosen last; **Cancel** asks first when there are changes.
+
+| File | Role |
+|---|---|
+| `Utils/ButtonBarManage.cs` | New. The changes, on copies of the bars: transfer, merge, duplicate buttons and bars, duplicates, clashes, copies, reorder |
+| `Gui/dlgManageButtonBars.cs` | New. The window |
+| `Gui/ButtonBarStrip.cs` | Manage Button Bars... in the right-click menu (`ManageBars`) |
+
+**Checked:** unit tests (`SuperPuttyUnitTests/ButtonBarManageTests.cs`, ported from SuperXTerminal's): moving, copying, not adding twice, merging with tab icons, duplicates and clashes, an import's copy, a bar's copy as Name-2 past Name-1, duplicated buttons as Label-1 then Label-2, reorder. The window rendered in a test program in the dark and light themes with sample bars: counts, icons and circles, Duplicate and Same label marks, the merge hint; moving a ticked button to another bar said "Moved 1 button". **Not checked:** dragging, the editor, Tab Icons and Save in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

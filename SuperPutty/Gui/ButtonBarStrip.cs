@@ -179,6 +179,7 @@ namespace SuperPutty.Gui
                 this.menuDeleteBar,
                 // after the menu closes, so the icon list can stay open while several icons are ticked
                 new ToolStripMenuItem("Show for Tab &Icons...", null, (s, e) => this.BeginInvoke(new MethodInvoker(this.ShowTabIconMenu))),
+                new ToolStripMenuItem("Mana&ge Button Bars...", null, (s, e) => this.ManageBars()),
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("E&xport Button Bar...", null, (s, e) => this.ExportBar()),
                 new ToolStripMenuItem("Im&port Button Bar...", null, (s, e) => this.ImportBars()),
@@ -608,6 +609,25 @@ namespace SuperPutty.Gui
             this.menuMoveLeft.Enabled = onButton && this.contextButtonIndex > 0;
             this.menuMoveRight.Enabled = onButton && this.contextButtonIndex < this.CurrentBar.Buttons.Count - 1;
             this.menuDeleteBar.Enabled = this.bars.Bars.Count > 1;
+        }
+
+        /// <summary>
+        /// Manage Button Bars (dlgManageButtonBars, as SuperXTerminal's): every bar and its buttons, to move, copy and
+        /// tidy them across bars. Its changes are written to ButtonBars.xml at its Save, and the bar chosen last shows.
+        /// </summary>
+        private void ManageBars()
+        {
+            this.Reload();
+            using (dlgManageButtonBars dialog = new dlgManageButtonBars(this.bars.Bars, this.CurrentBar.Name))
+            {
+                if (dialog.ShowDialog(this.FindForm()) != DialogResult.OK)
+                    return;
+                this.bars.Bars = dialog.Bars;
+                SuperPuTTY.Settings.ActiveButtonBar = dialog.Shown;
+                SuperPuTTY.Settings.Save();
+                this.tabIconBarName = null;
+                this.SaveAndRefresh();
+            }
         }
 
         /// <summary>Ask for a new button and add it to the end of the current bar</summary>
