@@ -717,6 +717,7 @@ namespace SuperPutty
             this.FillRoot(this.nodeRoot, null);
             this.FillRoot(this.nodePrivate, null);
             this.FillRoot(this.nodeDatabase, null);
+            this.HideRootsWithoutMatches();
             BuildShortcutGroups();
             ResortNodes();
         }
@@ -4939,7 +4940,39 @@ namespace SuperPutty
                 this.ExpandFully(null);
             }
             // results read from the top: expanding every folder left the tree scrolled to the last one opened, at the
-            // bottom of the results
+            // bottom of the results. Once more after the messages waiting now, in case anything scrolls it again
+            this.ScrollTreeToTop();
+            if (this.IsHandleCreated)
+            {
+                this.BeginInvoke((MethodInvoker)this.ScrollTreeToTop);
+            }
+        }
+
+        /// <summary>
+        /// While a search is on, take Saved, Private and Database sessions out of the tree when none of their sessions
+        /// match, as SuperXTerminal does (unlessEmptySearch): "Private sessions" with nothing under it read as though it
+        /// were empty, and isn't part of the result. The root objects stay, out of the tree, as Saved sessions do when
+        /// Sessions.xml is turned off, so code that refers to them still works; the next build of the tree (the search
+        /// cleared or changed) puts them back.
+        /// </summary>
+        void HideRootsWithoutMatches()
+        {
+            if (string.IsNullOrEmpty(this.lastSearch))
+                return;
+            foreach (TreeNode root in new[] { this.nodeRoot, this.nodePrivate, this.nodeDatabase })
+            {
+                if (root == null || root.TreeView == null)
+                    continue;
+                int count;
+                this.IndexFor((RootKind)root.Tag).Counts.TryGetValue(string.Empty, out count);
+                if (count == 0)
+                    root.Remove();
+            }
+        }
+
+        /// <summary>Scroll the tree to its first row (a search's results read from the top)</summary>
+        void ScrollTreeToTop()
+        {
             if (this.treeView1.Nodes.Count > 0)
             {
                 this.treeView1.TopNode = this.treeView1.Nodes[0];
