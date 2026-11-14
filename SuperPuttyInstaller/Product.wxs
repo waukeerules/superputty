@@ -86,12 +86,6 @@
       <Component Id="ProductPuttyEmbed">
         <File Id="ProductPuttyEmbedDll" Source="$(var.SuperPutty.TargetDir)putty-embed.dll" />
       </Component>
-      <Component Id="ProductLibSystemWebAdapters">
-        <File Id="Microsoft.AspNetCore.SystemWebAdapters.dll" Source="$(var.SuperPutty.TargetDir)Microsoft.AspNetCore.SystemWebAdapters.dll" />
-      </Component>
-      <Component Id="ProductLibRuntimeCaching">
-        <File Id="System.Runtime.Caching.dll" Source="$(var.SuperPutty.TargetDir)System.Runtime.Caching.dll" />
-      </Component>
       <Component Id="ProductLibLogging">
         <File Id="log4net.dll" Source="$(var.SuperPutty.TargetDir)\log4net.dll" />
       </Component>
@@ -112,6 +106,14 @@
       <!-- Database sessions. The support libraries Npgsql needed on .NET Framework are part of .NET 10 -->
       <Component Id="ProductLibDb_Npgsql">
         <File Id="Npgsql.dll" Source="$(var.SuperPutty.TargetDir)\Npgsql.dll" />
+      </Component>
+      <!-- Npgsql's logging interfaces. They came with the ASP.NET Core runtime while Microsoft.AspNetCore.SystemWebAdapters
+           was referenced; without it they are copied to the output -->
+      <Component Id="ProductLibDb_Microsoft_Extensions_Logging_Abstractions">
+        <File Id="Microsoft.Extensions.Logging.Abstractions.dll" Source="$(var.SuperPutty.TargetDir)\Microsoft.Extensions.Logging.Abstractions.dll" />
+      </Component>
+      <Component Id="ProductLibDb_Microsoft_Extensions_DependencyInjection_Abstractions">
+        <File Id="Microsoft.Extensions.DependencyInjection.Abstractions.dll" Source="$(var.SuperPutty.TargetDir)\Microsoft.Extensions.DependencyInjection.Abstractions.dll" />
       </Component>
       <!-- finds the child process a launcher starts (ApplicationPanel.FindChildProcess) -->
       <Component Id="ProductLibManagement">

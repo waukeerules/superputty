@@ -2331,5 +2331,15 @@ Upstream's 38 commits up to `43e7353` move SuperXPuTTY from .NET Framework 4.8 t
 
 **Checked:** it builds. **Not checked in the UI.** Manual test: click the link in Help → About; Help → Documentation; a layout's "Load in new instance"; File → Edit sessions externally.
 
+## Fix: the .NET 10 build also needed the ASP.NET Core runtime
+
+**Symptom:** on a machine with only the .NET 10 Desktop Runtime, which is all the installer checks for, SuperXPuTTY wouldn't start: Windows offered to download the ASP.NET Core runtime instead.
+
+**Cause:** upstream's move to .NET 10 added the `Microsoft.AspNetCore.SystemWebAdapters` package for `System.Web.HttpUtility`. The package brings in the whole ASP.NET Core framework (`SuperXPuTTY.runtimeconfig.json` listed `Microsoft.AspNetCore.App`). `HttpUtility` is part of .NET itself, so the package wasn't needed.
+
+**Fix:** the package is removed from `SuperPutty.csproj` and `SuperPuttyUnitTests.csproj`, and its two DLLs (`Microsoft.AspNetCore.SystemWebAdapters.dll`, `System.Runtime.Caching.dll`) from `Product.wxs`. Npgsql's `Microsoft.Extensions.Logging.Abstractions.dll` and `Microsoft.Extensions.DependencyInjection.Abstractions.dll`, which had been coming from the ASP.NET Core runtime, are now copied to the output and listed in the installer. This is in upstream too.
+
+**Checked:** the solution builds; `SuperXPuTTY.runtimeconfig.json` lists only `Microsoft.NETCore.App` and `Microsoft.WindowsDesktop.App`; every DLL in the output is in the installer (except `Microsoft.Web.WebView2.Wpf.dll`, which isn't used); the app starts and reads the Database sessions. **Not checked:** on a machine without the ASP.NET Core runtime (this one has it, from the SDK).
+
 ---
 *I used Grok/ChatGPT to learn C# and to generate some of this code, so it may not follow best practices. Feedback on the approach is very welcome.*

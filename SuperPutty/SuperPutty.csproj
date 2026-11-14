@@ -29,7 +29,6 @@
     <!-- fork: the Classic interface theme -->
     <PackageReference Include="DockPanelSuite.ThemeVS2005" Version="3.1.1" />
     <PackageReference Include="log4net" Version="3.5.0" />
-    <PackageReference Include="Microsoft.AspNetCore.SystemWebAdapters" Version="2.3.0" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.14" />
     <!-- fork: placeholder values (Newtonsoft.Json), Database sessions (Npgsql), Highlighted Output and the
          built-in terminal (WebView2) -->

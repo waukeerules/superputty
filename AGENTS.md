@@ -74,10 +74,10 @@ dotnet build SuperPutty.sln -c Debug -v:minimal
 
 - DockPanelSuite 3.1.1 and DockPanelSuite.ThemeVS2015 3.1.1, for Visual Studio-style docking
 - log4net 3.5.0
-- Microsoft.AspNetCore.SystemWebAdapters 2.3.0 and System.Configuration.ConfigurationManager (upstream's, for `System.Web` and `App.config`)
+- System.Configuration.ConfigurationManager (upstream's, for `App.config`). Upstream also references Microsoft.AspNetCore.SystemWebAdapters; the fork removed it, because it makes the app need the ASP.NET Core runtime, and `System.Web.HttpUtility` is in .NET itself. Don't add packages that bring a framework reference: check that `SuperXPuTTY.runtimeconfig.json` lists only `Microsoft.NETCore.App` and `Microsoft.WindowsDesktop.App`
 - System.Management (fork only, for `ApplicationPanel.FindChildProcess`)
 - Newtonsoft.Json 13.0.3 (fork only, used for the placeholder values)
-- Npgsql 8.0.5 (fork only, for Database sessions). On .NET 10 only `Npgsql.dll` is copied to the output. Every DLL in the output is listed by name in `SuperPuttyInstaller/Product.wxs`: when a package is added or changed, update that list from the Release output
+- Npgsql 8.0.5 (fork only, for Database sessions). On .NET 10 it brings two support libraries (`Microsoft.Extensions.Logging.Abstractions`, `Microsoft.Extensions.DependencyInjection.Abstractions`). Every DLL in the output is listed by name in `SuperPuttyInstaller/Product.wxs`: when a package is added or changed, update that list from the Release output
 - Microsoft.Web.WebView2 1.0.4258.31 (fork only, for Highlighted Output). Its `WebView2Loader.dll` goes to `runtimes\win-x64\native`, which the installer lists. The runtime itself comes with Windows
 
 PuTTY, or [PuTTY Plus](https://github.com/SilverGreen93/putty), is an external runtime requirement.
