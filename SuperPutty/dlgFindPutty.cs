@@ -195,8 +195,9 @@ namespace SuperPutty
             this.checkConfirmTabClose.Checked = SuperPuTTY.Settings.MultipleTabCloseConfirmation;
             this.checkEnableControlTabSwitching.Checked = SuperPuTTY.Settings.EnableControlTabSwitching;
             this.checkEnableKeyboardShortcuts.Checked = SuperPuTTY.Settings.EnableKeyboadShortcuts;
-            this.btnFont.Font = SuperPuTTY.Settings.SessionsTreeFont;
-            this.btnFont.Text = ToShortString(SuperPuTTY.Settings.SessionsTreeFont);
+            // the button names the font in the dialog's own font: drawn in the chosen one (e.g. 12 pt) it didn't fit
+            this.treeFont = SuperPuTTY.Settings.SessionsTreeFont;
+            this.btnFont.Text = ToShortString(this.treeFont);
             this.numericUpDownOpacity.Value = (decimal)SuperPuTTY.Settings.Opacity * 100;
             this.checkQuickSelectorCaseSensitiveSearch.Checked = SuperPuTTY.Settings.QuickSelectorCaseSensitiveSearch;
             this.checkShowDocumentIcons.Checked = SuperPuTTY.Settings.ShowDocumentIcons;
@@ -282,6 +283,25 @@ namespace SuperPutty
             }
         }
 
+        /// <summary>
+        /// Place controls that size to their text side by side from the first one's place, each after the one before
+        /// with an even gap, so none covers another at any zoom or DPI; the gap shrinks if they'd go past their box
+        /// </summary>
+        /// <param name="controls">The controls, in order, in one container</param>
+        private static void LayOutInRow(Control[] controls)
+        {
+            Control box = controls[0].Parent;
+            int x = controls[0].Left;
+            int widths = controls.Sum(c => c.PreferredSize.Width);
+            int room = box.ClientSize.Width - x - controls[0].Left;
+            int gap = Math.Max(2, Math.Min(DpiUtils.ScaleWidth(14), (room - widths) / Math.Max(1, controls.Length - 1)));
+            foreach (Control control in controls)
+            {
+                control.Left = x;
+                x += control.PreferredSize.Width + gap;
+            }
+        }
+
         private void FixDpiScalingIssues()
         {
             this.colEdit.Width = DpiUtils.ScaleWidth(this.colEdit.Width);
@@ -360,6 +380,9 @@ namespace SuperPutty
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
+            // once the form is scaled to the display: the theme buttons size to their text, but sat at the designer's
+            // places, so at a larger zoom each one covered the end of the one before ("Da", "Lig")
+            LayOutInRow(new RadioButton[] { this.optDarkTheme, this.optDarkBlueTheme, this.optLightTheme, this.optClassicTheme });
 
             this.BeginInvoke(new MethodInvoker(delegate { this.textBoxPuttyLocation.Focus(); }));
         }
@@ -451,7 +474,7 @@ namespace SuperPutty
                 SuperPuTTY.Settings.TabTextBehavior = (string)this.comboBoxTabText.SelectedItem;
                 SuperPuTTY.Settings.TabSwitcher = (string)this.comboBoxTabSwitching.SelectedItem.GetType().FullName;
                 SuperPuTTY.Settings.SessionsTreeShowLines = this.checkSessionsTreeShowLines.Checked;
-                SuperPuTTY.Settings.SessionsTreeFont = this.btnFont.Font;
+                SuperPuTTY.Settings.SessionsTreeFont = this.treeFont;
                 SuperPuTTY.Settings.WindowActivator = (string) this.comboBoxActivatorType.SelectedItem;
                 SuperPuTTY.Settings.Opacity = (double) this.numericUpDownOpacity.Value / 100.0;
                 SuperPuTTY.Settings.SessionsSearchMode = (string) this.comboSearchMode.SelectedItem;
@@ -905,12 +928,15 @@ namespace SuperPutty
             this.Close();
         }
 
+        /// <summary>The Sessions tree font chosen with the Font button, saved with the other options</summary>
+        private Font treeFont;
+
         private void btnFont_Click(object sender, EventArgs e)
         {
-            this.fontDialog.Font = this.btnFont.Font;
+            this.fontDialog.Font = this.treeFont;
             if (this.fontDialog.ShowDialog(this) == DialogResult.OK)
             {
-                this.btnFont.Font = this.fontDialog.Font;
+                this.treeFont = this.fontDialog.Font;
                 this.btnFont.Text = ToShortString(this.fontDialog.Font);
             }
         }
