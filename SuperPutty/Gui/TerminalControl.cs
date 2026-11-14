@@ -1198,6 +1198,19 @@ namespace SuperPutty.Gui
         }
 
         /// <summary>
+        /// A button's command is about to be typed here: from the cursor's line its output is numbered in the button's
+        /// colour (Line Numbers, as SuperXTerminal's 9cb4022), until the next command
+        /// </summary>
+        /// <param name="color">The button's colour as "#rrggbb"; null or "" for none</param>
+        public void MarkCommand(string color)
+        {
+            if (this.pageLoaded)
+            {
+                this.Post(new { type = "commandColor", color = color ?? string.Empty });
+            }
+        }
+
+        /// <summary>
         /// Type the anti-idle string (Options -> Terminal, as KiTTY's) if it's due: the session is up, nothing typed for
         /// its seconds, and no script running in the tab (it would read the echo). Only remote sessions: the timer
         /// isn't started for local shells, which have no idle timeout to keep awake.
