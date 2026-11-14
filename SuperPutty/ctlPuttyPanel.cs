@@ -718,14 +718,15 @@ namespace SuperPutty
 
         /// <summary>
         /// Show the tab's icon by priority: the script spinner, then the disconnected badge, then the connecting badge,
-        /// then an activity badge, then a silence badge, then the tab's own icon
+        /// then a silence badge, then the tab's own icon. New output pulses the whole tab instead of a badge
+        /// (TabIcons.SetPulse, as SuperXTerminal's).
         /// </summary>
         private void UpdateTabIcon()
         {
+            TabIcons.SetPulse(this, this.outputAlert == OutputAlert.Activity);
             System.Drawing.Icon badge = this.scriptRunning ? Spinner.CurrentIcon()
                 : this.connection == ConnectionState.Disconnected ? TabBadges.Disconnected
                 : this.IsConnecting ? TabBadges.Connecting
-                : this.outputAlert == OutputAlert.Activity ? TabBadges.Activity
                 : this.outputAlert == OutputAlert.Silence ? TabBadges.Silence
                 : null;
             if (badge != null)

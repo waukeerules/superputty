@@ -4,14 +4,13 @@ using System.Drawing.Drawing2D;
 namespace SuperPutty.Gui
 {
     /// <summary>
-    /// 16x16 tab icons for output alerts (ctlPuttyPanel.CheckOutputAlerts): an orange dot when a watched tab prints
-    /// something, and grey pause bars when it goes quiet; a red cross when a tab's session has dropped
+    /// 16x16 tab icons for output alerts (ctlPuttyPanel.CheckOutputAlerts): grey pause bars when a watched tab goes
+    /// quiet (new output pulses the whole tab instead, TabIcons.SetPulse); a red cross when a tab's session has dropped
     /// (ctlPuttyPanel.CheckConnection), and a yellow dot while it's connecting. Drawn on a white disc, like the tab spinner, so they stand out
     /// on the blue selected tab and on dark or light tabs. Created once and kept for the life of the program.
     /// </summary>
     public static class TabBadges
     {
-        private static Icon activity;
         private static Icon silence;
         private static Icon disconnected;
         private static Icon connecting;
@@ -32,25 +31,6 @@ namespace SuperPutty.Gui
                     });
                 }
                 return connecting;
-            }
-        }
-
-        /// <summary>The "new output" badge: an orange dot</summary>
-        public static Icon Activity
-        {
-            get
-            {
-                if (activity == null)
-                {
-                    activity = Make(g =>
-                    {
-                        using (Brush dot = new SolidBrush(Color.FromArgb(0xF0, 0x88, 0x3E)))
-                        {
-                            g.FillEllipse(dot, 4, 4, 8, 8);
-                        }
-                    });
-                }
-                return activity;
             }
         }
 
