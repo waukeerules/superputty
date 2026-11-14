@@ -297,6 +297,25 @@ namespace SuperPutty.Gui
             return null;
         }
 
+        /// <summary>
+        /// The colour a button's command numbers its lines in (Line Numbers in the built-in terminal): the colour the
+        /// button shows, as SuperXTerminal's buttonColour (its b0a8948). With an icon, the icon's (the colour chosen
+        /// for it, else the icon's own); without, its circle's. The circle's colour is ignored when there's an icon,
+        /// so a button with only an icon used to number its lines in the usual colour.
+        /// </summary>
+        /// <param name="command">The button</param>
+        /// <returns>"#rrggbb", or "" for none</returns>
+        public static string LineNumberColor(CommandButton command)
+        {
+            if (!string.IsNullOrEmpty(command.ImageKey))
+            {
+                Color icon = IconLibrary.ColorOf(command.ImageKey);
+                return icon.IsEmpty ? string.Empty : TerminalPreferences.ColourText(icon);
+            }
+            Color color;
+            return TryParseColor(command.Color, out color) ? TerminalPreferences.ColourText(color) : string.Empty;
+        }
+
         /// <summary>Parse a color stored in ButtonBars.xml, e.g. "#3FB950" or "Red"</summary>
         /// <param name="text">The stored color; may be null or empty</param>
         /// <param name="color">The parsed color</param>
@@ -547,8 +566,7 @@ namespace SuperPutty.Gui
             else
             {
                 List<CommandData> steps = SendStringParser.Parse(text, () => Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty);
-                Color color;
-                string colorText = TryParseColor(command.Color, out color) ? TerminalPreferences.ColourText(color) : string.Empty;
+                string colorText = LineNumberColor(command);
                 foreach (ctlPuttyPanel panel in targets)
                 {
                     // a terminal tab numbers the command's lines in the button's colour (Line Numbers)
