@@ -105,15 +105,23 @@
             return;
         }
         var element = document.getElementById('terminal');
+        // before measuring: the side-to-side scroll bar takes its height from the rows
+        document.body.classList.toggle('nowrap', wide());
         // a hidden tab has no size yet; wait for the ResizeObserver rather than start the session at 2x1
         if (element.clientWidth < SCROLLBAR_WIDTH + dimensions.css.cell.width * 2 || element.clientHeight < dimensions.css.cell.height) {
             return;
         }
         var cols = Math.max(2, Math.floor((element.clientWidth - SCROLLBAR_WIDTH) / dimensions.css.cell.width));
         var rows = Math.max(1, Math.floor(element.clientHeight / dimensions.css.cell.height));
+        if (wide()) {
+            var widest = Math.floor(MAX_CANVAS / (dimensions.css.cell.width * (window.devicePixelRatio || 1)));
+            cols = Math.max(cols, Math.min(WIDE_COLS, widest));
+        }
         if (cols !== term.cols || rows !== term.rows) {
             term.resize(cols, rows);
         }
+        document.querySelector('#hscroll > div').style.width = (term.cols * dimensions.css.cell.width) + 'px';
+        applyPan(wide() ? pan : 0);
         if (!sized) {
             sized = true;
             post({ type: 'size', cols: term.cols, rows: term.rows });
@@ -134,6 +142,96 @@
             return;
         }
         fitTimer = window.setTimeout(fit, FIT_STILL_MS);
+    }
+
+    // ---- wrapping -------------------------------------------------------------------------------------------------
+
+    /** Columns when Wrap Lines is off: lines up to this long stay whole, and the view pans along them */
+    var WIDE_COLS = 300;
+    /** Widest canvas WebGL draws, in device pixels; very large fonts get fewer columns */
+    var MAX_CANVAS = 16384;
+    /** Cells kept between the cursor and the right edge when the view follows it along a long line */
+    var FOLLOW_MARGIN = 8;
+    /** How far the view is panned to the right, in pixels, while lines aren't wrapped */
+    var pan = 0;
+    /** When the user last typed, for following the cursor as the echo moves it */
+    var typedAt = 0;
+    /** Whether the cursor showed before it last moved: output then follows it, but not after the user panned away */
+    var cursorShowed = true;
+
+    /** Whether lines wrap at the tab's width (Wrap Lines, on unless turned off) */
+    function wrapping() {
+        return prefOn('wrap');
+    }
+
+    /**
+     * Whether the terminal is wider than the tab: Wrap Lines off (as SuperXTerminal's e1352fb), and not in a
+     * full-screen program (vim, less and top use the alternate screen), which gets the tab's own width so it draws to fit
+     */
+    function wide() {
+        return !wrapping() && term.buffer.active.type === 'normal';
+    }
+
+    /** Width of one cell, in pixels; 0 before the renderer has measured it */
+    function cellWidth() {
+        var dimensions = term._core && term._core._renderService && term._core._renderService.dimensions;
+        return dimensions ? dimensions.css.cell.width : 0;
+    }
+
+    /** Width of the part of the terminal that shows, in pixels (left of xterm.js's own scroll bar) */
+    function visibleWidth() {
+        return Math.max(0, document.getElementById('terminal').clientWidth - SCROLLBAR_WIDTH);
+    }
+
+    /**
+     * Pan the view to `x` pixels from the start of the lines: the screen slides left under xterm.js's box, which
+     * stays the tab's size so its own scroll bar stays at the edge, and is clipped to what shows. xterm.js reads mouse
+     * positions from the screen's place on the page, so selecting still finds the right cells.
+     */
+    function applyPan(x) {
+        var screen = document.querySelector('#terminal .xterm-screen');
+        if (!screen) { return; }
+        var visible = visibleWidth();
+        var width = term.cols * cellWidth();
+        pan = Math.round(Math.max(0, Math.min(x, width - visible)));
+        screen.style.transform = pan ? 'translateX(' + (-pan) + 'px)' : '';
+        screen.style.clipPath = wide() ? 'inset(0 ' + Math.max(0, width - pan - visible) + 'px 0 ' + pan + 'px)' : '';
+        var bar = document.getElementById('hscroll');
+        if (bar.scrollLeft !== pan) { bar.scrollLeft = pan; }
+        cursorShowed = cursorShows();
+    }
+
+    /** Pan just far enough to show `width` pixels at `x`, keeping a margin; back to the start when they fit there */
+    function panTo(x, width) {
+        var visible = visibleWidth(), margin = FOLLOW_MARGIN * cellWidth();
+        if (x + width <= visible) {
+            applyPan(0);
+        } else if (x + width > pan + visible) {
+            applyPan(x + width - visible + margin);
+        } else if (x < pan) {
+            applyPan(x - margin);
+        }
+    }
+
+    /** Whether the cursor is within the part of the line that shows */
+    function cursorShows() {
+        var x = term.buffer.active.cursorX * cellWidth();
+        return x >= pan && x + cellWidth() <= pan + visibleWidth();
+    }
+
+    /**
+     * Keep the cursor in view while lines aren't wrapped: at the prompt the view goes back to the start of the line,
+     * and along a long command it follows the cursor
+     */
+    function followCursor() {
+        if (!wide()) { return; }
+        panTo(term.buffer.active.cursorX * cellWidth(), cellWidth());
+    }
+
+    /** Wrap Lines changed (this tab's menu, another tab's, or Options > Terminal): refit the columns */
+    function applyWrap() {
+        fit();
+        followCursor();
     }
 
     // ---- output, logging and highlighting -----------------------------------------------------------------------
@@ -752,6 +850,7 @@
         find.selected = term.getSelectionPosition() || null;
         markCurrent(index);
         term.scrollToLine(Math.max(0, m.row - Math.floor(term.rows / 2)));
+        if (wide()) { panTo(m.col * cellWidth(), m.length * cellWidth()); }
     }
 
     /** Make a match the current one: its brighter mark, and its place among the matches in the find bar ("2 of 5") */
@@ -862,6 +961,7 @@
             '-',
             { label: 'Copy on Select', checked: prefOn('copyOnSelect'), action: function () { togglePref('copyOnSelect'); } },
             { label: 'Mark Matches of Selection', checked: prefOn('markMatches'), action: function () { togglePref('markMatches'); markSelectionMatches(); } },
+            { label: 'Wrap Lines', checked: wrapping(), action: function () { togglePref('wrap'); applyWrap(); } },
             '-',
             // typed through the tab (ctlPuttyPanel.SendKey), as SENDKEY types them; Other Key... asks there
             { label: 'Send Key', items: menuKeys.map(function (k) {
@@ -1176,6 +1276,7 @@
         applyRenderer();
         applyTheme();
         applyCursor();
+        applyWrap();
         markSelectionMatches();
     }
 
@@ -1386,7 +1487,19 @@
         var element = document.getElementById('terminal');
         term.open(element);
         term.attachCustomKeyEventHandler(onKey);
-        term.onData(function (data) { post({ type: 'input', data: data }); });
+        term.onData(function (data) {
+            typedAt = Date.now();
+            followCursor();
+            post({ type: 'input', data: data });
+        });
+        // without wrapping, the view follows the cursor: always just after typing (the echo moves it), and with other
+        // output only while the cursor was in view, so a line the user panned along to read stays put
+        term.onCursorMove(function () {
+            if (cursorShowed || Date.now() - typedAt < 1000) { followCursor(); }
+            cursorShowed = cursorShows();
+        });
+        // a full-screen program (alternate screen) gets the tab's own width, and the wide lines come back after it
+        term.buffer.onBufferChange(function () { fit(); followCursor(); });
         term.onResize(function (size) { if (sized) { post({ type: 'size', cols: size.cols, rows: size.rows }); } });
         term.onScroll(function () { scheduleSettle(); });
         term.onBell(ring);
@@ -1446,6 +1559,23 @@
             if (e.key === 'Escape' && !document.getElementById('menu').hidden) { hideMenu(); term.focus(); }
         });
         bindFind();
+
+        // without wrapping: the side-to-side scroll bar, sideways wheel or touchpad, and Shift+wheel pan the view
+        var bar = document.getElementById('hscroll');
+        bar.addEventListener('scroll', function () { if (bar.scrollLeft !== pan) { applyPan(bar.scrollLeft); } });
+        element.addEventListener('wheel', function (e) {
+            if (!wide() || e.ctrlKey) { return; }
+            var dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : (e.shiftKey ? e.deltaY : 0);
+            if (!dx) { return; }
+            e.preventDefault();
+            e.stopPropagation();
+            applyPan(pan + dx);
+        }, { capture: true, passive: false });
+        // the browser scrolls clipped boxes itself to show the focused text box, which follows the cursor; the view
+        // pans only by applyPan (scroll doesn't bubble, so capture)
+        element.addEventListener('scroll', function (e) {
+            if (e.target.scrollLeft) { e.target.scrollLeft = 0; }
+        }, true);
 
         new ResizeObserver(fitWhenStill).observe(element);
         if (host) {

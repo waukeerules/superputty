@@ -2616,6 +2616,18 @@ As SuperXTerminal (its 24c7cab): a double-click in the built-in terminal selecte
 
 **Checked:** unit tests (`SuperPuttyUnitTests/TerminalPreferencesTests.cs`: the default; spaces and repeats dropped). Page tests: by default a double-click on "show" in "sw1#show" selects "sw1#show"; with "#" as the delimiters it selects "show", and "sw1(config)" whole (that test fails without the change). **Not checked:** the Options row in the running app.
 
+## Built-in terminal: Wrap Lines can be turned off
+
+As SuperXTerminal (its e1352fb): **Wrap Lines**, in the terminal's right-click menu and Tools → Options → Terminal, on by default. Off, the terminal is 300 columns wide, so long lines (`show run`, wide listings) stay whole, and a scroll bar along the bottom, a sideways swipe or Shift+wheel pans the view. xterm.js has no such mode: its screen slides under a clip inside its own box, which stays the tab's size so its scroll bar stays at the edge, and mouse positions still land on the right cells. WebGL's widest canvas (16384 device pixels) gives very large fonts fewer columns.
+
+- Typing brings the view back to the cursor: to the start of the line at a prompt, and along a long command it follows the cursor. Other output follows it only while it shows, so a line panned along to read stays put. Find pans to the match.
+- Full-screen programs (the alternate screen: vim, less, top) get the tab's width, and the wide lines come back after them.
+- plink is told the terminal's 300 columns, so the device formats its output for them.
+- One preference for every tab (`wrap` in `TerminalPreferences`), as Copy on Select.
+- **Code:** `web/terminal/terminal.js` (`wide`, `applyPan`, `panTo`, `followCursor`, `applyWrap`, and `fit` sizing to 300 columns), `terminal.css` (`body.nowrap`, `#hscroll`), `index.html` (`#hscroll`), `Gui/TerminalOptionsPanel.cs`.
+
+**Checked:** page tests: off, a 200-character line stays on one row and the terminal is 300 columns with the scroll bar showing; Shift+wheel pans and typing at a prompt brings the view back; the alternate screen gets the tab's width and 300 comes back after it; turning it on again fits the tab; the item is in the menu. **Not checked:** WebGL drawing while panned, a touchpad's sideways swipe, and the Options checkbox in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
