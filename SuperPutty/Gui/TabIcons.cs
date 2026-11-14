@@ -467,8 +467,9 @@ namespace SuperPutty.Gui
         /// <param name="ring">The ring's colour</param>
         private static void DrawDot(Graphics g, Rectangle icon, Color color, Color ring)
         {
-            float size = Math.Max(5f, icon.Width * 0.42f);
-            float edge = Math.Max(1.5f, icon.Width * 0.07f);
+            // smaller than the tree's (0.42), so the tab's icon stays easy to make out
+            float size = Math.Max(4f, icon.Width * 0.3f);
+            float edge = Math.Max(1f, icon.Width * 0.05f);
             RectangleF bounds = new RectangleF(icon.Right - size, icon.Bottom - size, size, size);
             SmoothingMode smoothing = g.SmoothingMode;
             g.SmoothingMode = SmoothingMode.AntiAlias;
