@@ -1496,6 +1496,32 @@ namespace SuperPutty.Properties {
         [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool GridView {
+            get {
+                return ((bool)(this["GridView"]));
+            }
+            set {
+                this["GridView"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("G, Shift, Control")]
+        public global::System.Windows.Forms.Keys Action_GridView_Shortcut {
+            get {
+                return ((global::System.Windows.Forms.Keys)(this["Action_GridView_Shortcut"]));
+            }
+            set {
+                this["Action_GridView_Shortcut"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.SettingsProviderAttribute(typeof(SuperPutty.Utils.PortableSettingsProvider))]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
         public bool WatchTabsForActivity {
             get {
                 return ((bool)(this["WatchTabsForActivity"]));

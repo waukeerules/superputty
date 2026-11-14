@@ -139,6 +139,9 @@ namespace SuperPutty
             DockPanel.Theme = theme;
             // tabs as wide as their text, up to 30 characters, instead of DockPanelSuite's fixed 200 pixels
             SuperPutty.DockPanelSuite.WideTabs.Apply(DockPanel.Theme);
+            // Grid View (View menu): the tabs tiled, made again as they open and close
+            GridView.Attach(DockPanel);
+            this.AddGridViewMenuItems();
 
             if (SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme)
             {
@@ -935,6 +938,31 @@ namespace SuperPutty
             }
         }
 
+
+        /// <summary>View > Grid View, ticked while it's on</summary>
+        private ToolStripMenuItem gridViewToolStripMenuItem;
+
+        /// <summary>
+        /// Add Grid View and Join All Tabs to the View menu, before Full screen, as SuperXTerminal's View menu has them;
+        /// Grid View is ticked to match (GridView.Changed)
+        /// </summary>
+        private void AddGridViewMenuItems()
+        {
+            this.gridViewToolStripMenuItem = new ToolStripMenuItem("&Grid View", null, (s, e) => GridView.Set(!GridView.IsOn))
+            {
+                Checked = GridView.IsOn,
+                ToolTipText = "Every tab in a tile of its own, to watch many sessions at once"
+            };
+            ToolStripMenuItem join = new ToolStripMenuItem("&Join All Tabs", null, (s, e) => GridView.JoinAll())
+            {
+                ToolTipText = "Every tab back in one group"
+            };
+            int index = this.viewToolStripMenuItem.DropDownItems.IndexOf(this.toolStripMenuItem9);
+            this.viewToolStripMenuItem.DropDownItems.Insert(index, new ToolStripSeparator());
+            this.viewToolStripMenuItem.DropDownItems.Insert(index, join);
+            this.viewToolStripMenuItem.DropDownItems.Insert(index, this.gridViewToolStripMenuItem);
+            GridView.Changed += (s, e) => this.gridViewToolStripMenuItem.Checked = GridView.IsOn;
+        }
 
         private void fullScreenToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -1992,6 +2020,9 @@ namespace SuperPutty
                         case SuperPuttyAction.FullScreen:
                             this.fullScreenToolStripMenuItem.ShortcutKeys = keys;
                             break;
+                        case SuperPuttyAction.GridView:
+                            this.gridViewToolStripMenuItem.ShortcutKeys = keys;
+                            break;
                         case SuperPuttyAction.Options:
                             this.optionsToolStripMenuItem.ShortcutKeys = keys;
                             break;
@@ -2031,6 +2062,9 @@ namespace SuperPutty
                     break;
                 case SuperPuttyAction.FullScreen:
                     this.ToggleFullScreen();
+                    break;
+                case SuperPuttyAction.GridView:
+                    GridView.Set(!GridView.IsOn);
                     break;
                 case SuperPuttyAction.OpenSession:
                     KeyEventWindowActivator.ActivateForm(this);

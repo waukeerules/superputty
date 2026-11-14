@@ -2732,6 +2732,26 @@ As SuperXTerminal (its be6efa5): a tab's menu has **Compare Output With**, listi
 
 **Checked:** page tests: the page asks for the outputs when it loads, counts "2 differences" with the time stamps left out and both titles shown; the same output says "The same", the light theme shows, Follow asks again after 2 s. In a test program, the real panel docked with two tabs' logs (one with a colour code): the page showed "2 differences" between the cleaned logs, side by side with the changed lines marked. **Not checked:** the menu in the running app.
 
+## Grid View: every tab tiled, and Connect ... in a Grid
+
+As SuperXTerminal (its 03768a5, f1185e4, 28955cc, bde855e): with a big monitor there was no quick way to watch several sessions together (term mon on a few switches, installs on several servers); a grid had to be made split by split by dragging tabs.
+
+- **View → Grid View** (Ctrl+Shift+G, a keyboard shortcut in Options; also in a tab's menu) puts every tab in a split of its own, row by row in the order they show. The columns and rows are the ones that give each tile the most room for a terminal-shaped area (`GridView.Shape`: 6 tabs on a wide monitor are 3 × 2, 9 are 3 × 3, a tall window gets more rows), each tile an even share. While it's on, the grid is made again as tabs open and close (once they've settled, so a folder opening at once tiles once). It's a setting (`GridView`), ticked in the View menu, so it lasts.
+- **Off,** the splits from before it went on come back: each beside the one it was next to, about its size, with its tabs in their order. A tab closed in the grid is left out, and one opened there joins the split that was in front. **View → Join All Tabs** puts every tab in one group instead (Grid View goes off). With Grid View left on when SuperXPuTTY closed, there are no splits from before to put back, so turning it off joins the tabs.
+- **The Sessions tree:** a folder's menu has **Connect all in a Grid**, and a selection's **Connect N sessions in a Grid**: Grid View goes on and the sessions open, tiled once they're all in.
+- **Close Others to the Right** goes by the grid's order in Grid View, where every tile is a group of one; Close Others and Close All already closed the whole window's tabs.
+- The tabs only move between DockPanelSuite panes, as when dragged, so their sessions carry on.
+
+| File | Role |
+|---|---|
+| `Gui/GridView.cs` | New. The shape, tiling, noting and putting back the splits, Join All, and Connect in a Grid |
+| `frmSuperPutty.cs` | Attaches it; View → Grid View and Join All Tabs; the `GridView` action |
+| `ctlPuttyPanel.cs` | Grid View in the tab menu; Close Others to the Right in grid order |
+| `SessionTreeview.cs` | Connect all in a Grid, Connect N sessions in a Grid |
+| `SuperPuTTY.cs`, `Properties/Settings*`, `App.config` | `SuperPuttyAction.GridView`, the `GridView` and `Action_GridView_Shortcut` settings |
+
+**Checked:** unit tests (`SuperPuttyUnitTests/GridViewTests.cs`): 3 × 2 and 3 × 3 on a wide monitor, a tall area, no size yet. In a test program with SuperXPuTTY's tab strips: six tabs in two splits (three and three, 701 and 465 px) became an even 3 × 2 grid; a seventh tab opening made three rows; one closing went back to 3 × 2; turning it off put back the two splits with their tabs (702 and 464 px); Join All Tabs put every tab in one group. **Not checked:** in the running app with PuTTY and terminal tabs, the shortcut, and the Sessions tree's items.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
