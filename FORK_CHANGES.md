@@ -2560,6 +2560,16 @@ On a display scaled to 150 %, a remote desktop was drawn at 100 %: the right num
 
 **Checked:** unit tests of the scale for 96, 120, 144, 192 and 1000 DPI; on the real control, the two settings set through the hand-declared interface read back as set (150, 140). **Not checked:** against a real server on a scaled display.
 
+## RDP: .rdp files for Connect external, and importing them
+
+New `Data/RdpFile.cs`, as SuperXTerminal's `external.rs` and `importing/rdp.rs`:
+
+- **Connect external** on an RDP session (with mstsc) now writes a .rdp file with the session's options (Tools > Options > RDP with the session's own: display, colour depth, redirections, audio, keyboard, authentication, admin session, gateway) to `%TEMP%\SuperPuTTY\rdp\<session>.rdp` and opens it in mstsc, followed by the session's extra arguments (`PuttyStartInfo.StartStandalone`, `RdpFile.Write`). It was `mstsc -v:host /span`, ignoring the options. No password goes in the file: mstsc asks, or uses Windows' saved credentials. FreeRDP is started as before.
+- **File > Import > From .rdp files...** imports one RDP session per file chosen, named as the file, with its address (`host`, `host:port`, `[IPv6]:port`) and username (`RdpFile.Read`), into an "ImportedFromRdp" folder. Files without an address are listed and skipped.
+- **Fix:** `PuttyStartInfo.Session` was declared but never set; it's now the session with its placeholders replaced.
+
+**Checked:** unit tests (`SuperPuttyUnitTests/RdpFileTests.cs`): the options written as .rdp settings, Remote Desktop's own port left out, a fitted display as dynamic resolution; reading a name, host, port and username, the default port, IPv6 with and without brackets, and a file with no address. **Not checked:** mstsc opening the file, and the import menu in the app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
