@@ -27,6 +27,7 @@ namespace SuperPutty.Gui
             this.textBoxFind = new System.Windows.Forms.TextBox();
             this.checkMatchCase = new System.Windows.Forms.CheckBox();
             this.checkRegex = new System.Windows.Forms.CheckBox();
+            this.checkWholeWord = new System.Windows.Forms.CheckBox();
             this.btnFind = new System.Windows.Forms.Button();
             this.listResults = new System.Windows.Forms.ListView();
             this.colLine = new System.Windows.Forms.ColumnHeader();
@@ -41,14 +42,14 @@ namespace SuperPutty.Gui
             | System.Windows.Forms.AnchorStyles.Right)));
             this.textBoxFind.Location = new System.Drawing.Point(12, 12);
             this.textBoxFind.Name = "textBoxFind";
-            this.textBoxFind.Size = new System.Drawing.Size(420, 27);
+            this.textBoxFind.Size = new System.Drawing.Size(312, 27);
             this.textBoxFind.TabIndex = 0;
             //
             // checkMatchCase
             //
             this.checkMatchCase.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.checkMatchCase.AutoSize = true;
-            this.checkMatchCase.Location = new System.Drawing.Point(444, 15);
+            this.checkMatchCase.Location = new System.Drawing.Point(336, 15);
             this.checkMatchCase.Name = "checkMatchCase";
             this.checkMatchCase.TabIndex = 1;
             this.checkMatchCase.Text = "Match case";
@@ -63,6 +64,16 @@ namespace SuperPutty.Gui
             this.checkRegex.TabIndex = 2;
             this.checkRegex.Text = "Regex";
             this.checkRegex.UseVisualStyleBackColor = true;
+            //
+            // checkWholeWord
+            //
+            this.checkWholeWord.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.checkWholeWord.AutoSize = true;
+            this.checkWholeWord.Location = new System.Drawing.Point(448, 15);
+            this.checkWholeWord.Name = "checkWholeWord";
+            this.checkWholeWord.TabIndex = 2;
+            this.checkWholeWord.Text = "Whole word";
+            this.checkWholeWord.UseVisualStyleBackColor = true;
             //
             // btnFind
             //
@@ -136,6 +147,7 @@ namespace SuperPutty.Gui
             this.Controls.Add(this.textBoxFind);
             this.Controls.Add(this.checkMatchCase);
             this.Controls.Add(this.checkRegex);
+            this.Controls.Add(this.checkWholeWord);
             this.Controls.Add(this.btnFind);
             this.Controls.Add(this.listResults);
             this.Controls.Add(this.labelSummary);
@@ -158,6 +170,7 @@ namespace SuperPutty.Gui
         private System.Windows.Forms.TextBox textBoxFind;
         private System.Windows.Forms.CheckBox checkMatchCase;
         private System.Windows.Forms.CheckBox checkRegex;
+        private System.Windows.Forms.CheckBox checkWholeWord;
         private System.Windows.Forms.Button btnFind;
         private System.Windows.Forms.ListView listResults;
         private System.Windows.Forms.ColumnHeader colLine;

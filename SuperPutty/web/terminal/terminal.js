@@ -944,16 +944,28 @@
     }
 
     /**
-     * What the find bar is looking for, from its text and its case and regex buttons
+     * What the find bar is looking for, from its text and its case, whole-word and regex buttons. A whole word isn't
+     * part of a longer word on either side (look-arounds rather than \b, so "sw1#" still counts as a word)
      * @returns {RegExp|null|false} null with no text to find, false when the text isn't a regular expression
      */
     function findRegex() {
         var text = document.getElementById('findText').value;
         var caseOn = document.getElementById('findCase').getAttribute('aria-pressed') === 'true';
         var regexOn = document.getElementById('findRegex').getAttribute('aria-pressed') === 'true';
+        var wordOn = document.getElementById('findWord').getAttribute('aria-pressed') === 'true';
         if (!text) { return null; }
         try {
-            return new RegExp(regexOn ? text : text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseOn ? 'g' : 'gi');
+            var source = regexOn ? text : text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            if (wordOn) {
+                // letters of any script count as word characters; a pattern of the user's that isn't valid in
+                // Unicode mode falls back to \w's ASCII letters
+                try {
+                    return new RegExp('(?<![\\p{L}\\p{N}_])(?:' + source + ')(?![\\p{L}\\p{N}_])', (caseOn ? 'g' : 'gi') + 'u');
+                } catch (e) {
+                    source = '(?<!\\w)(?:' + source + ')(?!\\w)';
+                }
+            }
+            return new RegExp(source, caseOn ? 'g' : 'gi');
         } catch (e) {
             return false;
         }
@@ -1085,7 +1097,7 @@
             if (e.key === 'Enter') { showMatch(find.index + (e.shiftKey ? -1 : 1)); e.preventDefault(); }
             else if (e.key === 'Escape') { closeFind(); e.preventDefault(); }
         });
-        ['findCase', 'findRegex'].forEach(function (id) {
+        ['findCase', 'findWord', 'findRegex'].forEach(function (id) {
             document.getElementById(id).addEventListener('click', function () {
                 var button = document.getElementById(id);
                 button.setAttribute('aria-pressed', button.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');

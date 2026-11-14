@@ -2702,6 +2702,16 @@ SuperXTerminal's profiles have their own terminal colours (its 0d81eaf, 760b6f2)
 
 **Checked:** unit tests (`SuperPuttyUnitTests/ProfileColoursTests.cs`): PuTTY's values read into text, background, cursor and the ANSI colours in xterm.js's order; none or unreadable values give none. The registry's format on this computer (`Colour0=187,187,187`) matches. Page tests: the profile's colours over the PuTTY theme, one not set from the theme; own colours still win; the menu offers it. **Not checked:** in the running app.
 
+## Search Output keeps up as output arrives; whole word in Search Output and the find bar
+
+New here, and not yet in SuperXTerminal either (the parity survey listed it for both):
+
+- **Search Output** (a tab's menu) searched the session log once, when Find was pressed; output printed afterwards wasn't in the list until Find was pressed again. Once a search has run, it now runs again whenever the log grows (looked at every second), so the list keeps up; it stays where it was scrolled to, or at the bottom if it was there. The summary says "kept up to date".
+- **Whole word** in Search Output and in the built-in terminal's find bar (a new **ab** button between Aa and .*): a match that isn't part of a longer word on either side, with match case and regular expressions too. Look-arounds are used rather than `\b`, so text that starts or ends in punctuation, as "sw1#" or "10.0.0.1", still counts as a word, and in the find bar letters of any script count as word characters.
+- **Code:** `dlgSearchOutput` (`liveTimer`, `Search`, `MakeMatcher` with `wholeWord`, the Whole word box), `findRegex` and the `#findWord` button in `web/terminal`.
+
+**Checked:** unit tests (`SuperPuttyUnitTests/SearchOutputTests.cs`): whole words, punctuation and addresses, regex with match case, the old matcher unchanged. Page tests: "show" four times, twice as a whole word (not in "showing" or inside a Cyrillic word); a regex as a whole word. In a test program with the real dialog: a whole-word search lists 1 line, and after two more lines are written to the log, without a click, 2. **Not checked:** in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
