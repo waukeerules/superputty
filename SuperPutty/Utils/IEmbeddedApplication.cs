@@ -6,7 +6,8 @@ namespace SuperPutty.Utils
     /// An application hosted inside a tab as a WinForms control, instead of an external process whose window
     /// is captured (the usual way <see cref="ApplicationPanel"/> works). The implementing class must also be a
     /// <see cref="System.Windows.Forms.Control"/>; ApplicationPanel adds it to the tab and fills the tab with it.
-    /// Used by <see cref="Gui.RdpControl"/>.
+    /// Used by <see cref="Gui.RdpControl"/> (which keeps its tab when the session ends, so never raises
+    /// <see cref="Ended"/>) and <see cref="Gui.TerminalControl"/>.
     /// </summary>
     public interface IEmbeddedApplication
     {

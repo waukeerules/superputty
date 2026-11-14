@@ -647,6 +647,54 @@ namespace SuperPutty
             }
         }
 
+        /// <summary>
+        /// File > Import > From .rdp files...: one RDP session for each Remote Desktop file chosen, named as the file, with
+        /// its address and username (RdpFile.Read), into an "ImportedFromRdp" folder, as SuperXTerminal imports them
+        /// </summary>
+        /// <param name="sender">The menu item</param>
+        /// <param name="e">Not used</param>
+        private void fromRdpFilesToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (OpenFileDialog openDialog = new OpenFileDialog
+            {
+                Filter = "Remote Desktop files|*.rdp|All files|*.*",
+                Multiselect = true,
+                CheckFileExists = true
+            })
+            {
+                if (openDialog.ShowDialog(this) != DialogResult.OK)
+                    return;
+                List<SessionData> sessions = new List<SessionData>();
+                List<string> skipped = new List<string>();
+                foreach (string file in openDialog.FileNames)
+                {
+                    SessionData session = null;
+                    try
+                    {
+                        // Remote Desktop writes its files in UTF-16; ReadAllText follows the byte order mark
+                        session = RdpFile.Read(file, File.ReadAllText(file));
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warn("Could not read " + file, ex);
+                    }
+                    if (session != null)
+                        sessions.Add(session);
+                    else
+                        skipped.Add(Path.GetFileName(file));
+                }
+                if (sessions.Count > 0)
+                {
+                    SuperPuTTY.ImportSessions(sessions, "ImportedFromRdp");
+                }
+                if (skipped.Count > 0)
+                {
+                    Messenger.MessageBox("These files have no address (full address:s:) and weren't imported:\n\n" + string.Join("\n", skipped),
+                        "Import", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+        }
+
         private void fromMobaXtermToolStripMenuItem_Click(object sender, EventArgs e)
         {
             OpenFileDialog openDialog = new OpenFileDialog
@@ -907,6 +955,8 @@ namespace SuperPutty
                 this.fullscreenViewState.Hide();
             }
             this.fullScreenToolStripMenuItem.Checked = !this.fullScreenToolStripMenuItem.Checked;
+            // RDP tabs set to "Windows keys only when full screen" get them now (RdpWindowsKeys)
+            RdpWindowsKeys.SetFullScreen(this.fullScreenToolStripMenuItem.Checked);
 
         }
 

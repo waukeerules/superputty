@@ -1205,6 +1205,15 @@ namespace SuperPutty.Utils
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool PostMessagePtr(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
         public delegate IntPtr LowLevelKMProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        /// <summary>Draw a window into a device context, as it looks on screen (RdpControl.Screenshot)</summary>
+        /// <param name="hwnd">The window</param>
+        /// <param name="hdcBlt">Where to draw it</param>
+        /// <param name="nFlags">PW_CLIENTONLY (1), PW_RENDERFULLCONTENT (2)</param>
+        /// <returns>true if it drew</returns>
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdcBlt, uint nFlags);
         public delegate bool EnumWindowProc(IntPtr hWnd, IntPtr parameter);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]

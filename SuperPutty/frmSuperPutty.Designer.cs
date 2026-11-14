@@ -40,6 +40,7 @@ namespace SuperPutty
             this.fromPuTTYPortableSettingsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.fromPuTTYCMExportToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.fromWinRDPRegToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.fromRdpFilesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.fromMobaXtermToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.fromCsvToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
@@ -177,6 +178,7 @@ namespace SuperPutty
             this.fromPuTTYPortableSettingsToolStripMenuItem,
             this.fromPuTTYCMExportToolStripMenuItem,
             this.fromWinRDPRegToolStripMenuItem,
+            this.fromRdpFilesToolStripMenuItem,
             this.fromMobaXtermToolStripMenuItem,
             this.fromCsvToolStripMenuItem});
             this.importSettingsToolStripMenuItem.Name = "importSettingsToolStripMenuItem";
@@ -217,6 +219,13 @@ namespace SuperPutty
             this.fromWinRDPRegToolStripMenuItem.Size = new System.Drawing.Size(293, 26);
             this.fromWinRDPRegToolStripMenuItem.Text = "From &RDP (Registry)";
             this.fromWinRDPRegToolStripMenuItem.Click += new System.EventHandler(this.fromWinRDPRegToolStripMenuItem_Click);
+            //
+            // fromRdpFilesToolStripMenuItem
+            //
+            this.fromRdpFilesToolStripMenuItem.Name = "fromRdpFilesToolStripMenuItem";
+            this.fromRdpFilesToolStripMenuItem.Size = new System.Drawing.Size(293, 26);
+            this.fromRdpFilesToolStripMenuItem.Text = "From .rdp &files...";
+            this.fromRdpFilesToolStripMenuItem.Click += new System.EventHandler(this.fromRdpFilesToolStripMenuItem_Click);
             // 
             // fromMobaXtermToolStripMenuItem
             // 
@@ -1026,6 +1035,7 @@ namespace SuperPutty
         private System.Windows.Forms.ToolStripMenuItem fromPuTTYPortableSettingsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem fromPuTTYCMExportToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem fromWinRDPRegToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem fromRdpFilesToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem sessionsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem layoutsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem showLogViewerToolStripMenuItem;

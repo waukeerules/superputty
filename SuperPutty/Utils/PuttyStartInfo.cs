@@ -53,6 +53,8 @@ namespace SuperPutty.Utils
 
             // replace {key} placeholders on a copy so the stored session keeps them
             session = SessionVariables.Resolve(session);
+            // kept for StartStandalone (an RDP session's .rdp file); it was declared but never set
+            this.Session = session;
 
             this.Executable = GetExecutable(session);
 
@@ -251,16 +253,40 @@ namespace SuperPutty.Utils
                     return;
                 }
             }
+            string args = this.Args;
+            if (this.Session != null && this.Session.Proto == ConnectionProtocol.RDP
+                && !executable.EndsWith("wfreerdp.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                // mstsc gets a .rdp file with the session's options (display, redirections, gateway...), as the built-in
+                // client connects with them, rather than only /v: (as SuperXTerminal's Connect external)
+                args = "\"" + WriteRdpFile(this.Session) + "\"" + (string.IsNullOrEmpty(this.Session.ExtraArgs) ? "" : " " + this.Session.ExtraArgs);
+            }
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = executable,
-                Arguments = this.Args
+                Arguments = args
             };
             if (this.WorkingDir != null && Directory.Exists(this.WorkingDir))
             {
                 startInfo.WorkingDirectory = this.WorkingDir;
             }
             Process.Start(startInfo);
+        }
+
+        /// <summary>
+        /// Write a session's .rdp file (RdpFile.Write, with RdpOptions.EffectiveFor) to %TEMP%\SuperPuTTY\rdp, named for
+        /// the session, for mstsc to open
+        /// </summary>
+        /// <param name="session">The session, placeholders replaced</param>
+        /// <returns>The file's path</returns>
+        private static string WriteRdpFile(SessionData session)
+        {
+            string folder = Path.Combine(Path.GetTempPath(), "SuperPuTTY", "rdp");
+            Directory.CreateDirectory(folder);
+            string name = string.Join("_", (session.SessionName ?? "session").Split(Path.GetInvalidFileNameChars()));
+            string path = Path.Combine(folder, (name.Trim().Length > 0 ? name.Trim() : "session") + ".rdp");
+            File.WriteAllText(path, RdpFile.Write(session, RdpOptions.EffectiveFor(session)));
+            return path;
         }
 
         public SessionData Session { get; private set; }

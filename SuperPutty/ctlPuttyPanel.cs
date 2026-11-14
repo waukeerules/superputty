@@ -166,7 +166,13 @@ namespace SuperPutty
             {
                 // host the Remote Desktop ActiveX control in the tab, sized to it, instead of capturing an mstsc window
                 SessionData resolved = SessionVariables.Resolve(this.Session);
-                this.AppPanel.EmbeddedApplicationFactory = () => new RdpControl(resolved);
+                this.AppPanel.EmbeddedApplicationFactory = () =>
+                {
+                    RdpControl rdp = new RdpControl(resolved);
+                    // the tab stays when the session ends; its badge and the tree follow the session, as a terminal's
+                    rdp.StateChanged += this.OnRdpStateChanged;
+                    return rdp;
+                };
             }
             else if (TerminalControl.ShouldUse(this.Session))
             {
@@ -1010,6 +1016,11 @@ namespace SuperPutty
                 this.Terminal.Reconnect();
                 return;
             }
+            if (this.Rdp != null)
+            {
+                this.Rdp.Reconnect();
+                return;
+            }
             IntPtr window = this.AppPanel.AppWindowHandle;
             if (window == IntPtr.Zero)
                 return;
@@ -1035,6 +1046,7 @@ namespace SuperPutty
         private void StopReconnecting()
         {
             this.Terminal?.StopReconnecting();
+            this.Rdp?.StopReconnecting();
             this.nextReconnectAt = DateTime.MinValue;
             SuperPuTTY.ReportStatus($"Stopped reconnecting {this.Text}");
         }
@@ -1082,6 +1094,9 @@ namespace SuperPutty
         /// <summary>"Reconnect" and "Stop Reconnecting" at the top of the tab menu, shown while the session is down</summary>
         private ToolStripMenuItem menuReconnect, menuStopReconnecting;
 
+        /// <summary>"Disconnect" at the top of an RDP tab's menu while it's connected; the tab stays (RdpControl.Disconnect)</summary>
+        private ToolStripMenuItem menuDisconnect;
+
         /// <summary>The separator under <see cref="menuReconnect"/></summary>
         private ToolStripSeparator menuReconnectSeparator;
 
@@ -1114,10 +1129,12 @@ namespace SuperPutty
             this.menuReconnect = new ToolStripMenuItem("&Reconnect", null, (s, e) => this.Reconnect());
             this.menuReconnect.Font = new System.Drawing.Font(this.menuReconnect.Font, System.Drawing.FontStyle.Bold);
             this.menuStopReconnecting = new ToolStripMenuItem("Stop Reconnecting", null, (s, e) => this.StopReconnecting());
+            this.menuDisconnect = new ToolStripMenuItem("&Disconnect", null, (s, e) => this.Rdp?.Disconnect());
             this.menuReconnectSeparator = new ToolStripSeparator();
             this.contextMenuStrip1.Items.Insert(0, this.menuReconnect);
             this.contextMenuStrip1.Items.Insert(1, this.menuStopReconnecting);
-            this.contextMenuStrip1.Items.Insert(2, this.menuReconnectSeparator);
+            this.contextMenuStrip1.Items.Insert(2, this.menuDisconnect);
+            this.contextMenuStrip1.Items.Insert(3, this.menuReconnectSeparator);
         }
 
         /// <summary>Tick and enable the output menu items to match this tab before the menu opens</summary>
@@ -1136,10 +1153,14 @@ namespace SuperPutty
                 item.Checked = (int)item.Tag == this.watchSilenceSeconds;
             }
             this.menuReconnect.Visible = this.IsDisconnected;
-            this.menuReconnectSeparator.Visible = this.IsDisconnected;
+            // an RDP tab can be disconnected and connected again from here, as in SuperXTerminal
+            this.menuDisconnect.Visible = this.Rdp != null && !this.IsDisconnected;
+            this.menuReconnectSeparator.Visible = this.IsDisconnected || this.menuDisconnect.Visible;
             this.menuStopReconnecting.Visible = this.Terminal != null
                 ? this.IsDisconnected && this.Terminal.ReconnectScheduled
-                : this.connection == ConnectionState.Disconnected && this.nextReconnectAt != DateTime.MinValue;
+                : this.Rdp != null
+                    ? this.IsDisconnected && this.Rdp.ReconnectScheduled
+                    : this.connection == ConnectionState.Disconnected && this.nextReconnectAt != DateTime.MinValue;
             if (this.Terminal != null)
             {
                 // the built-in terminal has no PuTTY window: no Event Log, Change Settings or About PuTTY
@@ -1334,6 +1355,15 @@ namespace SuperPutty
         /// <summary>The tab menu's Special Command submenu: PuTTY's own, read when the menu opens</summary>
         private ToolStripMenuItem menuSpecialCommand;
 
+        /// <summary>An RDP tab's Send Key: the keys a remote desktop can't be typed (<see cref="RdpKeys.MenuKeys"/>); made on first use</summary>
+        private ToolStripMenuItem menuRdpKeys;
+
+        /// <summary>An RDP tab's Type Clipboard Text, for the login screen and consoles without clipboard sharing</summary>
+        private ToolStripMenuItem menuTypeClipboard;
+
+        /// <summary>An RDP tab's Copy Screenshot: a picture of the remote desktop on the clipboard</summary>
+        private ToolStripMenuItem menuCopyScreenshot;
+
         /// <summary>The last key typed into Other Key..., offered next time</summary>
         private static string lastOtherKey = "^C";
 
@@ -1377,6 +1407,7 @@ namespace SuperPutty
         /// </summary>
         private void UpdateKeyMenuItems()
         {
+            this.UpdateRdpMenuItems();
             this.menuSendKey.Enabled = this.CanReceiveCommands;
             bool puttyProtocol = !(Session.Proto == ConnectionProtocol.VNC || Session.Proto == ConnectionProtocol.Mintty
                 || Session.Proto == ConnectionProtocol.RDP || Session.Proto == ConnectionProtocol.WINCMD
@@ -1402,6 +1433,64 @@ namespace SuperPutty
                 return;
             }
             this.AddSpecialCommands(this.menuSpecialCommand.DropDownItems, commands);
+        }
+
+        /// <summary>
+        /// An RDP tab's Send Key (Ctrl+Alt+Del, the Windows key and others, <see cref="RdpKeys.MenuKeys"/>) and Type
+        /// Clipboard Text, in place of the terminal keys, as SuperXTerminal's RDP tab menu; made the first time the menu
+        /// opens on an RDP tab, enabled while the session is up
+        /// </summary>
+        private void UpdateRdpMenuItems()
+        {
+            RdpControl rdp = this.Rdp;
+            if (rdp != null && this.menuRdpKeys == null)
+            {
+                this.menuRdpKeys = new ToolStripMenuItem("Send &Key");
+                foreach (KeyValuePair<string, Keys[]> key in RdpKeys.MenuKeys)
+                {
+                    Keys[] keys = key.Value;
+                    this.menuRdpKeys.DropDownItems.Add(new ToolStripMenuItem(key.Key, null, (s, e) => this.Rdp?.SendKeyCombination(keys)));
+                }
+                this.menuTypeClipboard = new ToolStripMenuItem("&Type Clipboard Text", null, (s, e) => this.TypeClipboardText());
+                this.menuCopyScreenshot = new ToolStripMenuItem("Copy Screens&hot", null, (s, e) => this.CopyRdpScreenshot());
+                int index = this.contextMenuStrip1.Items.IndexOf(this.menuSendKey);
+                this.contextMenuStrip1.Items.Insert(index, this.menuRdpKeys);
+                this.contextMenuStrip1.Items.Insert(index + 1, this.menuTypeClipboard);
+                this.contextMenuStrip1.Items.Insert(index + 2, this.menuCopyScreenshot);
+            }
+            if (this.menuRdpKeys != null)
+            {
+                bool up = rdp != null && rdp.IsConnected;
+                this.menuRdpKeys.Enabled = up;
+                this.menuTypeClipboard.Enabled = up;
+                this.menuCopyScreenshot.Enabled = up;
+                // the terminal keys (Ctrl+C, Ctrl+]...) are for terminals
+                this.menuSendKey.Visible = false;
+            }
+        }
+
+        /// <summary>Put a picture of the RDP tab's remote desktop on the clipboard (RdpControl.Screenshot)</summary>
+        private void CopyRdpScreenshot()
+        {
+            if (this.Rdp == null)
+                return;
+            using (System.Drawing.Bitmap picture = this.Rdp.Screenshot())
+            {
+                Clipboard.SetImage(picture);
+            }
+            SuperPuTTY.ReportStatus("Copied a screenshot of " + this.Text);
+        }
+
+        /// <summary>Type the clipboard's text into the RDP tab, key by key (RdpControl.TypeText)</summary>
+        private void TypeClipboardText()
+        {
+            string text = Clipboard.ContainsText() ? Clipboard.GetText() : null;
+            if (string.IsNullOrEmpty(text))
+            {
+                SuperPuTTY.ReportStatus("The clipboard has no text to type");
+                return;
+            }
+            this.Rdp?.TypeText(text);
         }
 
         /// <summary>Add PuTTY's special commands to a menu, with their separators and submenus</summary>
@@ -1555,6 +1644,21 @@ namespace SuperPutty
         public TerminalControl Terminal
         {
             get { return this.AppPanel?.EmbeddedApplication as TerminalControl; }
+        }
+
+        /// <summary>The Remote Desktop control shown in this tab (the built-in RDP client); null for other tabs</summary>
+        public RdpControl Rdp
+        {
+            get { return this.AppPanel?.EmbeddedApplication as RdpControl; }
+        }
+
+        /// <summary>The RDP session ended, is connecting again or is back: show it on the tab and in the tree</summary>
+        /// <param name="sender">The RDP control</param>
+        /// <param name="e">Not used</param>
+        private void OnRdpStateChanged(object sender, EventArgs e)
+        {
+            RdpControl rdp = (RdpControl)sender;
+            this.SetConnection(rdp.IsConnected ? ConnectionState.Connected : ConnectionState.Disconnected);
         }
 
         /// <summary>The built-in terminal's session dropped, is reconnecting or came back: show it on the tab and in the tree</summary>
