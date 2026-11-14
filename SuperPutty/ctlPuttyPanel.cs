@@ -166,7 +166,13 @@ namespace SuperPutty
             {
                 // host the Remote Desktop ActiveX control in the tab, sized to it, instead of capturing an mstsc window
                 SessionData resolved = SessionVariables.Resolve(this.Session);
-                this.AppPanel.EmbeddedApplicationFactory = () => new RdpControl(resolved);
+                this.AppPanel.EmbeddedApplicationFactory = () =>
+                {
+                    RdpControl rdp = new RdpControl(resolved);
+                    // the tab stays when the session ends; its badge and the tree follow the session, as a terminal's
+                    rdp.StateChanged += this.OnRdpStateChanged;
+                    return rdp;
+                };
             }
             else if (TerminalControl.ShouldUse(this.Session))
             {
@@ -1010,6 +1016,11 @@ namespace SuperPutty
                 this.Terminal.Reconnect();
                 return;
             }
+            if (this.Rdp != null)
+            {
+                this.Rdp.Reconnect();
+                return;
+            }
             IntPtr window = this.AppPanel.AppWindowHandle;
             if (window == IntPtr.Zero)
                 return;
@@ -1035,6 +1046,7 @@ namespace SuperPutty
         private void StopReconnecting()
         {
             this.Terminal?.StopReconnecting();
+            this.Rdp?.StopReconnecting();
             this.nextReconnectAt = DateTime.MinValue;
             SuperPuTTY.ReportStatus($"Stopped reconnecting {this.Text}");
         }
@@ -1082,6 +1094,9 @@ namespace SuperPutty
         /// <summary>"Reconnect" and "Stop Reconnecting" at the top of the tab menu, shown while the session is down</summary>
         private ToolStripMenuItem menuReconnect, menuStopReconnecting;
 
+        /// <summary>"Disconnect" at the top of an RDP tab's menu while it's connected; the tab stays (RdpControl.Disconnect)</summary>
+        private ToolStripMenuItem menuDisconnect;
+
         /// <summary>The separator under <see cref="menuReconnect"/></summary>
         private ToolStripSeparator menuReconnectSeparator;
 
@@ -1114,10 +1129,12 @@ namespace SuperPutty
             this.menuReconnect = new ToolStripMenuItem("&Reconnect", null, (s, e) => this.Reconnect());
             this.menuReconnect.Font = new System.Drawing.Font(this.menuReconnect.Font, System.Drawing.FontStyle.Bold);
             this.menuStopReconnecting = new ToolStripMenuItem("Stop Reconnecting", null, (s, e) => this.StopReconnecting());
+            this.menuDisconnect = new ToolStripMenuItem("&Disconnect", null, (s, e) => this.Rdp?.Disconnect());
             this.menuReconnectSeparator = new ToolStripSeparator();
             this.contextMenuStrip1.Items.Insert(0, this.menuReconnect);
             this.contextMenuStrip1.Items.Insert(1, this.menuStopReconnecting);
-            this.contextMenuStrip1.Items.Insert(2, this.menuReconnectSeparator);
+            this.contextMenuStrip1.Items.Insert(2, this.menuDisconnect);
+            this.contextMenuStrip1.Items.Insert(3, this.menuReconnectSeparator);
         }
 
         /// <summary>Tick and enable the output menu items to match this tab before the menu opens</summary>
@@ -1136,10 +1153,14 @@ namespace SuperPutty
                 item.Checked = (int)item.Tag == this.watchSilenceSeconds;
             }
             this.menuReconnect.Visible = this.IsDisconnected;
-            this.menuReconnectSeparator.Visible = this.IsDisconnected;
+            // an RDP tab can be disconnected and connected again from here, as in SuperXTerminal
+            this.menuDisconnect.Visible = this.Rdp != null && !this.IsDisconnected;
+            this.menuReconnectSeparator.Visible = this.IsDisconnected || this.menuDisconnect.Visible;
             this.menuStopReconnecting.Visible = this.Terminal != null
                 ? this.IsDisconnected && this.Terminal.ReconnectScheduled
-                : this.connection == ConnectionState.Disconnected && this.nextReconnectAt != DateTime.MinValue;
+                : this.Rdp != null
+                    ? this.IsDisconnected && this.Rdp.ReconnectScheduled
+                    : this.connection == ConnectionState.Disconnected && this.nextReconnectAt != DateTime.MinValue;
             if (this.Terminal != null)
             {
                 // the built-in terminal has no PuTTY window: no Event Log, Change Settings or About PuTTY
@@ -1555,6 +1576,21 @@ namespace SuperPutty
         public TerminalControl Terminal
         {
             get { return this.AppPanel?.EmbeddedApplication as TerminalControl; }
+        }
+
+        /// <summary>The Remote Desktop control shown in this tab (the built-in RDP client); null for other tabs</summary>
+        public RdpControl Rdp
+        {
+            get { return this.AppPanel?.EmbeddedApplication as RdpControl; }
+        }
+
+        /// <summary>The RDP session ended, is connecting again or is back: show it on the tab and in the tree</summary>
+        /// <param name="sender">The RDP control</param>
+        /// <param name="e">Not used</param>
+        private void OnRdpStateChanged(object sender, EventArgs e)
+        {
+            RdpControl rdp = (RdpControl)sender;
+            this.SetConnection(rdp.IsConnected ? ConnectionState.Connected : ConnectionState.Disconnected);
         }
 
         /// <summary>The built-in terminal's session dropped, is reconnecting or came back: show it on the tab and in the tree</summary>

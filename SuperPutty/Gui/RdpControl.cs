@@ -64,9 +64,28 @@ namespace SuperPutty.Gui
 
         /// <summary>
         /// A panel in the theme's colour over the control until the connection is up and after it ends: the control
-        /// paints itself white then, and has no setting for that colour (see <see cref="ShowCover"/>)
+        /// paints itself white then, and has no setting for that colour (see <see cref="ShowCover"/>). After the session
+        /// ends it says why, and a click on it connects again.
         /// </summary>
         private Label cover;
+
+        /// <summary>True from the session ending until it's connecting again: the tab stays, showing why it ended</summary>
+        private bool ended;
+
+        /// <summary>True when the tab menu's Disconnect ended the session, so it isn't taken for a drop</summary>
+        private bool userDisconnected;
+
+        /// <summary>Automatic reconnects tried since the session last dropped (Options > Advanced > Dropped sessions)</summary>
+        private int reconnectAttempts;
+
+        /// <summary>Counts down to the next automatic reconnect, a tick a second; stopped when none is due</summary>
+        private readonly Timer reconnectTimer;
+
+        /// <summary>Seconds left before the next automatic reconnect</summary>
+        private int reconnectSecondsLeft;
+
+        /// <summary>The first line of what the cover says after the session ended, kept while the countdown runs</summary>
+        private string endReason;
 
         /// <summary>Create the control for a session; nothing connects until <see cref="Start"/></summary>
         /// <param name="session">The session, with {key} placeholders already replaced</param>
@@ -76,10 +95,68 @@ namespace SuperPutty.Gui
             this.options = RdpOptions.EffectiveFor(session);
             this.resizeTimer = new Timer { Interval = ResizeDelayMs };
             this.resizeTimer.Tick += this.resizeTimer_Tick;
+            this.reconnectTimer = new Timer { Interval = 1000 };
+            this.reconnectTimer.Tick += this.reconnectTimer_Tick;
         }
 
-        /// <summary>Raised when the session ends: disconnected, logged off, or failed to connect</summary>
-        public event EventHandler Ended;
+        /// <summary>
+        /// Never raised: an RDP tab stays open when its session ends, showing why, with a click to connect again and,
+        /// for a drop, a countdown to reconnecting, as SuperXTerminal's (<see cref="StateChanged"/> says so instead).
+        /// It used to close the tab, after a message box for anything but a plain logoff.
+        /// </summary>
+        public event EventHandler Ended
+        {
+            add { }
+            remove { }
+        }
+
+        /// <summary>
+        /// Raised when the session ends, starts connecting again or is back, so the tab can show the disconnected badge
+        /// and the Sessions tree its state (ctlPuttyPanel), as for the built-in terminal
+        /// </summary>
+        public event EventHandler StateChanged;
+
+        /// <summary>Whether the session is up or on its way (not ended)</summary>
+        public bool IsConnected
+        {
+            get { return !this.ended; }
+        }
+
+        /// <summary>Whether an automatic reconnect is counting down (the tab menu's Stop Reconnecting)</summary>
+        public bool ReconnectScheduled
+        {
+            get { return this.reconnectTimer.Enabled; }
+        }
+
+        /// <summary>What happens after an RDP session ends (<see cref="AfterEnd"/>)</summary>
+        public enum EndAction
+        {
+            /// <summary>Nothing by itself: the tab says why it ended and waits for a click to connect again</summary>
+            WaitForClick,
+            /// <summary>Count down and connect again</summary>
+            Reconnect,
+            /// <summary>Gave up reconnecting after the last attempt: waits for a click</summary>
+            GaveUp
+        }
+
+        /// <summary>
+        /// What to do when a session ends, as SuperXTerminal's RdpHost: only a drop (not a logoff or a disconnect from
+        /// either side) of a session that had reached the desktop, or a reconnect that failed, is tried again
+        /// automatically, with Options > Advanced > Dropped sessions on, up to its number of attempts. A login that
+        /// failed isn't, so a wrong password isn't retried into an account lockout.
+        /// </summary>
+        /// <param name="clean">The session ended normally (<see cref="ShouldReport"/> false)</param>
+        /// <param name="wasLoggedIn">It had reached the desktop</param>
+        /// <param name="attempts">Automatic reconnects tried since it dropped</param>
+        /// <param name="autoReconnect">Options: reconnect dropped sessions</param>
+        /// <param name="maxAttempts">Options: how many times</param>
+        /// <returns>What to do</returns>
+        public static EndAction AfterEnd(bool clean, bool wasLoggedIn, int attempts, bool autoReconnect, int maxAttempts)
+        {
+            if (clean || !autoReconnect || (!wasLoggedIn && attempts == 0))
+                return EndAction.WaitForClick;
+            return attempts < Math.Max(1, maxAttempts) ? EndAction.Reconnect : EndAction.GaveUp;
+        }
 
         /// <summary>
         /// Whether RDP sessions should use this control: the "Built-in client" option is on, the configured RDP
@@ -190,6 +267,101 @@ namespace SuperPutty.Gui
             Log.InfoFormat("Connecting to {0}:{1} as '{2}' with a {3}x{4} desktop{5}", this.session.Host, this.session.Port, this.session.Username, size.Width, size.Height,
                 string.IsNullOrWhiteSpace(this.options.GatewayHost) ? "" : " through gateway " + this.options.GatewayHost);
             this.client.Connect();
+        }
+
+        /// <summary>
+        /// Connect again after the session ended: from the tab menu's Reconnect, a click on the tab, or the countdown
+        /// after a drop. The settings from <see cref="Start"/> still hold; the desktop is sized to the tab as it is now.
+        /// </summary>
+        public void Reconnect()
+        {
+            this.Reconnect(false);
+        }
+
+        /// <summary>Connect again; a manual reconnect starts the attempts afresh</summary>
+        /// <param name="automatic">True for the countdown's reconnect</param>
+        private void Reconnect(bool automatic)
+        {
+            if (this.IsDisposed || this.client == null || !this.ended)
+                return;
+            this.reconnectTimer.Stop();
+            if (!automatic)
+            {
+                this.reconnectAttempts = 0;
+            }
+            this.ended = false;
+            this.userDisconnected = false;
+            this.ShowCover(automatic
+                ? string.Format("Reconnecting to {0} (try {1} of {2})...", this.session.SessionName, this.reconnectAttempts, Math.Max(1, SuperPuTTY.Settings.AutoReconnectAttempts))
+                : "Connecting to " + this.session.SessionName + "...");
+            this.StateChanged?.Invoke(this, EventArgs.Empty);
+            try
+            {
+                if (this.FitsTab)
+                {
+                    Size size = ClampDesktopSize(this.ClientSize);
+                    this.client.DesktopWidth = size.Width;
+                    this.client.DesktopHeight = size.Height;
+                }
+                Log.InfoFormat("Reconnecting to {0}{1}", this.session.Host, automatic ? " (attempt " + this.reconnectAttempts + ")" : "");
+                this.client.Connect();
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Could not reconnect to " + this.session.Host, ex);
+                this.ended = true;
+                this.ShowCover("Could not connect to " + this.session.SessionName + ": " + ex.Message + "\n\nClick to try again.");
+                this.StateChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>Disconnect from the tab menu; the tab stays, and a click on it connects again</summary>
+        public void Disconnect()
+        {
+            if (this.ended || this.client == null)
+                return;
+            this.userDisconnected = true;
+            try
+            {
+                this.client.Disconnect();
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Could not disconnect from " + this.session.Host, ex);
+            }
+        }
+
+        /// <summary>Stop the countdown to the next automatic reconnect (the tab menu's Stop Reconnecting)</summary>
+        public void StopReconnecting()
+        {
+            if (!this.reconnectTimer.Enabled)
+                return;
+            this.reconnectTimer.Stop();
+            this.ShowCover((this.endReason ?? "Disconnected") + "\n\nStopped reconnecting. Click to connect again.");
+            this.StateChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>A second of the countdown to reconnecting: say how long is left, and reconnect at zero</summary>
+        /// <param name="sender">The timer</param>
+        /// <param name="e">Not used</param>
+        private void reconnectTimer_Tick(object sender, EventArgs e)
+        {
+            this.reconnectSecondsLeft--;
+            if (this.reconnectSecondsLeft > 0)
+            {
+                this.ShowReconnectCountdown();
+                return;
+            }
+            this.reconnectTimer.Stop();
+            this.reconnectAttempts++;
+            this.Reconnect(true);
+        }
+
+        /// <summary>Show the countdown on the cover, under why the session ended</summary>
+        private void ShowReconnectCountdown()
+        {
+            this.ShowCover(string.Format("{0}\n\nReconnecting in {1} s (try {2} of {3}). Click to reconnect now.",
+                this.endReason, this.reconnectSecondsLeft, this.reconnectAttempts + 1, Math.Max(1, SuperPuTTY.Settings.AutoReconnectAttempts)));
         }
 
         /// <summary>True when the remote desktop follows the tab's size (the effective Desktop size is "Fit the tab")</summary>
@@ -369,9 +541,9 @@ namespace SuperPutty.Gui
         }
 
         /// <summary>
-        /// Called when the session ends. Disconnecting or logging off ends it quietly; anything else (wrong host,
-        /// failed login, network error, a session that never reached the desktop, or a reason given by the server) is
-        /// reported with Windows' description of the error, and the tab closes once it's acknowledged.
+        /// Called when the session ends. The tab stays, as SuperXTerminal's: the cover says why (Windows' description of
+        /// the error, for anything but a disconnect or logoff), and a click on it connects again; a dropped session
+        /// counts down to reconnecting (<see cref="AfterEnd"/>). It used to close the tab, after a message box.
         /// </summary>
         /// <param name="reason">The disconnect reason code</param>
         private void OnDisconnected(int reason)
@@ -380,6 +552,7 @@ namespace SuperPutty.Gui
             this.loggedIn = false;
             if (this.closing)
                 return;
+            this.resizeTimer.Stop();
 
             int extended = 0;
             try
@@ -391,8 +564,9 @@ namespace SuperPutty.Gui
                 Log.Debug("Could not read the extended disconnect reason", ex);
             }
             Log.InfoFormat("Disconnected from {0}, reason {1}, extended reason {2}", this.session.Host, reason, extended);
-            this.ShowCover("Disconnected from " + this.session.SessionName);
-            if (ShouldReport(reason, extended, wasLoggedIn))
+            bool clean = this.userDisconnected || !ShouldReport(reason, extended, wasLoggedIn);
+            this.endReason = "Disconnected from " + this.session.SessionName;
+            if (!clean)
             {
                 string description = "error " + reason;
                 try
@@ -403,10 +577,27 @@ namespace SuperPutty.Gui
                 {
                     Log.Warn("Could not get the disconnect description", ex);
                 }
-                Messenger.MessageBox($"Remote desktop session \"{this.session.SessionName}\" ended:\n\n{description}",
-                    "Remote Desktop", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                this.endReason = this.session.SessionName + ": " + description;
             }
-            this.Ended?.Invoke(this, EventArgs.Empty);
+            this.ended = true;
+            this.userDisconnected = false;
+            switch (AfterEnd(clean, wasLoggedIn, this.reconnectAttempts, SuperPuTTY.Settings.AutoReconnect, SuperPuTTY.Settings.AutoReconnectAttempts))
+            {
+                case EndAction.Reconnect:
+                    this.reconnectSecondsLeft = Math.Max(1, SuperPuTTY.Settings.AutoReconnectDelaySeconds);
+                    this.ShowReconnectCountdown();
+                    this.reconnectTimer.Start();
+                    SuperPuTTY.ReportStatus(this.endReason + ". Reconnecting in " + this.reconnectSecondsLeft + " s");
+                    break;
+                case EndAction.GaveUp:
+                    this.ShowCover(this.endReason + "\n\nGave up reconnecting. Click to try again.");
+                    SuperPuTTY.ReportStatus("Gave up reconnecting " + this.session.SessionName);
+                    break;
+                default:
+                    this.ShowCover(this.endReason + (clean ? "." : "") + "\n\nClick to connect again.");
+                    break;
+            }
+            this.StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>Called when the connection is up, before Windows' own login screen, which must stay visible</summary>
@@ -437,9 +628,12 @@ namespace SuperPutty.Gui
                     ForeColor = dark ? Color.FromArgb(150, 150, 150) : SystemColors.GrayText,
                     Font = new Font(this.Font.FontFamily, 11f)
                 };
+                // after the session ended, a click connects again (or now, during a countdown)
+                this.cover.Click += (s, e) => this.Reconnect(false);
                 this.Parent.Controls.Add(this.cover);
             }
             this.cover.Text = text;
+            this.cover.Cursor = this.ended ? Cursors.Hand : Cursors.Default;
             this.cover.Visible = true;
             this.cover.BringToFront();
         }
@@ -484,6 +678,7 @@ namespace SuperPutty.Gui
             if (disposing)
             {
                 this.resizeTimer.Dispose();
+                this.reconnectTimer.Dispose();
                 this.cover?.Dispose();
                 try
                 {

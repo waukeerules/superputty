@@ -184,7 +184,7 @@ The log lists each folder used and how many icons came from it.
 - **Sized to the tab:** the remote desktop is set to the tab's size when connecting.
 - **Resizing:** when the tab is resized (after a 0.5 s pause), the remote resolution changes to match (`UpdateSessionDisplaySettings`, Windows 8.1 / Server 2012 R2 and later). Older remotes such as Windows 7 are scaled to fit instead (`SmartSizing`).
 - **Login:** the session's host, port and login username are used. Windows asks for credentials as mstsc does (CredSSP), unless the session has a password. A server whose identity can't be verified gets mstsc's usual warning.
-- **When the session ends** (disconnect, log off) the tab closes. If it can't connect, Windows' own error text is shown first, e.g. "Remote Desktop can't connect to the remote computer...".
+- **When the session ends** (disconnect, log off) the tab closes. If it can't connect, Windows' own error text is shown first, e.g. "Remote Desktop can't connect to the remote computer...". **Changed since:** the tab stays; see "RDP tabs stay when the session ends, and reconnect".
 - **Turning it off:** **Tools → Options → General → Built-in client**, next to the RDP client path (setting `RdpUseEmbeddedClient`, on by default). It's also skipped when the RDP client is FreeRDP (`wfreerdp.exe`), or when the control isn't installed. Untick it to go back to starting the RDP client program.
 - **Not supported with the built-in client:** the session's extra arguments are mstsc command-line switches, so they aren't used.
 
@@ -322,7 +322,7 @@ When a PuTTY session drops (network error, the device reloads, the server times 
   - This relies on the PuTTY session's "Close window on exit" being "Only on clean exit", PuTTY's default. With "Always", a drop closes the tab as before.
   - Raw-protocol sessions also close on a reset, because PuTTY exits.
   - The session's SPSL login script isn't re-run after a reconnect.
-- **RDP tabs:** the Remote Desktop control's own auto-reconnect (`EnableAutoReconnect`, with its "reconnecting" overlay) follows the same checkbox. If it gives up, the tab closes as before.
+- **RDP tabs:** the Remote Desktop control's own auto-reconnect (`EnableAutoReconnect`, with its "reconnecting" overlay) follows the same checkbox. If it gives up, the tab used to close; since "RDP tabs stay when the session ends, and reconnect" it stays and counts down to reconnecting itself.
 - **Code:** `Utils/PuttyWindow.cs` finds, reads and closes the error box, reads the "(inactive)" title, and sends Restart Session. `ctlPuttyPanel.CheckConnection` / `Reconnect` and the connection state machine are called from the timer in `frmSuperPutty`. Also `TabBadges.Disconnected`, and the settings `AutoReconnect`, `AutoReconnectDelaySeconds` and `AutoReconnectAttempts`.
 
 **Checked against PuTTY 0.85 and the compiled assembly:**
@@ -1923,7 +1923,7 @@ Two submenus in the tab's right-click menu, after Watch for Silence. Send Key is
 
 **Cause:** the server ends such a connection with disconnect reason 3, "disconnected by the server". `RdpControl.OnDisconnected` took reasons 1-3 as a normal end (like logging off) and closed the tab quietly, without looking at the extended reason.
 
-**Fix:** `RdpControl.ShouldReport` decides. Windows' description of the disconnect is shown in a themed message box, and the tab closes once it's acknowledged, when:
+**Fix:** `RdpControl.ShouldReport` decides. Windows' description of the disconnect is shown in a themed message box, and the tab closes once it's acknowledged (since "RDP tabs stay when the session ends, and reconnect", it's shown on the tab instead, which stays), when:
 - the reason is an error (anything but 1-3), as before;
 - the session never reached the desktop (no login completed), except a disconnect from this side;
 - the extended reason is the server's: idle or logon timeout, replaced by another connection, out of memory, denied, insufficient privileges, fresh credentials required (3-10), or a licensing or protocol error (256 and up).
@@ -2531,6 +2531,18 @@ The find bar opened only from the right-click menu's Find... or Ctrl+Shift+F, so
 In a session with an environment colour the tab has a 3-pixel frame (`ctlPuttyPanel.EnvironmentFrameWidth`, now one constant), so the page is that much in from the tab's edges. As SuperXTerminal's cd02531, TerminalControl tells the page the frame's width with the colour (`frame` in `config` and `cursorColor`), and the glass and the find bar move out by it (`--frame`), to sit where they do in a tab with no colour.
 
 **Checked:** the glass is faint, names Ctrl+Shift+F, opens the bar, hides while it's open and comes back after Escape; told of a 3-pixel frame, it moves 3 pixels up and right, and back with none. Both fail on the code before. **Not checked in the app:** a coloured session's tab.
+
+## RDP tabs stay when the session ends, and reconnect
+
+An RDP tab closed when its session ended: quietly for a logoff, after a message box for anything else. PuTTY and built-in terminal tabs keep their tab, get the disconnected badge and reconnect; now RDP tabs do too, as SuperXTerminal's (its commit 1c5a8a4):
+
+- **The tab stays**, covered in the theme's colour, saying why: "Disconnected from <session>" for a logoff or disconnect, or Windows' own description of the error (no message box). A click on it connects again (`RdpControl.Reconnect`, the same control and settings, the desktop sized to the tab as it is now).
+- **A dropped session reconnects** with Options > Advanced > Dropped sessions: "Reconnecting in 9 s (try 1 of 6). Click to reconnect now.", then "Gave up reconnecting. Click to try again." after the last attempt. Only a drop of a session that had reached the desktop, or a reconnect that failed, is retried (`RdpControl.AfterEnd`); a login that failed isn't, so a wrong password isn't retried into a lockout. The control's own auto-reconnect still rides out short drops first.
+- **The tab menu:** Reconnect and Stop Reconnecting (while the session is down), and **Disconnect** (while it's up), at the top, as for other tabs.
+- **The tab's badge and the Sessions tree** show the RDP session as connected or dropped (`RdpControl.StateChanged`, `IsConnected`, `ReconnectScheduled`; `ctlPuttyPanel.Rdp`, `OnRdpStateChanged`), as for the built-in terminal. A yellow "connecting" state comes with Phase 3 of the parity work.
+- `RdpControl` no longer raises `IEmbeddedApplication.Ended`.
+
+**Checked:** unit tests of `AfterEnd` and `ShouldReport` (`SuperPuttyUnitTests/RdpControlTests.cs`). The real Remote Desktop control, in a test program: connecting to a closed port, the tab stays with Windows' "Remote Desktop can't connect to the remote computer..." and "Click to connect again", with no automatic retry; Reconnect connects again; a drop of a logged-in session (simulated) counts down "Reconnecting in 9 s (try 1 of 6)"; Stop Reconnecting stops it. **Not checked:** against a real server, the tab badge and tree dot by eye.
 
 ## Offering changes upstream in small batches
 
