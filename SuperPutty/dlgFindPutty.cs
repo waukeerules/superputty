@@ -200,6 +200,7 @@ namespace SuperPutty
             this.numericUpDownOpacity.Value = (decimal)SuperPuTTY.Settings.Opacity * 100;
             this.checkQuickSelectorCaseSensitiveSearch.Checked = SuperPuTTY.Settings.QuickSelectorCaseSensitiveSearch;
             this.checkShowDocumentIcons.Checked = SuperPuTTY.Settings.ShowDocumentIcons;
+            this.checkWatchTabsForActivity.Checked = SuperPuTTY.Settings.WatchTabsForActivity;
             this.checkRestrictFloatingWindows.Checked = SuperPuTTY.Settings.DockingRestrictFloatingWindows;
             this.checkSessionsShowSearch.Checked = SuperPuTTY.Settings.SessionsShowSearch;
             this.checkFilterWhileTyping.Checked = SuperPuTTY.Settings.FilterSessionsOnChange;
@@ -457,6 +458,12 @@ namespace SuperPutty
                 SuperPuTTY.Settings.SessionsSearchFields = this.searchFields.ToString();
                 SuperPuTTY.Settings.QuickSelectorCaseSensitiveSearch = this.checkQuickSelectorCaseSensitiveSearch.Checked;
                 SuperPuTTY.Settings.ShowDocumentIcons = this.checkShowDocumentIcons.Checked;
+                if (SuperPuTTY.Settings.WatchTabsForActivity != this.checkWatchTabsForActivity.Checked)
+                {
+                    SuperPuTTY.Settings.WatchTabsForActivity = this.checkWatchTabsForActivity.Checked;
+                    // the tabs open now follow it too, as SuperXTerminal's
+                    ctlPuttyPanel.WatchAllForActivity(SuperPuTTY.MainForm.DockPanel.Contents.OfType<ctlPuttyPanel>(), this.checkWatchTabsForActivity.Checked);
+                }
                 SuperPuTTY.Settings.DockingRestrictFloatingWindows = this.checkRestrictFloatingWindows.Checked;
                 SuperPuTTY.Settings.SessionsShowSearch = this.checkSessionsShowSearch.Checked;
                 SuperPuTTY.Settings.FilterSessionsOnChange = this.checkFilterWhileTyping.Checked;

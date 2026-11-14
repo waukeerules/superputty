@@ -70,6 +70,10 @@ namespace SuperPutty
             AdjustMenu();
             AddOutputMenuItems();
             AddKeyMenuItems();
+            // Options -> GUI -> Watch tabs for activity, as SuperXTerminal's: every tab is watched as it opens, and its
+            // login banner counts as new output, so a tab opened behind another is marked at once. A tab without a
+            // session log (RDP, VNC) has nothing to watch.
+            this.watchActivity = SuperPuTTY.Settings.WatchTabsForActivity;
             // the black check glyph is hard to see on the dark menu
             MenuCheckMarks.Apply(this.contextMenuStrip1);
 
@@ -831,6 +835,23 @@ namespace SuperPutty
             {
                 // flash the taskbar button until SuperPuTTY comes to the front
                 NativeMethods.FlashWindow(SuperPuTTY.MainForm.Handle, NativeMethods.FLASHW_TRAY | NativeMethods.FLASHW_TIMERNOFG);
+            }
+        }
+
+        /// <summary>
+        /// The Watch tabs for activity option changed: watch the open tabs that have a session log for activity, or
+        /// stop; each tab's Watch for Silence is left as it is
+        /// </summary>
+        /// <param name="panels">The open tabs</param>
+        /// <param name="watch">The option's new value</param>
+        public static void WatchAllForActivity(IEnumerable<ctlPuttyPanel> panels, bool watch)
+        {
+            foreach (ctlPuttyPanel panel in panels)
+            {
+                if (!panel.IsDisposed && panel.SessionLogPath != null && panel.watchActivity != watch)
+                {
+                    panel.WatchForActivity(watch);
+                }
             }
         }
 
