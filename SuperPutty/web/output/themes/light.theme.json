@@ -1,0 +1,23 @@
+{
+  "name": "Light",
+  "base": "vs",
+  "colors": {
+    "background": "#ffffff",
+    "foreground": "#1f1f1f",
+    "selection": "#add6ff",
+    "lineNumbers": "#8a8a8a",
+    "currentLine": "#f3f3f3"
+  },
+  "font": { "family": "Consolas, \"Courier New\", monospace", "size": 13 },
+  "styles": {
+    "good": { "color": "#1a7f37" },
+    "bad": { "color": "#cf222e", "bold": true },
+    "warning": { "color": "#9a6700" },
+    "info": { "color": "#0550ae" },
+    "address": { "color": "#0e7490" },
+    "mac": { "color": "#8250df" },
+    "prompt": { "color": "#795e26", "bold": true },
+    "keyword": { "color": "#0000ff", "bold": true },
+    "comment": { "color": "#008000", "italic": true }
+  }
+}

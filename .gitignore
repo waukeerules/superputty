@@ -135,6 +135,8 @@ _NCrunch*
 Licenses.licx
 .vs
 *.json
+# ...but the default highlighting rules and themes ship with the app (Highlighted Output, built-in terminal)
+!SuperPutty/web/**/*.json
 /Talon.ApiServer/Identity4/Config.cs
 /Talon.ApiServer/tempkey.jwk
 /ArmorLink/Libs

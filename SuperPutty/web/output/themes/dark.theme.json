@@ -1,0 +1,23 @@
+{
+  "name": "Dark",
+  "base": "vs-dark",
+  "colors": {
+    "background": "#1e1e1e",
+    "foreground": "#d4d4d4",
+    "selection": "#264f78",
+    "lineNumbers": "#6e7681",
+    "currentLine": "#2a2d2e"
+  },
+  "font": { "family": "Consolas, \"Courier New\", monospace", "size": 13 },
+  "styles": {
+    "good": { "color": "#4ec97a" },
+    "bad": { "color": "#f14c4c", "bold": true },
+    "warning": { "color": "#e5c07b" },
+    "info": { "color": "#61afef" },
+    "address": { "color": "#56b6c2" },
+    "mac": { "color": "#c49bdb" },
+    "prompt": { "color": "#dcdcaa", "bold": true },
+    "keyword": { "color": "#569cd6", "bold": true },
+    "comment": { "color": "#6a9955", "italic": true }
+  }
+}

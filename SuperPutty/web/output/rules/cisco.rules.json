@@ -1,0 +1,39 @@
+{
+  "id": "cisco",
+  "name": "Cisco IOS / NX-OS",
+  "description": "Interface status, syslog severities, % messages, prompts and show running-config. Tested with docs/spikes/samples/cisco-ios-switch.txt.",
+  "include": ["generic"],
+  "detect": [
+    "^[A-Za-z0-9_.\\-]+(\\([\\w\\-]+\\))?[>#]",
+    "Cisco IOS|Cisco Nexus|NX-OS",
+    "% Invalid input detected"
+  ],
+  "rules": [
+    { "match": "^\\S+\\s+\\S+\\s+(YES|NO)\\s+\\S+\\s+up\\s+up\\s*$", "scope": "line", "style": "good" },
+    { "match": "^\\S+\\s+\\S+\\s+(YES|NO)\\s+\\S+\\s+up\\s+down\\s*$", "scope": "line", "style": "warning" },
+    { "match": "^\\S+\\s+\\S+\\s+(YES|NO)\\s+\\S+\\s+(administratively down|down)\\s+down\\s*$", "scope": "line", "style": "bad" },
+    { "match": "^\\S+\\s+--\\s+\\S+\\s+\\S+\\s+up\\b", "scope": "line", "style": "good" },
+    { "match": "\\bis up, line protocol is up\\b", "style": "good" },
+    { "match": "\\bis up, line protocol is down\\b", "style": "warning" },
+    { "match": "\\bis (administratively )?down, line protocol is down\\b", "style": "bad" },
+    { "match": "\\b(connected)\\b", "style": "good" },
+    { "match": "\\b(notconnect|err-disabled|disabled|inactive|suspended|sfpAbsent|xcvrAbsen)\\b", "style": "bad" },
+    { "match": "\\badministratively down\\b", "style": "bad" },
+    { "match": "\\bchanged state to up\\b", "style": "good" },
+    { "match": "\\bchanged state to (administratively )?down\\b", "style": "bad" },
+    { "match": "\\b[1-9]\\d* (input errors|output errors|CRC|runts|giants|throttles|collisions|interface resets|late collision|deferred|output buffer failures|ignored|overrun|frame)\\b", "style": "warning" },
+    { "match": "%[A-Z0-9_]+-[0-3]-[A-Z0-9_]+:", "style": "bad" },
+    { "match": "%[A-Z0-9_]+-4-[A-Z0-9_]+:", "style": "warning" },
+    { "match": "%[A-Z0-9_]+-[5-7]-[A-Z0-9_]+:", "style": "info" },
+    { "match": "^% .*", "style": "bad" },
+    { "match": "^\\s+\\^\\s*$", "style": "bad" },
+    { "match": "^[A-Za-z0-9_.\\-]+(\\([\\w\\-]+\\))?[>#]", "style": "prompt" },
+    { "match": "^\\s*!.*$", "style": "comment" },
+    { "match": "^\\s+description .*$", "style": "comment" },
+    { "match": "^(interface|router|line|vlan|ip access-list|route-map|policy-map|class-map|crypto map|object-group)\\b.*$", "style": "keyword" },
+    { "match": "^\\s+shutdown\\s*$", "style": "bad" },
+    { "match": "^\\s+no shutdown\\s*$", "style": "good" },
+    { "match": "\\b(permit)\\b", "style": "good" },
+    { "match": "\\b(deny)\\b", "style": "bad" }
+  ]
+}

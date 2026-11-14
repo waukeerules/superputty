@@ -1,0 +1,29 @@
+{
+  "name": "PuTTY",
+  "base": "vs-dark",
+  "description": "PuTTY's default colours: grey on black, a green cursor and PuTTY's 16 ANSI colours.",
+  "colors": {
+    "background": "#000000",
+    "foreground": "#bbbbbb",
+    "cursor": "#00ff00",
+    "selection": "#264f78",
+    "lineNumbers": "#555555",
+    "currentLine": "#101010",
+    "ansi": [
+      "#000000", "#bb0000", "#00bb00", "#bbbb00", "#0000bb", "#bb00bb", "#00bbbb", "#bbbbbb",
+      "#555555", "#ff5555", "#55ff55", "#ffff55", "#5555ff", "#ff55ff", "#55ffff", "#ffffff"
+    ]
+  },
+  "font": { "family": "Consolas, \"Courier New\", monospace", "size": 14 },
+  "styles": {
+    "good": { "color": "#55ff55" },
+    "bad": { "color": "#ff5555", "bold": true },
+    "warning": { "color": "#ffff55" },
+    "info": { "color": "#55aaff" },
+    "address": { "color": "#55ffff" },
+    "mac": { "color": "#ff88ff" },
+    "prompt": { "color": "#ffffff", "bold": true },
+    "keyword": { "color": "#8899ff", "bold": true },
+    "comment": { "color": "#888888", "italic": true }
+  }
+}

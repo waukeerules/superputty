@@ -1,0 +1,26 @@
+{
+  "id": "junos",
+  "name": "Junos",
+  "description": "show interfaces terse, physical link state, error:/warning: lines, prompts and configuration.",
+  "include": ["generic"],
+  "detect": [
+    "^[\\w.\\-]+@[\\w.\\-]+[>#]",
+    "JUNOS|Junos:"
+  ],
+  "rules": [
+    { "match": "^\\S+\\s+up\\s+up\\b", "scope": "line", "style": "good" },
+    { "match": "^\\S+\\s+up\\s+down\\b", "scope": "line", "style": "bad" },
+    { "match": "^\\S+\\s+down\\s+(up|down)\\b", "scope": "line", "style": "bad" },
+    { "match": "Physical link is Up", "style": "good" },
+    { "match": "Physical link is Down", "style": "bad" },
+    { "match": "\\bAdministratively down\\b", "style": "bad" },
+    { "match": "^error:.*$", "style": "bad" },
+    { "match": "^warning:.*$", "style": "warning" },
+    { "match": "^[\\w.\\-]+@[\\w.\\-]+[>#]", "style": "prompt" },
+    { "match": "\\{(master|backup|primary|secondary)(:\\d+)?\\}", "style": "info" },
+    { "match": "^\\s*#.*$", "style": "comment" },
+    { "match": "\\binactive:", "style": "warning" },
+    { "match": "\\b(accept)\\b", "style": "good" },
+    { "match": "\\b(reject|discard)\\b", "style": "bad" }
+  ]
+}

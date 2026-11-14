@@ -2476,6 +2476,14 @@ The search mode and fields were only in Tools > Options. Now, as in SuperXTermin
 
 **Checked** with the test program on the 10,000-session file: "CORE-SW-001" finds 25 ignoring case and none matching case; "^CORE-sw-00[12]" as a regex finds 50 ignoring case and none matching case; "([" finds none and gives the reason; the Icon field finds sessions by icon; the bar was rendered with the toggles in order. **Not checked in the running app:** the look in the light and dark themes, and Search in...'s list. Manual test: type "core", click Aa, .* and each field in Search in..., and see the tree follow; type "([" with .* on; check both themes.
 
+## Fix: the default highlighting rules and themes weren't in the repository
+
+**Symptom:** a fresh clone built without Highlighted Output's and the built-in terminal's default rule sets (Generic, Cisco, Junos) and themes (Dark, Light, PuTTY): `web/output/rules` and `web/output/themes` were empty, so nothing was highlighted until a user added their own rules.
+
+**Cause:** `.gitignore` has `*.json` (from upstream, long before these files), so the six `*.rules.json` and `*.theme.json` files were never committed; they only existed in the working copy they were made in.
+
+**Fix:** `.gitignore` makes an exception for `SuperPutty/web/**/*.json`, and the six files are committed.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
