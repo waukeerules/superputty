@@ -481,7 +481,7 @@ namespace SuperPutty.Gui
             this.builtInRulesSent = OutputHighlighting.BuiltInRulesOn;
             bool dark = SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme;
             this.Post(new { type = "config", ruleSets, themes, dark, bell = BellStyle(this.session.PuttySession), bellOverload = BellOverload(this.session.PuttySession), cursor = CursorFromProfile(this.session.PuttySession), local = IsLocalShell(this.session.Proto), serial = this.session.Proto == ConnectionProtocol.Serial,
-                profileFont = FontFromProfile(this.session.PuttySession), fonts = MonospaceFonts(), prefs = TerminalPreferences.All(), cursorColor = this.cursorColor, frame = this.FrameWidth,
+                profileFont = FontFromProfile(this.session.PuttySession), profileColours = ColoursFromProfile(this.session.PuttySession), fonts = MonospaceFonts(), prefs = TerminalPreferences.All(), cursorColor = this.cursorColor, frame = this.FrameWidth,
                 keys = KeysFromProfile(this.session.PuttySession), sessionRules = this.session.HighlightRules ?? string.Empty,
                 unlimitedScrollback = TerminalPreferences.UnlimitedScrollback,
                 menuKeys = Array.ConvertAll(TerminalKeys.MenuKeys, k => new { key = k[0], label = k[1], hint = k[2] }) });
@@ -691,6 +691,69 @@ namespace SuperPutty.Gui
             if (!int.TryParse(PuttyDataHelper.GetProfileValue(profile, "BlinkCur"), out blink))
                 blink = 0;
             return new { style = type == 1 ? "underline" : type == 2 ? "bar" : "block", blink = blink != 0 };
+        }
+
+        /// <summary>
+        /// The colours from the session's PuTTY profile (Window > Colours), for the terminal theme "From the PuTTY
+        /// profile" (as SuperXTerminal's profiles have their own colours, its 0d81eaf and 760b6f2)
+        /// </summary>
+        /// <param name="profile">The PuTTY profile; empty for Default Settings</param>
+        /// <returns>The colours for the page (<see cref="ParseProfileColours"/>); null when the profile has none</returns>
+        public static Dictionary<string, object> ColoursFromProfile(string profile)
+        {
+            return ParseProfileColours(name => PuttyDataHelper.GetProfileValue(profile, name));
+        }
+
+        /// <summary>
+        /// A PuTTY profile's colours as the page's theme takes them. PuTTY saves 22 as "R,G,B": Colour0 the text,
+        /// Colour1 bold text, Colour2 the background, Colour3 bold background, Colour4 the text under the cursor, Colour5
+        /// the cursor, then each ANSI colour and its bold (bright) one, Colour6/7 black to Colour20/21 white. One that
+        /// isn't set is left out, so the PuTTY theme's own shows instead.
+        /// </summary>
+        /// <param name="read">Reads a profile value by name; null for none</param>
+        /// <returns>foreground, background, cursor, cursorAccent ("#rrggbb") and ansi (16, normal then bright; null
+        /// for one not set); null when no colour is set at all</returns>
+        public static Dictionary<string, object> ParseProfileColours(Func<string, string> read)
+        {
+            string[] colours = new string[22];
+            bool any = false;
+            for (int i = 0; i < colours.Length; i++)
+            {
+                colours[i] = PuttyColour(read("Colour" + i));
+                any |= colours[i] != null;
+            }
+            if (!any)
+                return null;
+            Dictionary<string, object> result = new Dictionary<string, object>();
+            if (colours[0] != null) result["foreground"] = colours[0];
+            if (colours[2] != null) result["background"] = colours[2];
+            if (colours[5] != null) result["cursor"] = colours[5];
+            if (colours[4] != null) result["cursorAccent"] = colours[4];
+            string[] ansi = new string[16];
+            for (int i = 0; i < 8; i++)
+            {
+                ansi[i] = colours[6 + 2 * i];
+                ansi[8 + i] = colours[7 + 2 * i];
+            }
+            result["ansi"] = ansi;
+            return result;
+        }
+
+        /// <summary>A colour as PuTTY saves it, "R,G,B", as "#rrggbb"</summary>
+        /// <param name="value">The saved value; null for none</param>
+        /// <returns>"#rrggbb"; null when it isn't three numbers from 0 to 255</returns>
+        private static string PuttyColour(string value)
+        {
+            string[] parts = (value ?? string.Empty).Split(',');
+            if (parts.Length != 3)
+                return null;
+            int[] rgb = new int[3];
+            for (int i = 0; i < 3; i++)
+            {
+                if (!int.TryParse(parts[i].Trim(), out rgb[i]) || rgb[i] < 0 || rgb[i] > 255)
+                    return null;
+            }
+            return string.Format("#{0:x2}{1:x2}{2:x2}", rgb[0], rgb[1], rgb[2]);
         }
 
         /// <summary>
