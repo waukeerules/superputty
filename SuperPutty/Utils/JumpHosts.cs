@@ -88,6 +88,53 @@ namespace SuperPutty.Utils
         }
 
         /// <summary>
+        /// The line a built-in terminal tab starts with when it goes through a jump host, as SuperXTerminal's (its
+        /// f7c0902): the login prompts that follow may be the jump host's or the target's, and this says which way it
+        /// goes and where the jump host came from. Called by TerminalControl.Connect.
+        /// </summary>
+        /// <param name="stored">The session as saved (for where its jump host comes from); may be null</param>
+        /// <param name="resolved">The session with its folders' defaults, overrides and placeholders applied</param>
+        /// <returns>The line; null when it doesn't go through a jump host</returns>
+        public static string Notice(SessionData stored, SessionData resolved)
+        {
+            if (string.IsNullOrWhiteSpace(resolved.JumpHost) || !Applies(resolved.Proto))
+                return null;
+            Target target = Resolve(resolved.JumpHost, SuperPuTTY.GetSessionById, resolved);
+            if (target == null || string.IsNullOrEmpty(target.Host))
+                return null;
+            return NoticeText(resolved.Host, resolved.JumpHost, target, SourceOf(stored ?? resolved));
+        }
+
+        /// <summary>
+        /// "Connecting to 10.0.0.5 through the jump host Bastions/b1 (me@bastion.example), from folder "HQ"." A jump
+        /// host named as a session shows that session's address too.
+        /// </summary>
+        /// <param name="host">The target's host</param>
+        /// <param name="spec">The JumpHost value as set: a session's ID or user@host:port</param>
+        /// <param name="target">Where it resolved to</param>
+        /// <param name="source">Where the jump host came from, e.g. "the session's Jump host"</param>
+        /// <returns>The line</returns>
+        public static string NoticeText(string host, string spec, Target target, string source)
+        {
+            string address = (target.User != null ? target.User + "@" : string.Empty) + target.Host + (target.Port != 22 ? ":" + target.Port : string.Empty);
+            string named = string.Equals(spec.Trim(), address, StringComparison.OrdinalIgnoreCase) ? address : spec.Trim() + " (" + address + ")";
+            return "Connecting to " + host + " through the jump host " + named + ", from " + source + ".";
+        }
+
+        /// <summary>Where a session's jump host comes from: a local override, the session itself, or a folder</summary>
+        /// <param name="stored">The session as saved</param>
+        /// <returns>e.g. "your local override", "the session's Jump host", "folder "HQ/Core""</returns>
+        private static string SourceOf(SessionData stored)
+        {
+            if (stored.SessionId != null && SessionOverrides.Get(stored.SessionId)?.JumpHost != null)
+                return "your local override";
+            if (!string.IsNullOrWhiteSpace(stored.JumpHost))
+                return "the session's Jump host";
+            string folder = stored.SessionId != null ? FolderSettings.FolderOf(stored, "JumpHost") : null;
+            return folder != null ? "folder \"" + folder + "\"" : "its folder";
+        }
+
+        /// <summary>
         /// The plink to run: the one chosen in Options (Paths, "plink / klink") if it exists, else plink.exe beside
         /// the PuTTY that's set there, or KiTTY's klink.exe beside KiTTY. klink takes the same options and reads
         /// KiTTY's saved sessions (in the registry, or the Sessions folder of a portable KiTTY), so with KiTTY it's

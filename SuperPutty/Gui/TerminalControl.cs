@@ -814,6 +814,12 @@ namespace SuperPutty.Gui
                 started.Exited += code => this.BeginInvokeSafe(() => this.OnExited(started, code));
                 // the command line holds the password when -pw is allowed: log the masked one
                 Log.InfoFormat("Terminal: {0}", PuttyStartInfo.PlinkCommandLine(this.session, plink, false));
+                // the login prompts that follow may be the jump host's: say it goes through one (as SuperXTerminal)
+                string jump = JumpHosts.Notice(this.session.SessionId != null ? SuperPuTTY.GetSessionById(this.session.SessionId) : null, this.session);
+                if (jump != null)
+                {
+                    this.Notice(jump, false);
+                }
                 // in its own folder: a portable KiTTY's klink reads kitty.ini and the Sessions folder from the current
                 // directory, not from beside itself, so started anywhere else -load finds no profile (no username, ...)
                 this.connecting = ConnectionProgress.IsTracked(this.session.Proto);
