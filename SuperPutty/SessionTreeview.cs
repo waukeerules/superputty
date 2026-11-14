@@ -2968,6 +2968,11 @@ namespace SuperPutty
                 Enabled = all.Count > 0,
                 Font = new Font(this.contextMenuStripSelection.Font, FontStyle.Bold)
             };
+            ToolStripMenuItem grid = new ToolStripMenuItem(string.Format("Connect {0} sessions in a Grid", all.Count), null, (s, a) => GridView.OpenInGrid(() => this.ConnectAll(all)))
+            {
+                Enabled = all.Count > 0,
+                ToolTipText = "Open them tiled side by side (View > Grid View)"
+            };
             ToolStripMenuItem move = new ToolStripMenuItem(string.Format("Move {0} items to folder...", count), null, (s, a) => this.AskMoveItems(folders, sessions))
             {
                 Enabled = blocked == null,
@@ -2980,7 +2985,7 @@ namespace SuperPutty
             };
             ToolStripMenuItem export = new ToolStripMenuItem(string.Format("Export {0} sessions to CSV...", all.Count), null,
                 (s, a) => SessionCsv.ExportWithDialog(this, all, "Sessions.csv")) { Enabled = all.Count > 0 };
-            this.contextMenuStripSelection.Items.AddRange(new ToolStripItem[] { connect, new ToolStripSeparator(), move, delete, export });
+            this.contextMenuStripSelection.Items.AddRange(new ToolStripItem[] { connect, grid, new ToolStripSeparator(), move, delete, export });
             if (this.contextMenuStripSelection.Renderer != ((ToolStrip)this.contextMenuStripFolder).Renderer)
             {
                 // the same look as the tree's other menus (theme)
@@ -3732,6 +3737,12 @@ namespace SuperPutty
             this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.moveFolderToolStripMenuItem) + 1, this.copyFolderToolStripMenuItem);
             this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.connectAllToolStripMenuItem) + 1,
                 new ToolStripMenuItem("Export to CSV...", null, (s, e) => this.ExportFolderToCsv(this.treeView1.SelectedNode)));
+            // Connect all in a Grid: Grid View goes on and the folder's sessions open tiled (as SuperXTerminal)
+            this.contextMenuStripFolder.Items.Insert(this.contextMenuStripFolder.Items.IndexOf(this.connectAllToolStripMenuItem) + 1,
+                new ToolStripMenuItem("Connect all in a Grid", null, (s, e) => GridView.OpenInGrid(() => this.connectAllToolStripMenuItem_Click(s, e)))
+                {
+                    ToolTipText = "Open the folder's sessions tiled side by side (View > Grid View)"
+                });
             // environment colours; a placeholder item so the submenu arrow shows before it's filled
             this.colorFolderToolStripMenuItem = new ToolStripMenuItem("Colour");
             this.colorFolderToolStripMenuItem.DropDownItems.Add("-");

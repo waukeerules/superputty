@@ -1302,7 +1302,9 @@ namespace SuperPutty
         RestartSession,
         ClearScrollback,
         ResetTerminal,
-        CopyAllToClipboard
+        CopyAllToClipboard,
+        /// <summary>Tile every tab in a grid, or put the splits back (View > Grid View, Gui.GridView)</summary>
+        GridView
     }
     #endregion
 

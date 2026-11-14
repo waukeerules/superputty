@@ -312,11 +312,18 @@ namespace SuperPutty
             }
 
             DockPane pane = GetDockPane();
-            if (pane != null)
+            if (GridView.IsOn)
+            {
+                // in Grid View each tile is a group of one: the tabs to the right are the grid's, row by row
+                List<IDockContent> grid = GridView.Documents();
+                this.closeOthersToTheRightToolStripMenuItem.Enabled = grid.IndexOf(this) >= 0 && grid.IndexOf(this) != grid.Count - 1;
+            }
+            else if (pane != null)
             {
                 this.closeOthersToTheRightToolStripMenuItem.Enabled =
                     pane.Contents.IndexOf(this) != pane.Contents.Count - 1;
             }
+            this.menuGridView.Checked = GridView.IsOn;
             this.closeOthersToolStripMenuItem.Enabled = this.DockPanel.DocumentsCount > 1;
             this.closeAllToolStripMenuItem.Enabled = this.DockPanel.DocumentsCount > 1;
         }
@@ -360,6 +367,18 @@ namespace SuperPutty
 
         private void closeOthersToTheRightToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            if (GridView.IsOn)
+            {
+                // in Grid View the tabs to the right are the grid's, row by row (as SuperXTerminal's bde855e)
+                List<IDockContent> grid = GridView.Documents();
+                int at = grid.IndexOf(this);
+                List<ToolWindowDocument> right = grid.Skip(at + 1).OfType<ToolWindowDocument>().ToList();
+                if (at >= 0 && right.Count > 0)
+                {
+                    CloseDocs("Close Other To the Right", right);
+                }
+                return;
+            }
             // find the dock pane with this window
             DockPane pane = GetDockPane();
             if (pane != null)
@@ -1194,6 +1213,9 @@ namespace SuperPutty
         /// <summary>"Compare Output With": the other open tabs with output, each opening a CompareOutputPanel</summary>
         private ToolStripMenuItem menuCompareOutput;
 
+        /// <summary>"Grid View": every tab tiled, ticked while it's on (Gui.GridView)</summary>
+        private ToolStripMenuItem menuGridView;
+
         /// <summary>"Reconnect" and "Stop Reconnecting" at the top of the tab menu, shown while the session is down</summary>
         private ToolStripMenuItem menuReconnect, menuStopReconnecting;
 
@@ -1233,6 +1255,10 @@ namespace SuperPutty
             this.contextMenuStrip1.Items.Insert(index + 3, this.menuCompareOutput);
             this.contextMenuStrip1.Items.Insert(index + 4, this.menuWatchActivity);
             this.contextMenuStrip1.Items.Insert(index + 5, this.menuWatchSilence);
+
+            // Grid View, after the Close items, as in SuperXTerminal's tab menu
+            this.menuGridView = new ToolStripMenuItem("&Grid View", null, (s, e) => GridView.Set(!GridView.IsOn));
+            this.contextMenuStrip1.Items.Insert(this.contextMenuStrip1.Items.IndexOf(this.closeAllToolStripMenuItem) + 1, this.menuGridView);
 
             this.menuReconnect = new ToolStripMenuItem("&Reconnect", null, (s, e) => this.Reconnect());
             this.menuReconnect.Font = new System.Drawing.Font(this.menuReconnect.Font, System.Drawing.FontStyle.Bold);
