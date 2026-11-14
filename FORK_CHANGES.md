@@ -2643,6 +2643,14 @@ A session, folder or tab that names a built-in set colours nothing while they're
 
 **Checked:** unit tests (`SuperPuttyUnitTests/OutputHighlightingTests.cs`): all offered when on; hidden and not offered when off; a user's set with a built-in id offered as theirs. Page tests: an open tab on Auto coloured by Cisco loses its pick and colours when they're turned off and gets both back when turned on; a user's set including Generic still colours an address with them off (both fail without the change). **Not checked:** the Options box and the other drop-downs in the running app.
 
+## Built-in terminal: colours of your own
+
+As SuperXTerminal (its e2422fe, 0792983): Tools → Options → Terminal → **Colours**: Background, Text, Selection and Cursor over the theme's, in every built-in terminal tab, each a button showing its colour that opens the colour picker, and a **Theme's** link to go back. A light background of your own gets the light menu and find bar. A session's or folder's environment colour still wins for the cursor.
+
+- **Code:** the `colorBackground`, `colorForeground`, `colorSelection` and `colorCursor` preferences ("#rrggbb", "" for the theme's; `TerminalPreferences.IsColour`, `ColourText`), the Colours row in `Gui/TerminalOptionsPanel.cs`, and `ownColours` / `isDarkColour` in `web/terminal/terminal.js`.
+
+**Checked:** unit test of the colour format and the defaults. Page tests: own colours replace the PuTTY theme's for the background, text, selection and cursor, and a light background turns the menu light; an environment colour beats the own cursor colour, and an empty one goes back to the theme's. The Options panel rendered in a test program: the row fits on one line. **Not checked:** the colour picker and the dark theme's look of the row in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

@@ -29,7 +29,9 @@ namespace SuperPutty.Utils
         /// wordSeparators (the characters a double-clicked word ends at besides a space, which always is one; xterm.js's
         /// own by default, "" for none but the space) and wrap ("false": lines aren't wrapped at the tab's width; the
         /// terminal is 300 columns wide and the view pans along them) and builtInRules ("false": the highlighting rule
-        /// sets that come with SuperXPuTTY aren't offered or picked; OutputHighlighting.MergeRuleSets)
+        /// sets that come with SuperXPuTTY aren't offered or picked; OutputHighlighting.MergeRuleSets), and
+        /// colorBackground, colorForeground, colorSelection and colorCursor (the terminal's own colours over the theme's,
+        /// as "#rrggbb"; "" for the theme's; a session's environment colour still wins for the cursor)
         /// </summary>
         public static readonly IReadOnlyDictionary<string, string> Defaults = new Dictionary<string, string>
         {
@@ -50,6 +52,10 @@ namespace SuperPutty.Utils
             { "wordSeparators", DefaultWordSeparators },
             { "wrap", "true" },
             { "builtInRules", "true" },
+            { "colorBackground", "" },
+            { "colorForeground", "" },
+            { "colorSelection", "" },
+            { "colorCursor", "" },
         };
 
         /// <summary>
@@ -57,6 +63,22 @@ namespace SuperPutty.Utils
         /// "sw1#show" selects "show"; with ( and ) taken out, "sw1(config)" is one word
         /// </summary>
         public const string DefaultWordSeparators = "()[]{}',\"`";
+
+        /// <summary>Whether a value is a colour as the colour preferences keep it: "#rrggbb"</summary>
+        /// <param name="value">The value</param>
+        /// <returns>true for "#" and six hex digits</returns>
+        public static bool IsColour(string value)
+        {
+            return value != null && System.Text.RegularExpressions.Regex.IsMatch(value, "^#[0-9a-fA-F]{6}$");
+        }
+
+        /// <summary>A colour as the colour preferences keep it</summary>
+        /// <param name="colour">The colour</param>
+        /// <returns>"#rrggbb", lower case</returns>
+        public static string ColourText(System.Drawing.Color colour)
+        {
+            return string.Format("#{0:x2}{1:x2}{2:x2}", colour.R, colour.G, colour.B);
+        }
 
         /// <summary>
         /// Word delimiters as typed in Options, as kept: spaces and repeats dropped (a space always ends a word), the

@@ -1104,7 +1104,7 @@
             || themes.filter(function (t) { return (t.base === 'vs-dark') === darkDefault; })[0]
             || themes[0] || null;
         if (!theme) { return; }
-        var colors = theme.colors || {};
+        var colors = ownColours(theme.colors || {});
         var names = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white',
             'brightBlack', 'brightRed', 'brightGreen', 'brightYellow', 'brightBlue', 'brightMagenta', 'brightCyan', 'brightWhite'];
         var xtermTheme = {
@@ -1119,10 +1119,33 @@
         term.options.theme = xtermTheme;
         applyFont();
         document.documentElement.style.setProperty('--bg', colors.background || '#000000');
-        // the menu and the find bar follow the theme: light ones for a light theme (Monaco's base "vs")
-        document.documentElement.classList.toggle('light-theme', theme.base === 'vs');
+        // the menu and the find bar follow the theme: light ones for a light theme (Monaco's base "vs"), or for a
+        // light background of the user's own
+        document.documentElement.classList.toggle('light-theme', loadPref('colorBackground') ? !isDarkColour(colors.background) : theme.base === 'vs');
         window.setTimeout(fit, 0);
         highlight(true);
+    }
+
+    /**
+     * The theme's colours with the user's own background, text, selection and cursor colours over them (Options >
+     * Terminal > Colours, as SuperXTerminal's e2422fe and 0792983). A session's environment colour still wins for the
+     * cursor (applyTheme).
+     */
+    function ownColours(colors) {
+        var own = {};
+        Object.keys(colors).forEach(function (k) { own[k] = colors[k]; });
+        [['colorBackground', 'background'], ['colorForeground', 'foreground'], ['colorSelection', 'selection'], ['colorCursor', 'cursor']].forEach(function (pair) {
+            var value = loadPref(pair[0]);
+            if (value && /^#[0-9a-f]{6}$/i.test(value)) { own[pair[1]] = value; }
+        });
+        return own;
+    }
+
+    /** Whether a "#rrggbb" colour is dark, so the menu and find bar on it are drawn dark */
+    function isDarkColour(hex) {
+        var n = parseInt(String(hex || '#000000').slice(1), 16);
+        var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+        return 0.299 * r + 0.587 * g + 0.114 * b < 140;
     }
 
     // ---- messages and start ---------------------------------------------------------------------------------------
