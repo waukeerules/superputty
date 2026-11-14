@@ -138,6 +138,7 @@
             this.checkQuickSelectorCaseSensitiveSearch = new System.Windows.Forms.CheckBox();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
             this.checkShowDocumentIcons = new System.Windows.Forms.CheckBox();
+            this.checkWatchTabsForActivity = new System.Windows.Forms.CheckBox();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.comboSearchMode = new System.Windows.Forms.ComboBox();
             this.buttonSearchFields = new System.Windows.Forms.Button();
@@ -1483,6 +1484,7 @@
             // groupBox2
             // 
             this.groupBox2.Controls.Add(this.checkShowDocumentIcons);
+            this.groupBox2.Controls.Add(this.checkWatchTabsForActivity);
             this.groupBox2.Controls.Add(this.checkRestrictFloatingWindows);
             this.groupBox2.Controls.Add(this.checkConfirmTabClose);
             this.groupBox2.Controls.Add(this.checkConstrainPuttyDocking);
@@ -1510,6 +1512,17 @@
             this.checkShowDocumentIcons.TabIndex = 39;
             this.checkShowDocumentIcons.Text = "Show tab icons";
             this.checkShowDocumentIcons.UseVisualStyleBackColor = true;
+            //
+            // checkWatchTabsForActivity
+            //
+            this.checkWatchTabsForActivity.AutoSize = true;
+            this.checkWatchTabsForActivity.Location = new System.Drawing.Point(240, 183);
+            this.checkWatchTabsForActivity.Margin = new System.Windows.Forms.Padding(4);
+            this.checkWatchTabsForActivity.Name = "checkWatchTabsForActivity";
+            this.checkWatchTabsForActivity.TabIndex = 40;
+            this.checkWatchTabsForActivity.Text = "Watch tabs for activity";
+            this.toolTip.SetToolTip(this.checkWatchTabsForActivity, "Every tab is watched as it opens, as its menu's Watch for Activity does: new output in a tab you aren't looking at marks it. A tab's own menu still turns it off for that tab.");
+            this.checkWatchTabsForActivity.UseVisualStyleBackColor = true;
             // 
             // groupBox1
             // 
@@ -2534,6 +2547,7 @@
         private System.Windows.Forms.Label label15;
         private System.Windows.Forms.CheckBox checkQuickSelectorCaseSensitiveSearch;
         private System.Windows.Forms.CheckBox checkShowDocumentIcons;
+        private System.Windows.Forms.CheckBox checkWatchTabsForActivity;
         private System.Windows.Forms.CheckBox checkRestrictFloatingWindows;
         private System.Windows.Forms.CheckBox checkSessionsShowSearch;
         private System.Windows.Forms.GroupBox groupBox6;

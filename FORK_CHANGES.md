@@ -2657,6 +2657,12 @@ As SuperXTerminal (its 6fc09e7): a terminal theme choice that follows the app, t
 
 **Checked:** page tests: with `@look`, a dark app draws the Dark theme and a light one the Light theme with the light menu; the theme menu offers it, ticked. **Not checked:** in the running app.
 
+## Watch every tab for activity
+
+As SuperXTerminal (its ea4ce1d): a tab was watched for activity only once its own menu's Watch for Activity was ticked, tab by tab, each time it was opened. Tools → Options → GUI → Tabs and docking has **Watch tabs for activity**, off unless turned on (the `WatchTabsForActivity` setting): with it, every tab is watched as it opens, and turning it on or off there does the same for the tabs open now (`ctlPuttyPanel.WatchAllForActivity`). A tab's own menu still turns it off for that tab, and each tab's Watch for Silence is left as it is. A tab opened behind another is marked at once, its login banner being new output. Tabs without a session log (RDP, VNC) have nothing to watch.
+
+**Checked** in a test program on the real tab code: with the option on, a new tab is watched, and its first output while not looked at raises the activity alert; turning the option off and on again stops and starts the watch; with it off, a new tab isn't watched. **Not checked:** the checkbox in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
