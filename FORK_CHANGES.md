@@ -2608,6 +2608,14 @@ As SuperXTerminal (its e91a4c4): a change of columns wraps every line the termin
 
 **Checked:** a page test drags the window narrower over six frames with 400 lines in the terminal: the session is told the new size once (six times before the change); a terminal with one line still resizes at once. **Not checked:** dragging in the running app.
 
+## Built-in terminal: word delimiters
+
+As SuperXTerminal (its 24c7cab): a double-click in the built-in terminal selected a word up to xterm.js's own delimiters, with no way to change them, and # isn't one, so a double-click on "sw1#show" took the prompt with the command. Tools → Options → Terminal has **Word delimiters**, as Notepad++'s Preferences > Delimiter: the characters a word ends at besides a space (always one). It comes with xterm.js's own (`` ()[]{}',"` ``), so nothing changes until it's edited. With # added, "show" is selected alone; with the brackets taken out, "sw1(config)" is one word. Spaces and repeats typed are dropped, **Default** puts xterm.js's own back, and open tabs take a change at once.
+
+- **Code:** the `wordSeparators` preference (`TerminalPreferences.Defaults`, `DefaultWordSeparators`, `NormalizeWordSeparators`), its row in `Gui/TerminalOptionsPanel.cs`, and `applyWordSeparators` in `web/terminal/terminal.js`.
+
+**Checked:** unit tests (`SuperPuttyUnitTests/TerminalPreferencesTests.cs`: the default; spaces and repeats dropped). Page tests: by default a double-click on "show" in "sw1#show" selects "sw1#show"; with "#" as the delimiters it selects "show", and "sw1(config)" whole (that test fails without the change). **Not checked:** the Options row in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

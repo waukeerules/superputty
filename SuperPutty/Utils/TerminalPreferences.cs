@@ -25,7 +25,9 @@ namespace SuperPutty.Utils
         /// "false"), pasteLines (show a paste of this many lines or more to check before it's typed; "0" never does),
         /// scrollback (lines kept; "0" for as many as <see cref="UnlimitedScrollback"/>), keys ("profile" for the
         /// PuTTY profile's Backspace, Home/End and function keys, "xterm" for xterm's), logTimestamps (seconds between
-        /// time stamps in the session log; "0" for none) and renderer ("webgl", or "dom" for xterm.js's slower one)
+        /// time stamps in the session log; "0" for none), renderer ("webgl", or "dom" for xterm.js's slower one) and
+        /// wordSeparators (the characters a double-clicked word ends at besides a space, which always is one; xterm.js's
+        /// own by default, "" for none but the space)
         /// </summary>
         public static readonly IReadOnlyDictionary<string, string> Defaults = new Dictionary<string, string>
         {
@@ -43,7 +45,25 @@ namespace SuperPutty.Utils
             { "keys", "profile" },
             { "logTimestamps", "30" },
             { "renderer", "webgl" },
+            { "wordSeparators", DefaultWordSeparators },
         };
+
+        /// <summary>
+        /// xterm.js's own word delimiters less the space, as SuperXTerminal's: with # added, a double-click on a switch's
+        /// "sw1#show" selects "show"; with ( and ) taken out, "sw1(config)" is one word
+        /// </summary>
+        public const string DefaultWordSeparators = "()[]{}',\"`";
+
+        /// <summary>
+        /// Word delimiters as typed in Options, as kept: spaces and repeats dropped (a space always ends a word), the
+        /// rest in the order typed
+        /// </summary>
+        /// <param name="typed">The characters typed; null for none</param>
+        /// <returns>Each character once, without spaces</returns>
+        public static string NormalizeWordSeparators(string typed)
+        {
+            return new string((typed ?? string.Empty).Where(c => !char.IsWhiteSpace(c)).Distinct().ToArray());
+        }
 
         /// <summary>
         /// The scrollback kept when the preference is 0 (or negative), "unlimited". xterm.js needs a number; a line

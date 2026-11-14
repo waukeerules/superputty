@@ -1172,10 +1172,28 @@
     function applyPrefs(changed) {
         prefs = changed || {};
         applyScrollback();
+        applyWordSeparators();
         applyRenderer();
         applyTheme();
         applyCursor();
         markSelectionMatches();
+    }
+
+    /**
+     * The characters a double-click's word ends at when the preference isn't given: xterm.js's own, less the space
+     * (as TerminalPreferences.DefaultWordSeparators)
+     */
+    var defaultWordSeparators = '()[]{}\',"`';
+
+    /**
+     * Where a double-click's word ends (Options > Terminal > Word delimiters, as SuperXTerminal's): at a space always,
+     * and at each character of the preference. An empty preference is the user's (no character but the space), so
+     * it's read as it is rather than through loadPref, which takes empty for not set.
+     */
+    function applyWordSeparators() {
+        var chars = prefs.wordSeparators;
+        var wanted = ' ' + (chars === undefined || chars === null ? defaultWordSeparators : String(chars));
+        if (term.options.wordSeparator !== wanted) { term.options.wordSeparator = wanted; }
     }
 
     /** Keep the preference's number of lines (Options > Terminal); 0 or less: as many as unlimitedScrollback */
@@ -1239,6 +1257,7 @@
         ruleSets = compiled.sets;
         autoSet = null;
         applyScrollback();
+        applyWordSeparators();
         applyRenderer();
         applyTheme();
         fit();

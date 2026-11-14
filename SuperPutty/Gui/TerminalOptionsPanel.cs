@@ -11,7 +11,7 @@ namespace SuperPutty.Gui
     /// <summary>
     /// The built-in terminal's defaults on Tools -> Options -> Terminal (dlgFindPutty): highlighting rules, theme, font,
     /// font size, cursor, blinking, bell, copy on select, marking the selection's matches, showing a paste of several
-    /// lines first, scrollback, keys, session log time stamps and the renderer. These are the same
+    /// lines first, scrollback, keys, session log time stamps, the renderer and word delimiters. These are the same
     /// preferences each terminal's right-click menu changes (Utils.TerminalPreferences), so a change in either shows in
     /// the other and in every open terminal tab. Built in code: a label and a control per row.
     /// </summary>
@@ -48,6 +48,7 @@ namespace SuperPutty.Gui
         private readonly ComboBox keys = NewCombo();
         private readonly NumericUpDown logTimestamps = new NumericUpDown { Minimum = 0, Maximum = 3600, Increment = 10, Width = 80 };
         private readonly ComboBox renderer = NewCombo();
+        private readonly TextBox wordSeparators = new TextBox { Width = 160 };
 
         /// <summary>Lay out the rows; <see cref="LoadPreferences"/> fills them</summary>
         public TerminalOptionsPanel()
@@ -78,9 +79,27 @@ namespace SuperPutty.Gui
             AddRow(table, "Keys:", this.keys);
             AddRow(table, "Log time stamps:", WithNote(this.logTimestamps, "seconds apart, with output (0: none)"));
             AddRow(table, "Drawing:", this.renderer);
+            AddRow(table, "Word delimiters:", this.WordSeparatorsRow());
             table.Controls.Add(this.copyOnSelect, 1, table.RowCount++);
             table.Controls.Add(this.markMatches, 1, table.RowCount++);
             this.Controls.Add(table);
+        }
+
+        /// <summary>
+        /// The word delimiters box (as Notepad++'s Preferences > Delimiter), a Default button that puts xterm.js's own
+        /// back, and a note that a space always ends a word
+        /// </summary>
+        /// <returns>The row's control</returns>
+        private Control WordSeparatorsRow()
+        {
+            FlowLayoutPanel row = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0), WrapContents = false };
+            this.wordSeparators.Margin = new Padding(0, 3, 0, 0);
+            row.Controls.Add(this.wordSeparators);
+            Button reset = new Button { Text = "Default", AutoSize = true, Margin = new Padding(6, 0, 0, 0) };
+            reset.Click += (s, e) => this.wordSeparators.Text = TerminalPreferences.DefaultWordSeparators;
+            row.Controls.Add(reset);
+            row.Controls.Add(new Label { Text = "where a double-clicked word ends (and a space)", AutoSize = true, Margin = new Padding(6, 6, 0, 0) });
+            return row;
         }
 
         /// <summary>A number box followed by a note, as one row's control</summary>
@@ -171,6 +190,7 @@ namespace SuperPutty.Gui
             int seconds;
             this.logTimestamps.Value = int.TryParse(prefs["logTimestamps"], out seconds) ? Math.Max(0, Math.Min(3600, seconds)) : 0;
             Fill(this.renderer, new[] { C("Fast (WebGL, uses the graphics card)", "webgl"), C("Compatible (slower with a lot of output)", "dom") }, prefs["renderer"]);
+            this.wordSeparators.Text = prefs["wordSeparators"];
         }
 
         /// <summary>Save the choices; open terminal tabs apply them at once (TerminalPreferences.Changed)</summary>
@@ -193,6 +213,7 @@ namespace SuperPutty.Gui
                 { "keys", value(this.keys) },
                 { "logTimestamps", ((int)this.logTimestamps.Value).ToString() },
                 { "renderer", value(this.renderer) },
+                { "wordSeparators", TerminalPreferences.NormalizeWordSeparators(this.wordSeparators.Text) },
             });
         }
     }
