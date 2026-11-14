@@ -2520,6 +2520,10 @@ With the find bar open on "1 of 1", output that held the text again left it at "
 
 **Checked:** "1 of 1" becomes "1 of 2" with both marked when the text arrives again, and Enter moves to "2 of 2"; "No results" becomes "1 of 1" when the first match arrives. Both fail on the code before.
 
+### The find bar and right-click menu follow a light theme
+
+They had fixed dark colours, so on the Light theme a dark find bar sat on a white terminal. As SuperXTerminal's 4007cff, a light theme (base "vs") gives them light colours (`:root.light-theme` in `terminal.css`, set by `applyTheme`), the find box white; the others keep the dark ones. **Checked:** the bar and its box are light on Light and dark on PuTTY's; light failed on the code before.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:

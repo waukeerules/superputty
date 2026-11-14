@@ -6,6 +6,18 @@
   --menu-disabled: #7a7a7a;
   --menu-hover: #0a64c8;
   --menu-border: #444444;
+  --menu-input: #1e1e1e;
+}
+
+/* a light terminal theme (base "vs"): the menu and the find bar in light colours too (terminal.js applyTheme), as
+   SuperXTerminal's; they had fixed dark colours, a dark find bar on a white terminal */
+:root.light-theme {
+  --menu-bg: #f3f3f3;
+  --menu-fg: #1f1f1f;
+  --menu-disabled: #8a8a8a;
+  --menu-hover: #0a64c8;
+  --menu-border: #c8c8c8;
+  --menu-input: #ffffff;
 }
 
 html, body {
@@ -114,7 +126,7 @@ html, body {
   width: 200px;
   font: inherit;
   color: var(--menu-fg);
-  background: #1e1e1e;
+  background: var(--menu-input);
   border: 1px solid var(--menu-border);
   padding: 2px 4px;
   outline: none;

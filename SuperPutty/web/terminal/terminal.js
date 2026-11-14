@@ -996,6 +996,8 @@
         term.options.theme = xtermTheme;
         applyFont();
         document.documentElement.style.setProperty('--bg', colors.background || '#000000');
+        // the menu and the find bar follow the theme: light ones for a light theme (Monaco's base "vs")
+        document.documentElement.classList.toggle('light-theme', theme.base === 'vs');
         window.setTimeout(fit, 0);
         highlight(true);
     }
