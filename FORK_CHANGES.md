@@ -2782,6 +2782,17 @@ As SuperXTerminal (its 43e4ba1, asked for in SilverGreen93/superputty#21): the q
 
 **Checked:** unit tests (`SuperPuttyUnitTests/QuickHostsTests.cs`, after SuperXTerminal's): separators, each host's own user, port and type, a port after a space, once each, empty, a pasted column, and each host read with its user, port, protocol and IPv6 address. In a test program, the list under a Host box in the dark and light themes: two hosts as two lines, a third typed made the Host box "10.0.0.1, sw1.example.com, admin@10.0.0.7:2222" and the count "3 hosts", Ctrl+Enter connected once and closed it. **Not checked:** the button and pasting in the running app, and the sessions opening.
 
+## Environment colours window as SuperXTerminal's, and the same ten colours
+
+SuperXTerminal's Environment Colours window was ported from this one and then grew a little; this brings those parts back:
+
+- **Each rule has a swatch** of its colour beside its #RRGGBB: clicking it opens the colour picker (it was double-clicking the colour, or a Colour... button, now gone). Typing the colour still works, and the swatch follows.
+- **A palette** of the usual colours under the buttons: clicking one sets the selected rule's colour.
+- **The same ten colours** in the window and in every Colour menu (the Sessions tree's, Folder settings, Edit sessions...): IconLibrary.Palette's, which SuperXTerminal's palette copies, so both apps offer the same ones. They were six, with a blue (#1565C0) and purple (#6A1B9A) of their own, now #1E63B4 and #6A3D9A; colours set before stay as they were.
+- The note reads as SuperXTerminal's ("their own name or one of their folders' names, nearest first"), the empty part of the list is the window's colour in the light theme rather than grey.
+
+**Checked:** unit test (`SuperPuttyUnitTests/EnvironmentColorsTests.cs`): the Colour menus' colours are the palette's, red first. The window rendered in a test program in the dark and light themes, with the default rules: swatches beside each colour, the palette under the buttons, and the palette's Teal setting the selected rule to #00838F. **Not checked:** the colour picker from a swatch in the running app.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
