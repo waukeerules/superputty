@@ -2506,6 +2506,14 @@ SuperXPuTTY's terminal page (`web/terminal/terminal.js`) and SuperXTerminal's st
 
 **Fix** (SuperXTerminal 221d083): the keys stop the browser's paste (`preventDefault`). **Checked:** each key sends one paste request; two before.
 
+### Fix: Copy on Select didn't copy while the find bar was open
+
+**Symptom:** with the find bar open, text selected in the terminal wasn't copied, so Shift+Insert pasted whatever was on the clipboard before.
+
+**Cause:** Copy on Select was skipped whenever the find bar was open, to keep each match Find selects off the clipboard, which skipped the user's own selections too.
+
+**Fix** (SuperXTerminal 436cbb7): only the selection that is Find's current match is skipped (`selectionIsFinds`, `find.selected`). **Checked:** with the bar open, Find's match isn't copied and a selection the user makes is; the second fails on the code before.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
