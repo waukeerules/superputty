@@ -189,6 +189,8 @@ namespace SuperPutty
                 {
                     TerminalControl terminal = new TerminalControl(resolved, logPath);
                     terminal.StateChanged += this.OnTerminalStateChanged;
+                    // the anti-idle string waits while a script runs here
+                    terminal.ScriptRunning = () => this.scriptRunning;
                     terminal.SetCursorColor(EnvironmentColors.For(this.Session));
                     return terminal;
                 };

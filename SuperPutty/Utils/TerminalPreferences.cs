@@ -31,7 +31,9 @@ namespace SuperPutty.Utils
         /// terminal is 300 columns wide and the view pans along them) and builtInRules ("false": the highlighting rule
         /// sets that come with SuperXPuTTY aren't offered or picked; OutputHighlighting.MergeRuleSets), and
         /// colorBackground, colorForeground, colorSelection and colorCursor (the terminal's own colours over the theme's,
-        /// as "#rrggbb"; "" for the theme's; a session's environment colour still wins for the cursor)
+        /// as "#rrggbb"; "" for the theme's; a session's environment colour still wins for the cursor), antiIdle (typed
+        /// into a remote session after antiIdleSeconds with nothing typed, as KiTTY writes it; "" for none; AntiIdle)
+        /// and antiIdleSeconds
         /// </summary>
         public static readonly IReadOnlyDictionary<string, string> Defaults = new Dictionary<string, string>
         {
@@ -56,6 +58,8 @@ namespace SuperPutty.Utils
             { "colorForeground", "" },
             { "colorSelection", "" },
             { "colorCursor", "" },
+            { "antiIdle", "" },
+            { "antiIdleSeconds", "180" },
         };
 
         /// <summary>

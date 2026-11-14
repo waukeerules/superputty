@@ -2645,11 +2645,11 @@ A session, folder or tab that names a built-in set colours nothing while they're
 
 ## Built-in terminal: colours of your own
 
-As SuperXTerminal (its e2422fe, 0792983): Tools → Options → Terminal → **Colours**: Background, Text, Selection and Cursor over the theme's, in every built-in terminal tab, each a button showing its colour that opens the colour picker, and a **Theme's** link to go back. A light background of your own gets the light menu and find bar. A session's or folder's environment colour still wins for the cursor.
+As SuperXTerminal (its e2422fe, 0792983): Tools → Options → Terminal → **Colours**: Background, Text, Selection and Cursor over the theme's, in every built-in terminal tab, each a swatch of its colour and a link that opens the colour picker, and a **(theme's)** link to go back. A light background of your own gets the light menu and find bar. A session's or folder's environment colour still wins for the cursor.
 
 - **Code:** the `colorBackground`, `colorForeground`, `colorSelection` and `colorCursor` preferences ("#rrggbb", "" for the theme's; `TerminalPreferences.IsColour`, `ColourText`), the Colours row in `Gui/TerminalOptionsPanel.cs`, and `ownColours` / `isDarkColour` in `web/terminal/terminal.js`.
 
-**Checked:** unit test of the colour format and the defaults. Page tests: own colours replace the PuTTY theme's for the background, text, selection and cursor, and a light background turns the menu light; an environment colour beats the own cursor colour, and an empty one goes back to the theme's. The Options panel rendered in a test program: the row fits on one line. **Not checked:** the colour picker and the dark theme's look of the row in the running app.
+**Checked:** unit test of the colour format and the defaults. Page tests: own colours replace the PuTTY theme's for the background, text, selection and cursor, and a light background turns the menu light; an environment colour beats the own cursor colour, and an empty one goes back to the theme's. The Options dialog's Terminal tab rendered in a test program, in the dark theme: every new row fits the page (see "Options → Terminal: the new rows fit"). **Not checked:** the colour picker and the dark theme's look of the row in the running app.
 
 ## Built-in terminal: a theme that follows SuperXPuTTY's look
 
@@ -2662,6 +2662,22 @@ As SuperXTerminal (its 6fc09e7): a terminal theme choice that follows the app, t
 As SuperXTerminal (its ea4ce1d): a tab was watched for activity only once its own menu's Watch for Activity was ticked, tab by tab, each time it was opened. Tools → Options → GUI → Tabs and docking has **Watch tabs for activity**, off unless turned on (the `WatchTabsForActivity` setting): with it, every tab is watched as it opens, and turning it on or off there does the same for the tabs open now (`ctlPuttyPanel.WatchAllForActivity`). A tab's own menu still turns it off for that tab, and each tab's Watch for Silence is left as it is. A tab opened behind another is marked at once, its login banner being new output. Tabs without a session log (RDP, VNC) have nothing to watch.
 
 **Checked** in a test program on the real tab code: with the option on, a new tab is watched, and its first output while not looked at raises the activity alert; turning the option off and on again stops and starts the watch; with it off, a new tab isn't watched. **Not checked:** the checkbox in the running app.
+
+## Built-in terminal: an anti-idle string
+
+As SuperXTerminal (its 17961a5, b92caa2) and KiTTY: a device's own idle timeout (Cisco's `exec-timeout`, a shell's `TMOUT`) doesn't see SSH keep-alives and logs a quiet session out. Tools → Options → Terminal → **Anti-idle** sets a string typed into a remote built-in terminal session after that many seconds with nothing typed (180 by default, KiTTY's), and again after each such spell. It's written as KiTTY writes it, with KiTTY's escapes (`\xHH` a character by its hex code, `\kHH` a key by its virtual-key code, `\r`, `\n`, `\t`, `\h` for backspace, `\\`; a trailing `\` only ends it; KiTTY's pauses and Ctrl+Break are left out). `\x05\` (Ctrl+E, the end of the line on a Cisco) shows nothing.
+
+- Empty (the default) sends nothing. Not in local shells (cmd, PowerShell, WSL), which have no idle timeout to keep awake, nor while a script runs in the tab (it would read the echo), nor while connecting or down.
+- **Unlike SuperXTerminal,** it's one setting for every remote terminal tab, not a profile's: the built-in terminal uses PuTTY profiles, which have no such setting.
+- **Code:** new `Utils/AntiIdle.cs` (`Keys`, `IsDue`), `TerminalControl.SendAntiIdle` (checked every 5 s; `typedAt` set by everything typed), the `antiIdle` and `antiIdleSeconds` preferences and their row in `Gui/TerminalOptionsPanel.cs`.
+
+**Checked:** unit tests (`SuperPuttyUnitTests/AntiIdleTests.cs`, ported from SuperXTerminal's): hex codes, virtual-key codes, named escapes, pauses left out, other backslashes kept, the due time. In a test program, a built-in terminal tab to a local server with Ctrl+E after 1 s: the server received it after each quiet spell once connected. **Not checked:** a Cisco's exec-timeout kept awake, and the Options row in the running app.
+
+## Options → Terminal: the new rows fit
+
+The rows added for word delimiters, colours, anti-idle and Wrap lines were wider than the Options dialog's Terminal tab, so their ends were cut off, and in the dark theme their buttons (DarkModeCS gives a button the colour of the panel it's on) showed as plain text. The notes are shorter, with the long explanations in tooltips; the colours are two by two; Default and the colours are links, each colour with a swatch (an image, which the dark theme doesn't recolour; crossed out for the theme's).
+
+**Checked:** the Options dialog's Terminal tab rendered in a test program in the dark and the light theme, scrolled to the new rows: everything fits and reads.
 
 ## Offering changes upstream in small batches
 

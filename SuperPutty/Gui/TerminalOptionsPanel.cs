@@ -12,7 +12,7 @@ namespace SuperPutty.Gui
     /// The built-in terminal's defaults on Tools -> Options -> Terminal (dlgFindPutty): highlighting rules, theme, font,
     /// font size, cursor, blinking, bell, copy on select, marking the selection's matches, showing a paste of several
     /// lines first, scrollback, keys, session log time stamps, the renderer, word delimiters, wrapping lines, whether
-    /// the built-in highlighting rules are used, and the terminal's own colours over the theme's. These are the same
+    /// the built-in highlighting rules are used, the terminal's own colours over the theme's, and the anti-idle string. These are the same
     /// preferences each terminal's right-click menu changes (Utils.TerminalPreferences), so a change in either shows in
     /// the other and in every open terminal tab. Built in code: a label and a control per row.
     /// </summary>
@@ -50,7 +50,7 @@ namespace SuperPutty.Gui
         private readonly ComboBox keys = NewCombo();
         private readonly NumericUpDown logTimestamps = new NumericUpDown { Minimum = 0, Maximum = 3600, Increment = 10, Width = 80 };
         private readonly ComboBox renderer = NewCombo();
-        private readonly TextBox wordSeparators = new TextBox { Width = 160 };
+        private readonly TextBox wordSeparators = new TextBox { Width = 120 };
         /// <summary>The colour preferences shown in the Colours row, by name, with their label</summary>
         private static readonly string[][] ColourPrefs =
         {
@@ -63,10 +63,15 @@ namespace SuperPutty.Gui
         /// <summary>The colours chosen in the Colours row, by preference name; "" for the theme's</summary>
         private readonly Dictionary<string, string> colours = new Dictionary<string, string>();
 
-        /// <summary>The Colours row's buttons, by preference name</summary>
-        private readonly Dictionary<string, Button> colourButtons = new Dictionary<string, Button>();
+        /// <summary>The Colours row's swatches, by preference name</summary>
+        private readonly Dictionary<string, PictureBox> colourSwatches = new Dictionary<string, PictureBox>();
 
-        private readonly CheckBox wrap = new CheckBox { Text = "Wrap lines at the tab's width (off: 300 columns, panned with the scroll bar or Shift+wheel)", AutoSize = true };
+        /// <summary>Tooltips for the rows whose notes don't fit beside them (anti-idle, word delimiters)</summary>
+        private readonly ToolTip tips = new ToolTip();
+
+        private readonly TextBox antiIdle = new TextBox { Width = 120 };
+        private readonly NumericUpDown antiIdleSeconds = new NumericUpDown { Minimum = 1, Maximum = 86400, Increment = 30, Width = 90 };
+        private readonly CheckBox wrap = new CheckBox { Text = "Wrap lines at the tab's width (off: 300 columns, panned sideways)", AutoSize = true };
 
         /// <summary>Lay out the rows; <see cref="LoadPreferences"/> fills them</summary>
         public TerminalOptionsPanel()
@@ -102,6 +107,7 @@ namespace SuperPutty.Gui
             AddRow(table, "Drawing:", this.renderer);
             AddRow(table, "Word delimiters:", this.WordSeparatorsRow());
             AddRow(table, "Colours:", this.ColoursRow());
+            AddRow(table, "Anti-idle:", this.AntiIdleRow());
             table.Controls.Add(this.copyOnSelect, 1, table.RowCount++);
             table.Controls.Add(this.markMatches, 1, table.RowCount++);
             table.Controls.Add(this.wrap, 1, table.RowCount++);
@@ -109,8 +115,9 @@ namespace SuperPutty.Gui
         }
 
         /// <summary>
-        /// The word delimiters box (as Notepad++'s Preferences > Delimiter), a Default button that puts xterm.js's own
-        /// back, and a note that a space always ends a word
+        /// The word delimiters box (as Notepad++'s Preferences > Delimiter), a Default link that puts xterm.js's own
+        /// back, and a note that a space always ends a word. Links rather than buttons here: the dark theme (DarkModeCS)
+        /// gives a button this panel's own colour, so it showed as plain text.
         /// </summary>
         /// <returns>The row's control</returns>
         private Control WordSeparatorsRow()
@@ -118,33 +125,57 @@ namespace SuperPutty.Gui
             FlowLayoutPanel row = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0), WrapContents = false };
             this.wordSeparators.Margin = new Padding(0, 3, 0, 0);
             row.Controls.Add(this.wordSeparators);
-            Button reset = new Button { Text = "Default", AutoSize = true, Margin = new Padding(6, 0, 0, 0) };
-            reset.Click += (s, e) => this.wordSeparators.Text = TerminalPreferences.DefaultWordSeparators;
+            LinkLabel reset = new LinkLabel { Text = "Default", AutoSize = true, Margin = new Padding(6, 6, 0, 0) };
+            reset.LinkClicked += (s, e) => this.wordSeparators.Text = TerminalPreferences.DefaultWordSeparators;
             row.Controls.Add(reset);
-            row.Controls.Add(new Label { Text = "where a double-clicked word ends (and a space)", AutoSize = true, Margin = new Padding(6, 6, 0, 0) });
+            row.Controls.Add(new Label { Text = "and a space", AutoSize = true, Margin = new Padding(6, 6, 0, 0) });
+            this.tips.SetToolTip(this.wordSeparators, "Where a double-clicked word ends, besides a space. Add # so a double-click on \"sw1#show\" selects \"show\".");
             return row;
         }
 
         /// <summary>
         /// The Colours row, as SuperXTerminal's Settings > Terminal > Colours: Background, Text, Selection and Cursor,
-        /// each a button showing its colour that opens the colour picker, and a "Theme's" link that goes back to the
-        /// theme's colour. A session's environment colour still wins for the cursor.
+        /// each a swatch of its colour and a link that opens the colour picker, and a "Theme's" link that goes back to
+        /// the theme's colour. Two by two, so the row fits the Options page. A session's environment colour still wins
+        /// for the cursor.
         /// </summary>
         /// <returns>The row's control</returns>
         private Control ColoursRow()
         {
-            FlowLayoutPanel row = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0), WrapContents = false };
+            TableLayoutPanel row = new TableLayoutPanel { AutoSize = true, Margin = new Padding(0), ColumnCount = 6, RowCount = 2 };
             foreach (string[] pref in ColourPrefs)
             {
                 string name = pref[0];
-                Button button = new Button { Text = pref[1], AutoSize = true, TextImageRelation = TextImageRelation.ImageBeforeText, Margin = new Padding(0, 0, 2, 0) };
-                button.Click += (s, e) => this.PickColour(name);
-                LinkLabel reset = new LinkLabel { Text = "Theme's", AutoSize = true, Margin = new Padding(0, 7, 12, 0) };
+                PictureBox swatch = new PictureBox { Size = new Size(14, 14), Margin = new Padding(0, 6, 4, 0) };
+                swatch.Click += (s, e) => this.PickColour(name);
+                LinkLabel pick = new LinkLabel { Text = pref[1], AutoSize = true, Margin = new Padding(0, 6, 4, 0) };
+                pick.LinkClicked += (s, e) => this.PickColour(name);
+                this.tips.SetToolTip(pick, "Choose the " + pref[1].ToLowerInvariant() + " colour");
+                LinkLabel reset = new LinkLabel { Text = "(theme's)", AutoSize = true, Margin = new Padding(0, 6, 18, 0) };
                 reset.LinkClicked += (s, e) => this.SetColour(name, string.Empty);
-                this.colourButtons[name] = button;
-                row.Controls.Add(button);
+                this.colourSwatches[name] = swatch;
+                row.Controls.Add(swatch);
+                row.Controls.Add(pick);
                 row.Controls.Add(reset);
             }
+            return row;
+        }
+
+        /// <summary>
+        /// The anti-idle row, as KiTTY's: the string typed after a quiet spell (KiTTY's escapes, e.g. \x05\ for
+        /// Ctrl+E), and after how many seconds without typing
+        /// </summary>
+        /// <returns>The row's control</returns>
+        private Control AntiIdleRow()
+        {
+            FlowLayoutPanel row = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0), WrapContents = false };
+            this.antiIdle.Margin = new Padding(0, 3, 0, 0);
+            row.Controls.Add(this.antiIdle);
+            row.Controls.Add(new Label { Text = "after", AutoSize = true, Margin = new Padding(6, 6, 0, 0) });
+            this.antiIdleSeconds.Margin = new Padding(6, 3, 0, 0);
+            row.Controls.Add(this.antiIdleSeconds);
+            row.Controls.Add(new Label { Text = "s without typing", AutoSize = true, Margin = new Padding(6, 6, 0, 0) });
+            this.tips.SetToolTip(this.antiIdle, "Typed into remote sessions after that long without typing, so a device's idle timeout doesn't log them out. KiTTY's escapes: \\x05\\ is Ctrl+E, \\r Enter, \\k08 Backspace. Empty: none.");
             return row;
         }
 
@@ -166,31 +197,54 @@ namespace SuperPutty.Gui
             }
         }
 
-        /// <summary>Keep a colour choice and show it on its button: a swatch, or none for the theme's</summary>
+        /// <summary>Keep a colour choice and show it in its swatch: the colour, or a crossed-out square for the theme's</summary>
         /// <param name="name">The preference's name</param>
         /// <param name="value">"#rrggbb", or "" for the theme's</param>
         private void SetColour(string name, string value)
         {
             this.colours[name] = TerminalPreferences.IsColour(value) ? value : string.Empty;
-            Button button = this.colourButtons[name];
-            Image old = button.Image;
-            button.Image = this.colours[name].Length > 0 ? Swatch(ColorTranslator.FromHtml(this.colours[name])) : null;
+            PictureBox swatch = this.colourSwatches[name];
+            Image old = swatch.Image;
+            swatch.Image = Swatch(this.colours[name].Length > 0 ? ColorTranslator.FromHtml(this.colours[name]) : (Color?)null);
             old?.Dispose();
         }
 
-        /// <summary>A small square of a colour with a grey edge, for a colour button</summary>
-        /// <param name="colour">The colour</param>
-        /// <returns>A new bitmap; the button's owner disposes of it</returns>
-        private static Image Swatch(Color colour)
+        /// <summary>
+        /// A small square of a colour with a grey edge, for a swatch; with no colour, an empty square crossed out (the
+        /// theme's). An image, as the dark theme recolours a control's background.
+        /// </summary>
+        /// <param name="colour">The colour, or null for the theme's</param>
+        /// <returns>A new bitmap; the swatch's owner disposes of it</returns>
+        private static Image Swatch(Color? colour)
         {
             Bitmap bitmap = new Bitmap(14, 14);
             using (Graphics g = Graphics.FromImage(bitmap))
-            using (Brush fill = new SolidBrush(colour))
             {
-                g.FillRectangle(fill, 0, 0, 14, 14);
+                if (colour.HasValue)
+                {
+                    using (Brush fill = new SolidBrush(colour.Value))
+                    {
+                        g.FillRectangle(fill, 0, 0, 14, 14);
+                    }
+                }
+                else
+                {
+                    g.DrawLine(Pens.Gray, 0, 13, 13, 0);
+                }
                 g.DrawRectangle(Pens.Gray, 0, 0, 13, 13);
             }
             return bitmap;
+        }
+
+        /// <summary>Dispose of the tooltips with the panel</summary>
+        /// <param name="disposing">true when called from Dispose</param>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                this.tips.Dispose();
+            }
+            base.Dispose(disposing);
         }
 
         /// <summary>A number box followed by a note, as one row's control</summary>
@@ -301,6 +355,9 @@ namespace SuperPutty.Gui
             Fill(this.renderer, new[] { C("Fast (WebGL, uses the graphics card)", "webgl"), C("Compatible (slower with a lot of output)", "dom") }, prefs["renderer"]);
             this.wordSeparators.Text = prefs["wordSeparators"];
             this.wrap.Checked = prefs["wrap"] != "false";
+            this.antiIdle.Text = prefs["antiIdle"];
+            int idleSeconds;
+            this.antiIdleSeconds.Value = int.TryParse(prefs["antiIdleSeconds"], out idleSeconds) && idleSeconds > 0 ? Math.Min(idleSeconds, 86400) : AntiIdle.DefaultSeconds;
             foreach (string[] pref in ColourPrefs)
             {
                 this.SetColour(pref[0], prefs[pref[0]]);
@@ -330,6 +387,8 @@ namespace SuperPutty.Gui
                 { "renderer", value(this.renderer) },
                 { "wordSeparators", TerminalPreferences.NormalizeWordSeparators(this.wordSeparators.Text) },
                 { "wrap", this.wrap.Checked ? "true" : "false" },
+                { "antiIdle", this.antiIdle.Text },
+                { "antiIdleSeconds", ((int)this.antiIdleSeconds.Value).ToString() },
                 { "colorBackground", this.colours["colorBackground"] },
                 { "colorForeground", this.colours["colorForeground"] },
                 { "colorSelection", this.colours["colorSelection"] },
