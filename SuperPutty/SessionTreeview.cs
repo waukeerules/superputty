@@ -4938,6 +4938,12 @@ namespace SuperPutty
                 this.ShowSearchMessage(null);
                 this.ExpandFully(null);
             }
+            // results read from the top: expanding every folder left the tree scrolled to the last one opened, at the
+            // bottom of the results
+            if (this.treeView1.Nodes.Count > 0)
+            {
+                this.treeView1.TopNode = this.treeView1.Nodes[0];
+            }
         }
 
         /// <summary>
