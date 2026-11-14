@@ -142,6 +142,8 @@ namespace SuperPutty
             // Grid View (View menu): the tabs tiled, made again as they open and close
             GridView.Attach(DockPanel);
             this.AddGridViewMenuItems();
+            // quick connect: several hosts in the Host box, and a list of them one on each line (as SuperXTerminal)
+            this.AddHostListButton();
 
             if (SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme)
             {
@@ -1384,47 +1386,155 @@ namespace SuperPutty
             }
         }
 
+        /// <summary>
+        /// Connect with what's in the quick connect bar: a tab for each host in the Host box (Utils.QuickHosts, as
+        /// SuperXTerminal's), all with the same Login, Password and Profile, each with its own user@, :port or
+        /// telnet:// if it has one. More than QuickHosts.ManyHosts are asked about first, as a stray paste could hold
+        /// hundreds. With no host, a protocol that runs locally (cmd, PowerShell...) still opens one.
+        /// </summary>
         void TryConnectFromToolbar()
         {
-            String host = tbTxtBoxHost.Text;
             String protoString = (string)tbComboProtocol.SelectedItem;
-
-            if (protoString == "WINCMD" || protoString == "PS" || protoString == "WSL" || protoString == "Mintty" || protoString == "Cygterm")
+            List<string> hosts = QuickHosts.Split(tbTxtBoxHost.Text);
+            if (hosts.Count == 0 && (protoString == "WINCMD" || protoString == "PS" || protoString == "WSL" || protoString == "Mintty" || protoString == "Cygterm"))
             {
-                if (string.IsNullOrEmpty(host))
-                {
-                    host = protoString + " localhost";
-                }
+                hosts.Add(protoString + " localhost");
             }
-
-            if (!string.IsNullOrEmpty(host))
+            if (hosts.Count > QuickHosts.ManyHosts && DialogResult.Yes != Messenger.MessageBox(
+                "Open " + hosts.Count + " sessions, one for each host typed?", "Quick connect", MessageBoxButtons.YesNo, MessageBoxIcon.Warning))
+                return;
+            foreach (string host in hosts)
             {
-                bool isScp = "SCP" == protoString;
-                HostConnectionString connStr = new HostConnectionString(host);
-                ConnectionProtocol proto = isScp
-                    ? ConnectionProtocol.SSH
-                    : connStr.Protocol.GetValueOrDefault((ConnectionProtocol)Enum.Parse(typeof(ConnectionProtocol), protoString));
-                
-                int port = connStr.Port.GetValueOrDefault(dlgEditSession.GetDefaultPort(proto));
-                if (protoString == "VNC" && port < 100)
-                {
-                    port += 5900;
-                }
-
-                SessionData session = new SessionData
-                {
-                    Host = connStr.Host,
-                    SessionName = connStr.Host,
-                    SessionId = SuperPuTTY.MakeUniqueSessionId(SessionData.CombineSessionIds("QuickConnect", connStr.Host)),
-                    Proto = proto,
-                    Port = port,
-                    Username = tbTxtBoxLogin.Text,
-                    Password = tbTxtBoxPassword.Text,
-                    PuttySession = (string)tbComboSession.SelectedItem
-                };
-                SuperPuTTY.OpenSession(new SessionDataStartInfo { Session = session, UseScp = isScp });
+                this.ConnectFromToolbar(host, protoString);
+            }
+            if (hosts.Count > 0)
+            {
                 oldHostName = tbTxtBoxHost.Text;
                 RefreshConnectionToolbarData();
+            }
+        }
+
+        /// <summary>Open one host from the quick connect bar, with its Login, Password and Profile</summary>
+        /// <param name="host">One host as typed: "host", "host:port", "host port", "user@host" or "telnet://host"</param>
+        /// <param name="protoString">The protocol chosen in the bar ("SCP" for the file browser)</param>
+        void ConnectFromToolbar(string host, string protoString)
+        {
+            bool isScp = "SCP" == protoString;
+            HostConnectionString connStr = new HostConnectionString(host);
+            ConnectionProtocol proto = isScp
+                ? ConnectionProtocol.SSH
+                : connStr.Protocol.GetValueOrDefault((ConnectionProtocol)Enum.Parse(typeof(ConnectionProtocol), protoString));
+            
+            int port = connStr.Port.GetValueOrDefault(dlgEditSession.GetDefaultPort(proto));
+            if (protoString == "VNC" && port < 100)
+            {
+                port += 5900;
+            }
+
+            SessionData session = new SessionData
+            {
+                Host = connStr.Host,
+                SessionName = connStr.Host,
+                SessionId = SuperPuTTY.MakeUniqueSessionId(SessionData.CombineSessionIds("QuickConnect", connStr.Host)),
+                Proto = proto,
+                Port = port,
+                // a host's own user@ before the bar's Login
+                Username = connStr.User ?? tbTxtBoxLogin.Text,
+                Password = tbTxtBoxPassword.Text,
+                PuttySession = (string)tbComboSession.SelectedItem
+            };
+            SuperPuTTY.OpenSession(new SessionDataStartInfo { Session = session, UseScp = isScp });
+        }
+
+        /// <summary>The list of hosts while it's open under the Host box; null otherwise</summary>
+        private HostListPopup hostList;
+
+        /// <summary>
+        /// Add the list button beside the Host box, which opens the hosts one on each line (HostListPopup), and make a
+        /// column of hosts pasted into the Host box go in with commas between (HostPaste)
+        /// </summary>
+        private void AddHostListButton()
+        {
+            Bitmap glyph = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(glyph))
+            using (Pen pen = new Pen(SuperPuTTY.Settings.InterfaceTheme < (int)InterfaceTheme.LightTheme ? Color.Gainsboro : Color.DimGray, 1.5f) { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round })
+            {
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                foreach (int y in new[] { 4, 8, 12 })
+                {
+                    g.DrawLine(pen, 2, y, 3.5f, y);
+                    g.DrawLine(pen, 6, y, 14, y);
+                }
+            }
+            ToolStripButton list = new ToolStripButton(null, glyph)
+            {
+                DisplayStyle = ToolStripItemDisplayStyle.Image,
+                ToolTipText = "Several hosts: type or paste them, one on each line; each opens in a tab of its own"
+            };
+            list.Click += (s, e) => this.ToggleHostList();
+            this.tsConnect.Items.Insert(this.tsConnect.Items.IndexOf(this.tbTxtBoxHost) + 1, list);
+            new HostPaste(this.tbTxtBoxHost.TextBox);
+        }
+
+        /// <summary>Open the list of hosts under the Host box, or close it if it's open</summary>
+        private void ToggleHostList()
+        {
+            if (this.hostList != null && this.hostList.Visible)
+            {
+                this.hostList.Close();
+                this.tbTxtBoxHost.Focus();
+                return;
+            }
+            this.hostList = new HostListPopup(this.tbTxtBoxHost.Text, hosts => this.tbTxtBoxHost.Text = hosts, this.TryConnectFromToolbar);
+            this.hostList.Closed += (s, e) => this.hostList = null;
+            Rectangle at = this.tbTxtBoxHost.Bounds;
+            this.hostList.Show(this.tsConnect, new Point(at.Left, at.Bottom));
+        }
+
+        /// <summary>
+        /// The Host box's paste: a column of hosts goes in with commas between (QuickHosts.Pasted), where the one-line
+        /// box alone would run them together ("10.0.0.110.0.0.2"); a paste of one line is left to the box
+        /// </summary>
+        private class HostPaste : NativeWindow
+        {
+            /// <summary>WM_PASTE: Ctrl+V, Shift+Insert, or Paste on the box's own menu</summary>
+            private const int WmPaste = 0x0302;
+
+            /// <summary>The Host box</summary>
+            private readonly TextBox box;
+
+            /// <summary>Listen to the Host box's messages</summary>
+            /// <param name="box">The Host box</param>
+            public HostPaste(TextBox box)
+            {
+                this.box = box;
+                if (box.IsHandleCreated)
+                {
+                    this.AssignHandle(box.Handle);
+                }
+                box.HandleCreated += (s, e) => this.AssignHandle(box.Handle);
+                box.HandleDestroyed += (s, e) => this.ReleaseHandle();
+            }
+
+            /// <summary>Put a pasted column of hosts in with commas between, also where it joins hosts already typed</summary>
+            /// <param name="m">The message</param>
+            protected override void WndProc(ref Message m)
+            {
+                if (m.Msg == WmPaste)
+                {
+                    string list = Clipboard.ContainsText() ? QuickHosts.Pasted(Clipboard.GetText()) : null;
+                    if (list != null)
+                    {
+                        string before = this.box.Text.Substring(0, this.box.SelectionStart);
+                        string after = this.box.Text.Substring(this.box.SelectionStart + this.box.SelectionLength);
+                        string lead = before.Trim().Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(before, @"[,;]\s*$") ? ", " : "";
+                        string tail = after.Trim().Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(after, @"^\s*[,;]") ? ", " : "";
+                        this.box.Text = before + lead + list + tail + after;
+                        this.box.SelectionStart = (before + lead + list).Length;
+                        return;
+                    }
+                }
+                base.WndProc(ref m);
             }
         }
 

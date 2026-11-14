@@ -2765,6 +2765,23 @@ Symptom: on Options → GUI, the Interface theme choices read "Da", "Dark", "Lig
 
 **Checked:** the Options dialog rendered in a test program in the light and dark themes: all four theme names whole, the Font button's text whole. **Not checked:** at your own zoom setting.
 
+## Quick connect: several hosts, a tab each
+
+As SuperXTerminal (its 43e4ba1, asked for in SilverGreen93/superputty#21): the quick connect bar took one host, so a handful of servers to run a command on and then forget had to be typed and connected in turn, or saved as sessions first.
+
+- **The Host box takes several hosts,** with commas, semicolons, spaces or new lines between. Each opens in a tab of its own with the same Login, Password and Profile, and each may still have its own `user@`, `:port`, `[IPv6]:port` or `telnet://`. A number standing alone after a host is still its port (`10.0.0.1 2222`), as the box has always taken it. A host typed twice opens one tab; more than ten are asked about first, as Connect all is in the Sessions tree.
+- **A list button beside Host** opens a box under it with one host on each line, for typing them or pasting rows copied from a spreadsheet, and says how many there are. The Host box follows it as the list with commas between, so closing it (Escape, the button, a click elsewhere in the window) loses nothing; going to another program to copy doesn't close it. Ctrl+Enter connects from it.
+- **A column pasted into the Host box** (Ctrl+V, Shift+Insert or its menu's Paste) goes in with commas between, where the one-line box would have run the hosts together.
+
+| File | Role |
+|---|---|
+| `Utils/QuickHosts.cs` | New. Splitting the Host box into hosts, a pasted column, the hosts as lines |
+| `Gui/HostListPopup.cs` | New. The list under the Host box |
+| `Utils/HostConnectionString.cs` | `user@host` (its `User`) and `[IPv6]:port` |
+| `frmSuperPutty.cs` | A tab per host (`TryConnectFromToolbar`, `ConnectFromToolbar`), the list button, the paste (`HostPaste`) |
+
+**Checked:** unit tests (`SuperPuttyUnitTests/QuickHostsTests.cs`, after SuperXTerminal's): separators, each host's own user, port and type, a port after a space, once each, empty, a pasted column, and each host read with its user, port, protocol and IPv6 address. In a test program, the list under a Host box in the dark and light themes: two hosts as two lines, a third typed made the Host box "10.0.0.1, sw1.example.com, admin@10.0.0.7:2222" and the count "3 hosts", Ctrl+Enter connected once and closed it. **Not checked:** the button and pasting in the running app, and the sessions opening.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
