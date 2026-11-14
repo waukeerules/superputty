@@ -1,0 +1,31 @@
+<!doctype html>
+<!--
+  Compare Output: the page Gui/CompareOutputPanel shows in a WebView2. Two tabs' output side by side in Monaco's diff
+  editor, the differences marked, e.g. a switch's config against another's, or before and after a change, as
+  SuperXTerminal's compare page (its be6efa5). The panel sends the two session logs; Refresh, or Follow, asks again.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; worker-src 'self' blob:">
+<title>Compare Output</title>
+<link rel="stylesheet" href="compare.css">
+<link rel="stylesheet" data-name="vs/editor/editor.main" href="../lib/monaco/vs/editor/editor.main.css">
+</head>
+<body>
+<div id="toolbar">
+  <span id="titles"></span>
+  <label title="Each side on its own, or the differences in one column"><input type="checkbox" id="inline"> Inline</label>
+  <label title="Lines that differ only in spaces count as the same"><input type="checkbox" id="spaces" checked> Ignore spaces</label>
+  <label title="Read both again every 2 seconds"><input type="checkbox" id="follow"> Follow</label>
+  <button id="previous" title="The difference before (Shift+F7)">&#8593;</button>
+  <button id="next" title="The next difference (F7)">&#8595;</button>
+  <button id="refresh" title="Read both outputs again">Refresh</button>
+  <span id="status"></span>
+</div>
+<div id="editor"></div>
+<script src="../lib/monaco/vs/loader.js"></script>
+<script src="compare.js"></script>
+</body>
+</html>
