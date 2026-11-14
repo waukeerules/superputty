@@ -21,6 +21,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Win32;
 using WeifenLuo.WinFormsUI.Docking;
 using log4net;
@@ -795,10 +796,8 @@ namespace SuperPutty.Data
             // sort and save file
             sessions.Sort();
             XmlSerializer s = new XmlSerializer(sessions.GetType());
-            using (TextWriter w = new StreamWriter(fileName))
-            {
-                s.Serialize(w, sessions);
-            }
+            // whole or not at all: an interrupted save no longer leaves a cut-off file
+            SafeFile.Write(fileName, w => s.Serialize(w, sessions));
         }
 
         private static void BackUpFiles(string fileName, int count)
@@ -810,16 +809,17 @@ namespace SuperPutty.Data
                     // backup
                     string fileBaseName = Path.GetFileNameWithoutExtension(fileName);
                     string dirName = Path.GetDirectoryName(fileName);
-                    string backupName = Path.Combine(dirName, string.Format("{0}.{1:yyyyMMdd_hhmmss}.xml", fileBaseName, DateTime.Now));
+                    // HH, not hh: with the 12-hour clock a 1 pm backup overwrote the 1 am one and sorted among them
+                    string backupName = Path.Combine(dirName, string.Format("{0}.{1:yyyyMMdd_HHmmss}.xml", fileBaseName, DateTime.Now));
                     File.Copy(fileName, backupName, true);
 
-                    // limit last count saves
-                    List<string> oldFiles = new List<string>(Directory.GetFiles(dirName, fileBaseName + ".*.xml"));
-                    oldFiles.Sort();
-                    oldFiles.Reverse();
+                    // keep the last count saves: newest first by when the file they copy was written (a copy keeps
+                    // that time), since names from the 12-hour clock don't sort in the order they were made
+                    List<string> oldFiles = Directory.GetFiles(dirName, fileBaseName + ".*.xml")
+                        .OrderByDescending(f => File.GetLastWriteTimeUtc(f)).ThenByDescending(f => f, StringComparer.Ordinal).ToList();
                     if (oldFiles.Count > count)
                     {
-                        for (int i = 20; i < oldFiles.Count; i++)
+                        for (int i = count; i < oldFiles.Count; i++)
                         {
                             Log.InfoFormat("Cleaning up old file, {0}", oldFiles[i]);
                             File.Delete(oldFiles[i]);

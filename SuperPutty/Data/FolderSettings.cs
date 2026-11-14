@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Xml.Serialization;
 using log4net;
+using SuperPutty.Utils;
 
 namespace SuperPutty.Data
 {
@@ -77,6 +78,9 @@ namespace SuperPutty.Data
     {
         private static readonly ILog Log = LogManager.GetLogger(typeof(FolderSettings));
 
+        /// <summary>What each file was last written with, so an unchanged one isn't written again; forgotten on <see cref="Load"/></summary>
+        private static readonly Dictionary<string, string> lastWritten = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>Which root a folder belongs to</summary>
         public enum Store
         {
@@ -126,6 +130,8 @@ namespace SuperPutty.Data
         /// <summary>Read Folders.xml and PrivateFolders.xml; a missing or unreadable file means no settings</summary>
         public static void Load()
         {
+            // the files may have been changed elsewhere since they were last written here
+            lastWritten.Clear();
             foreach (Store store in new[] { Store.Shared, Store.Private })
             {
                 stores[store].Clear();
@@ -174,10 +180,22 @@ namespace SuperPutty.Data
                 return;
             try
             {
-                using (StreamWriter writer = new StreamWriter(file))
+                string text;
+                using (MemoryStream buffer = new MemoryStream())
                 {
-                    new XmlSerializer(typeof(List<FolderSetting>), new XmlRootAttribute("Folders")).Serialize(writer, list);
+                    using (StreamWriter writer = new StreamWriter(buffer, new System.Text.UTF8Encoding(false)))
+                    {
+                        new XmlSerializer(typeof(List<FolderSetting>), new XmlRootAttribute("Folders")).Serialize(writer, list);
+                    }
+                    text = System.Text.Encoding.UTF8.GetString(buffer.ToArray());
                 }
+                // not written again when nothing in it changed, e.g. a move of folders that have no settings
+                string previous;
+                if (lastWritten.TryGetValue(file, out previous) && previous == text && File.Exists(file))
+                    return;
+                // whole or not at all, as Sessions.xml
+                SafeFile.Write(file, w => w.Write(text));
+                lastWritten[file] = text;
             }
             catch (Exception ex)
             {

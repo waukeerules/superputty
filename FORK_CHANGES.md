@@ -2414,6 +2414,14 @@ SuperXTerminal was made fast with 10,000-session files; this brings the same wor
 
 **Checked** with the test program on both builds: after moving folders, every session is found by its own ID, the old ID is gone, a favourite inside a moved folder follows it, the tree finds the node by its new ID, and the saved Sessions.xml has 10,000 sessions with unique IDs including the moved ones. **Not checked in the running app.** Manual test: import a 10,000-session Sessions.xml (File > Import); drag a big folder into another; make a session in it a favourite first, and see that the favourite still opens.
 
+### Saves written whole, Folders.xml only when changed, and backups fixed
+
+- **Whole or not at all** (new `Utils/SafeFile.cs`): Sessions.xml, PrivateSessions.xml and Folders.xml are written to a temporary file beside them (`Sessions.xml.saving`), which then takes the file's place (`File.Replace`, or a copy where a share can't do that). Writing straight over the file left a cut-off Sessions.xml when a save was interrupted, likelier with the settings folder on a network drive.
+- **Folders.xml** isn't written when what would be written is what was last written (`FolderSettings.lastWritten`, forgotten on `Load`).
+- **Fix: backups named with the 12-hour clock.** **Symptom:** a save at 1 pm replaced the backup from 1 am, and "keep the last 20" could delete newer backups and keep older ones. **Cause:** `BackUpFiles` named backups `yyyyMMdd_hhmmss` and kept the first 20 by name, with 20 written in place of its `count`. **Fix:** `HH`, the newest 20 by the time of the save they hold, and `count` used. This is in upstream too.
+
+**Checked** with the test program: 52 saves left no `.saving` file and at most 20 backups, and the saved file reads back with all 10,000 sessions.
+
 ## Offering changes upstream in small batches
 
 SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
