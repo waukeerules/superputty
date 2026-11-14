@@ -4908,12 +4908,102 @@ namespace SuperPutty
             // if "clear" show init state otherwise expand all to show all matches
             if (string.IsNullOrEmpty(txt))
             {
+                this.ShowSearchMessage(null);
                 this.ExpandInitialTree();
+                return;
+            }
+            int matches = this.SearchMatchCount();
+            if (matches > SearchOpenLimit)
+            {
+                // as SuperXTerminal: a broad search opens only the roots, with their folders and how many match in each.
+                // Opening every folder holding a match built and drew a node for each of thousands of sessions, at
+                // every keystroke; folders opened now stay open until the search changes
+                this.treeView1.BeginUpdate();
+                try
+                {
+                    foreach (TreeNode root in new[] { this.nodeRoot, this.nodePrivate, this.nodeDatabase })
+                    {
+                        if (root != null && root.TreeView != null)
+                            root.Expand();
+                    }
+                }
+                finally
+                {
+                    this.treeView1.EndUpdate();
+                }
+                this.ShowSearchMessage(string.Format("{0:N0} matches: open a folder (or Expand all) to see them, or narrow the search.", matches));
             }
             else
             {
+                this.ShowSearchMessage(null);
                 this.ExpandFully(null);
             }
+        }
+
+        /// <summary>
+        /// A search matching more sessions than this opens only the roots, as SuperXTerminal's (SEARCH_OPEN_LIMIT):
+        /// opening every folder for thousands of matches is what made searching slow
+        /// </summary>
+        const int SearchOpenLimit = 1000;
+
+        /// <summary>The line under the toolbar saying how many a broad search matched; made on first use</summary>
+        Label searchMessage;
+
+        /// <summary>
+        /// How many sessions the search matches, in Saved, Private and Database sessions (Favorites and Recent hold the
+        /// same ones again, so they don't count), from the folder index's counts
+        /// </summary>
+        /// <returns>The number of matches</returns>
+        int SearchMatchCount()
+        {
+            int total = 0;
+            foreach (RootKind kind in new[] { RootKind.Shared, RootKind.Private, RootKind.Database })
+            {
+                int count;
+                if (this.IndexFor(kind).Counts.TryGetValue(string.Empty, out count))
+                    total += count;
+            }
+            return total;
+        }
+
+        /// <summary>
+        /// Show a line between the toolbar and the tree ("3,214 matches: open a folder..."), or hide it for null. It
+        /// also goes once a folder is opened, as SuperXTerminal's goes once something is opened in the search.
+        /// </summary>
+        /// <param name="text">The text, or null to hide it</param>
+        void ShowSearchMessage(string text)
+        {
+            if (this.searchMessage == null)
+            {
+                if (text == null)
+                    return;
+                this.searchMessage = new Label
+                {
+                    Dock = DockStyle.Top,
+                    AutoSize = false,
+                    Padding = new Padding(4, 3, 4, 3),
+                    ForeColor = SystemColors.GrayText
+                };
+                this.Controls.Add(this.searchMessage);
+                // docked after the toolbar and before the tree: just above the tree
+                this.Controls.SetChildIndex(this.searchMessage, this.Controls.GetChildIndex(this.toolStripTree ?? (Control)this.panelSearch));
+                this.treeView1.AfterExpand += (s, e) =>
+                {
+                    if (e.Node != null && e.Node.Parent != null && this.searchMessage.Visible)
+                        this.ShowSearchMessage(null);
+                };
+            }
+            if (text == null)
+            {
+                this.searchMessage.Visible = false;
+                return;
+            }
+            this.searchMessage.Text = text;
+            this.searchMessage.Font = this.treeView1.Font;
+            this.searchMessage.BackColor = this.treeView1.BackColor;
+            this.searchMessage.Height = TextRenderer.MeasureText(this.searchMessage.CreateGraphics(), text, this.searchMessage.Font,
+                new Size(Math.Max(50, this.ClientSize.Width - 8), int.MaxValue), TextFormatFlags.WordBreak).Height + this.searchMessage.Padding.Vertical;
+            this.searchMessage.Visible = true;
         }
 
         public enum SearchMode
