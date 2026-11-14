@@ -283,7 +283,7 @@ Right-click a tab → **Watch for Activity**, or **Watch for Silence** → 10 se
 
 - **Activity:** new output in the tab while you aren't looking at it.
 - **Silence:** no output for the chosen time, after the tab has printed something. It fires once per quiet spell and re-arms when output resumes.
-- **Signals:** an alert puts a badge on the tab's icon (an orange dot for activity, grey pause bars for silence, on a white disc so it shows on the selected tab too) and a message in the status bar. If SuperPuTTY isn't in front, the taskbar button also flashes until it is.
+- **Signals:** an alert marks the tab (activity: the whole tab pulses, since "New output pulses the tab"; silence: grey pause bars on its icon, on a white disc so it shows on the selected tab too) and a message in the status bar. If SuperPuTTY isn't in front, the taskbar button also flashes until it is.
 - **Clearing:** opening the tab, with SuperPuTTY in front, clears the badge.
 - **Badge priority:** a running script's spinner wins over the badges (`ctlPuttyPanel.UpdateTabIcon`).
 - **"Looking at the tab"** means it's the active tab and SuperPuTTY is in front. While you type in a terminal, Windows reports the embedded PuTTY window as the foreground window, so that counts too (`frmSuperPutty.IsInFront`).
@@ -2243,7 +2243,7 @@ Dropped sessions:
 
 Alerts and search:
 
-1. Right-click an SSH tab → **Watch for Activity**. Run `sleep 10; echo done` there and switch to another tab: about 10 s later the tab should get an orange-dot badge and the status bar should say "New output in ...". Switch back: the badge goes away.
+1. Right-click an SSH tab → **Watch for Activity**. Run `sleep 10; echo done` there and switch to another tab: about 10 s later the tab should pulse and the status bar should say "New output in ...". Switch back: the badge goes away.
 2. **Watch for Silence** → 10 seconds on a tab running `ping` against a host, then stop the ping (Ctrl+C) and switch away: about 10 s later the tab gets the pause badge. Minimise SuperPuTTY first to see the taskbar flash.
 3. Right-click a tab → **Search Output...**, search for something it printed earlier (e.g. after `ls --color`), try match case and a regex, double-click a line to copy it, and try **Open log**.
 4. Build `SuperPuttyInstaller`, install the MSI on a test machine (or check `C:\Program Files (x86)\SuperXPuTTY` after installing), and confirm `Newtonsoft.Json.dll` is there and sessions open.
@@ -2711,6 +2711,14 @@ New here, and not yet in SuperXTerminal either (the parity survey listed it for 
 - **Code:** `dlgSearchOutput` (`liveTimer`, `Search`, `MakeMatcher` with `wholeWord`, the Whole word box), `findRegex` and the `#findWord` button in `web/terminal`.
 
 **Checked:** unit tests (`SuperPuttyUnitTests/SearchOutputTests.cs`): whole words, punctuation and addresses, regex with match case, the old matcher unchanged. Page tests: "show" four times, twice as a whole word (not in "showing" or inside a Cyrillic word); a regex as a whole word. In a test program with the real dialog: a whole-word search lists 1 line, and after two more lines are written to the log, without a click, 2. **Not checked:** in the running app.
+
+## New output pulses the tab
+
+As SuperXTerminal (its e98ae20): Watch for Activity marked a tab with new output by a small orange dot on its icon, easy to miss among many tabs and nothing to do with the tab's own colour. The whole tab now pulses until it's looked at: from its usual look to nearly the full colour and back every 1.6 s, in its environment colour, else the theme's accent (the selected tab's colour). A tab already filled with its colour (the selected one, while SuperXPuTTY isn't in front) pulses lighter, as more of the same wouldn't show. With Windows' animations off (Settings → Accessibility → Visual effects) the colour is held without the movement. Watch for Silence keeps its badge; the orange dot is gone (`TabBadges.Activity` removed).
+
+- **How it's drawn:** `TabIcons.SetPulse` (from `ctlPuttyPanel.UpdateTabIcon`) adds the tab to a set and starts a 60 ms timer; each tick draws only the pulsing tabs straight over themselves (fill, text, close mark, icon) without making the theme repaint, so nothing flickers. A strip's own paint draws them at the current level too (`PulseLevel`, `PulseColour`).
+
+**Checked:** unit tests (`SuperPuttyUnitTests/TabPulseTests.cs`): the level over a period and held still, the colour near the background at rest and near the colour at full, a filled tab going lighter. In a test program with SuperXPuTTY's own tab strip on the dark theme, the pulsing tab's pixels read 29,73,105 → 8,108,175 → 16,95,149 → 37,59,76 over 1.2 s, the other tabs unchanged. **Not checked:** in the running app, with an environment colour, and with animations off.
 
 ## Offering changes upstream in small batches
 

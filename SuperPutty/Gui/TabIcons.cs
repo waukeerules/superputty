@@ -21,7 +21,8 @@ namespace SuperPutty.Gui
     /// text right by the room the larger icon needs. Callers set icons with
     /// <see cref="Set"/> instead of the Icon property (SuperPuTTY.ApplyIconForWindow, ctlPuttyPanel's badges); the strips
     /// are hooked by DocumentTabs.MarkCurrentTabInLists. The same paint also shows each tab's environment colour
-    /// (EnvironmentColors): the selected tab filled with it, the others tinted and striped.
+    /// (EnvironmentColors): the selected tab filled with it, the others tinted and striped; and a watched tab with new
+    /// output pulses in that colour, or the theme's accent (<see cref="SetPulse"/>, as SuperXTerminal's e98ae20).
     /// </summary>
     public static class TabIcons
     {
@@ -85,6 +86,110 @@ namespace SuperPutty.Gui
 
         /// <summary>How much of the environment colour a hovered unselected tab gets: more than the tint, less than selected</summary>
         private const float HoverMix = 0.55f;
+
+        /// <summary>The tabs pulsing for new output (ctlPuttyPanel's Watch for Activity)</summary>
+        private static readonly HashSet<DockContent> pulsing = new HashSet<DockContent>();
+
+        /// <summary>Draws the pulsing tabs again a few times a second, while there are any</summary>
+        private static Timer pulseTimer;
+
+        /// <summary>When the pulse started, so every pulsing tab is in step</summary>
+        private static readonly DateTime pulseStart = DateTime.Now;
+
+        /// <summary>How long one pulse takes, from the usual tint to nearly the full colour and back</summary>
+        private const double PulsePeriodMs = 1600;
+
+        /// <summary>How strong the pulse is held when Windows' animations are off: the colour without the movement</summary>
+        private const float HeldPulse = 0.6f;
+
+        /// <summary>
+        /// Start or stop a tab pulsing for new output (ctlPuttyPanel.SetOutputAlert), in place of the orange dot it
+        /// used to get: easy to miss among many tabs. It pulses until it's looked at.
+        /// </summary>
+        /// <param name="content">The tab</param>
+        /// <param name="on">true to pulse</param>
+        public static void SetPulse(DockContent content, bool on)
+        {
+            bool changed = on ? pulsing.Add(content) : pulsing.Remove(content);
+            if (!changed)
+                return;
+            if (pulseTimer == null)
+            {
+                pulseTimer = new Timer { Interval = 60 };
+                pulseTimer.Tick += PulseTick;
+            }
+            // with Windows' animations off (Settings > Accessibility > Visual effects) the colour is held still
+            pulseTimer.Enabled = pulsing.Count > 0 && SystemInformation.UIEffectsEnabled;
+            if (content.Pane != null)
+            {
+                content.Pane.Invalidate(true);
+            }
+        }
+
+        /// <summary>Whether a tab is pulsing for new output</summary>
+        /// <param name="content">The tab</param>
+        /// <returns>true while it pulses</returns>
+        public static bool IsPulsing(IDockContent content)
+        {
+            DockContent dockContent = content as DockContent;
+            return dockContent != null && pulsing.Contains(dockContent);
+        }
+
+        /// <summary>
+        /// How far into its colour a pulsing tab is now: 0 at its usual look, 1 at the full colour, easing in and out
+        /// over <see cref="PulsePeriodMs"/>; held at <see cref="HeldPulse"/> when not animated
+        /// </summary>
+        /// <param name="elapsed">Time since the pulse started</param>
+        /// <param name="animate">Whether Windows' animations are on</param>
+        /// <returns>From 0 to 1</returns>
+        public static float PulseLevel(TimeSpan elapsed, bool animate)
+        {
+            if (!animate)
+                return HeldPulse;
+            double phase = (elapsed.TotalMilliseconds % PulsePeriodMs) / PulsePeriodMs;
+            return (float)((1 - Math.Cos(2 * Math.PI * phase)) / 2);
+        }
+
+        /// <summary>
+        /// A pulsing tab's fill: from its usual background towards nearly its colour; a tab already filled with its
+        /// colour (the selected one) pulses towards white instead, as more of the same wouldn't show
+        /// </summary>
+        /// <param name="color">The tab's environment colour, or the theme's accent</param>
+        /// <param name="background">The tab's usual background</param>
+        /// <param name="selected">Whether it's the pane's selected tab, already filled with its colour</param>
+        /// <param name="level">From <see cref="PulseLevel"/></param>
+        /// <returns>The colour to fill the tab with</returns>
+        public static Color PulseColour(Color color, Color background, bool selected, float level)
+        {
+            return selected ? Blend(Color.White, color, 0.45f * level) : Blend(color, background, 0.15f + 0.7f * level);
+        }
+
+        /// <summary>Draw the pulsing tabs again at the pulse's new level, straight over them, so nothing else repaints</summary>
+        /// <param name="sender">The timer</param>
+        /// <param name="e">Not used</param>
+        private static void PulseTick(object sender, EventArgs e)
+        {
+            pulsing.RemoveWhere(c => c.IsDisposed);
+            if (pulsing.Count == 0)
+            {
+                pulseTimer.Stop();
+                return;
+            }
+            foreach (DockPaneStripBase strip in hookedStrips)
+            {
+                if (strip.IsHandleCreated && strip.Visible)
+                {
+                    try
+                    {
+                        Paint(strip, true);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug("Could not draw a pulsing tab", ex);
+                    }
+                }
+            }
+        }
 
         /// <summary>
         /// Size the icons for the tab font and work out the padding that makes room for them. frmSuperPutty calls this
@@ -207,6 +312,14 @@ namespace SuperPutty.Gui
         /// <param name="strip">The strip</param>
         private static void Paint(DockPaneStripBase strip)
         {
+            Paint(strip, false);
+        }
+
+        /// <summary>Draw the real icons, environment colours and pulses over a strip's tabs</summary>
+        /// <param name="strip">The strip</param>
+        /// <param name="pulsingOnly">true to draw only the pulsing tabs, whole (the pulse's timer); false after the strip painted</param>
+        private static void Paint(DockPaneStripBase strip, bool pulsingOnly)
+        {
             IEnumerable tabs = typeof(DockPaneStripBase).GetProperty("Tabs", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)?.GetValue(strip) as IEnumerable;
             if (tabs == null)
                 return;
@@ -226,11 +339,29 @@ namespace SuperPutty.Gui
                     IDockContent content = type.GetProperty("Content")?.GetValue(tab) as IDockContent;
                     if (bounds == null || (width is int && (int)width == 0))
                         continue;
+                    bool pulse = IsPulsing(content);
+                    if (pulsingOnly && !pulse)
+                        continue;
 
                     // the environment colour (e.g. red for production): the selected tab is filled with it, others are
                     // tinted with it and get a stripe along the top edge
                     Color? environment = EnvironmentColors.For((content as ctlPuttyPanel)?.Session);
-                    if (environment != null)
+                    if (pulse)
+                    {
+                        // new output: the whole tab pulses in its colour, or the theme's accent
+                        DockContent dockContent = (DockContent)content;
+                        bool selected = dockContent.Pane != null && dockContent.Pane.ActiveContent == content;
+                        Color color = environment ?? Accent(dockContent);
+                        float level = PulseLevel(DateTime.Now - pulseStart, SystemInformation.UIEffectsEnabled);                        FillSelectedTab(g, strip, dockContent, bounds.Value, PulseColour(color, selected && environment != null ? color : TabBackground(dockContent), selected && environment != null, level));
+                        if (environment != null)
+                        {
+                            using (SolidBrush brush = new SolidBrush(environment.Value))
+                            {
+                                g.FillRectangle(brush, bounds.Value.X, bounds.Value.Y, bounds.Value.Width, stripe);
+                            }
+                        }
+                    }
+                    else if (environment != null)
                     {
                         DockContent dockContent = content as DockContent;
                         bool selected = dockContent?.Pane != null && dockContent.Pane.ActiveContent == content;
@@ -270,6 +401,15 @@ namespace SuperPutty.Gui
                     g.DrawImage(BitmapOf(icon), new Rectangle(x, y, size, size));
                 }
             }
+        }
+
+        /// <summary>The theme's accent, which a tab without an environment colour pulses in: its selected tab's colour</summary>
+        /// <param name="content">A tab's content, for its dock panel's theme</param>
+        /// <returns>The colour; Windows' highlight colour if the theme doesn't say</returns>
+        private static Color Accent(DockContent content)
+        {
+            Color? accent = content?.DockPanel?.Theme?.ColorPalette?.TabSelectedActive?.Background;
+            return accent.HasValue && accent.Value != Color.Empty ? accent.Value : SystemColors.Highlight;
         }
 
         /// <summary>The theme's background for unselected tabs, which a hovered tab's colour is mixed with</summary>
