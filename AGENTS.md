@@ -53,6 +53,7 @@ Keep its file tables, known issues and manual test steps accurate. If a change m
 - **First line:** what changed, in under ~72 characters.
 - **Body:** why it changed, and for bug fixes the root cause.
 - **Separate commits:** a bug fix that could go upstream on its own gets its own commit, separate from feature work.
+- **Upstream takes small batches:** SilverGreen93 asked for this fork's changes as small pull requests, one feature or fix each, so keep commits focused enough to cherry-pick. See FORK_CHANGES.md, "Offering changes upstream in small batches".
 
 ## Build and test
 

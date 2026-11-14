@@ -2367,5 +2367,15 @@ Upstream's 38 commits up to `43e7353` move SuperXPuTTY from .NET Framework 4.8 t
 3. Open a session and let it drop: its icon in the tree dims under a red cross; when it reconnects it gets the green dot again.
 4. Repeat 1–3 in the light and dark themes, and at the 24 and 16 pixel icon sizes.
 
+## Offering changes upstream in small batches
+
+SilverGreen93, who maintains [upstream](https://github.com/SilverGreen93/superputty), has asked for this fork's changes as pull requests in **small batches**, so each can be tested and validated on its own. Nothing has been submitted yet. When we do:
+
+- **One feature or fix per pull request**, with the part of this file that describes it (symptom, cause and fix for bugs; manual test steps for features) in the PR's description.
+- **Fixes first.** Bug fixes that also affect upstream are the easiest to review, and their sections here say so (for example the .NET 10 links fix, the ASP.NET Core runtime fix and the Chat icon's hole).
+- **Branch each PR from `upstream/master`** and cherry-pick only its commits, so it carries nothing else from the fork. That's why fixes that could go upstream get their own commits (see AGENTS.md, Commit messages).
+- **Features that build on each other go in order**, each PR only after the one before it is merged: for example the drawn icons before the icon colours, and those before environment colours.
+- **Keep track here** of what's been offered and merged, so later merges from upstream are easy to follow.
+
 ---
 *I used Grok/ChatGPT to learn C# and to generate some of this code, so it may not follow best practices. Feedback on the approach is very welcome.*
